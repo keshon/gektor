@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow/service"
 )
 
@@ -13,7 +14,7 @@ func TestWorkflowUpdatesReplaceNoticeSeverity(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	m.workflows.acceptResult(workflowResult{err: errors.New("cannot save recipe")})
-	if w.noticeLevel != pane.NoticeError || w.notice != "cannot save recipe" || m.chrome.Dialog == nil {
+	if w.noticeLevel != pane.NoticeError || w.notice != "cannot save recipe" || m.chrome.DialogID() == (screen.DialogID{}) {
 		t.Fatal("failure lost its error notice or details dialog")
 	}
 	m.closeDialog()

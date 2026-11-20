@@ -97,9 +97,10 @@ func TestViewDoesNotChangeSelectionOrFocus(t *testing.T) {
 	}
 	m.chrome.Header = screen.MenuState{}
 	m.openHelp()
-	m.chrome.Dialog.Offset = 999
+	m.chrome.ScrollDialog(999)
+	beforeOffset := m.chrome.DialogInfo().Offset
 	m.testView()
-	if m.chrome.Dialog.Offset != 999 {
+	if m.chrome.DialogInfo().Offset != beforeOffset {
 		t.Fatal("Help rendering changed scroll state")
 	}
 }

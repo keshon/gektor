@@ -52,3 +52,34 @@ func TestDialogMetadataAndShortcutsFollowControlLifetime(t *testing.T) {
 		t.Fatal("closed form left stale metadata")
 	}
 }
+
+func TestSnapshotsAndPickerOperationsRespectDialogLifetime(t *testing.T) {
+	var controls, foreign Controls
+	controls.PresentDialog(Dialog{Title: "Information", Lines: []string{"original"}, Actions: []DialogAction{{ID: "open", Label: "Open"}}})
+	id := controls.DialogID()
+	snapshot := controls.DialogSnapshot(id)
+	snapshot.Lines[0] = "changed"
+	snapshot.Actions[0].Label = "changed"
+	if got := controls.DialogSnapshot(id); got.Lines[0] != "original" || got.Actions[0].Label != "Open" {
+		t.Fatal("dialog snapshot shares controls storage")
+	}
+	controls.PresentForm(Form{Title: "Choice", Fields: []form.Field{{Key: "choice", Value: "one"}}, Choices: map[string][]string{"choice": {"one", "two"}}})
+	current := controls.DialogID()
+	if controls.OpenFormPicker(id) != nil || foreign.OpenFormPicker(current) != nil {
+		t.Fatal("stale picker operation produced an effect")
+	}
+	if controls.DialogSnapshot(id).Kind != NoDialog || foreign.DialogSnapshot(current).Kind != NoDialog {
+		t.Fatal("stale dialog returned content")
+	}
+	if _, ok := controls.FormSnapshot(id); ok {
+		t.Fatal("stale form returned values")
+	}
+	if options := controls.FormOptions(id, "choice"); options != nil {
+		t.Fatal("stale form returned choices")
+	}
+	controls.OpenFormPicker(current)
+	formSnapshot, ok := controls.FormSnapshot(current)
+	if !ok || !formSnapshot.PickerOpen {
+		t.Fatal("current picker did not open")
+	}
+}

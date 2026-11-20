@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -135,7 +136,7 @@ func TestWorkflowValidationFocusesNodeAndArgument(t *testing.T) {
 		t.Fatal("invented node", id)
 	}
 	m.workflows.acceptResult(workflowResult{action: "validate-inputs", err: err})
-	if m.chrome.Dialog == nil || w.graph.Selected != "second" {
+	if m.chrome.DialogID() == (screen.DialogID{}) || w.graph.Selected != "second" {
 		t.Fatal("result did not focus error")
 	}
 }
@@ -173,7 +174,7 @@ func TestGeneratedInputInvocationExecutesBoundRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	action := m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction)
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	cmd := m.workflows.action(action)
 	if cmd == nil {
 		t.Fatal("invocation not started")

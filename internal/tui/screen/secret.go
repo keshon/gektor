@@ -11,19 +11,19 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
-// SecretState is isolated from form fields, submission maps and history.
+// secretState is isolated from form fields, submission maps and history.
 // Take consumes the value; closing, replacing or suspending the overlay clears it.
-type SecretState struct {
+type secretState struct {
 	editor      textinput.Model
 	Hint, Error string
 }
 
-func (s *SecretState) Clear() {
+func (s *secretState) Clear() {
 	s.editor.Reset()
 	s.editor.Blur()
 }
 
-func (s *SecretState) Take() string {
+func (s *secretState) Take() string {
 	value := s.editor.Value()
 	s.editor.Reset()
 	return value
@@ -32,20 +32,20 @@ func (s *SecretState) Take() string {
 // TakeSecret consumes the value only from the current secret dialog. Callers
 // must not retain the returned value after handing it to their credential store.
 func (m *Controls) TakeSecret(id DialogID) (string, bool) {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Secret == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Secret == nil {
 		return "", false
 	}
-	return m.Dialog.Secret.Take(), true
+	return m.dialog.Secret.Take(), true
 }
 
 // SetSecretError updates validation feedback only for its originating dialog.
 func (m *Controls) SetSecretError(id DialogID, err error) bool {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Secret == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Secret == nil {
 		return false
 	}
-	m.Dialog.Secret.Error = ""
+	m.dialog.Secret.Error = ""
 	if err != nil {
-		m.Dialog.Secret.Error = err.Error()
+		m.dialog.Secret.Error = err.Error()
 	}
 	m.refreshSecret()
 	return true
@@ -63,13 +63,13 @@ func (m *Controls) PresentSecret(title, hint string) {
 	// Terminal bracketed paste is accepted; no asynchronous clipboard read may outlive this overlay.
 	editor.KeyMap.Paste.SetEnabled(false)
 	_ = editor.Focus() // A steady virtual caret needs no blink command.
-	m.Dialog.Secret = &SecretState{editor: editor, Hint: hint}
-	m.Dialog.Shortcuts = []popup.Shortcut{{Key: "Ctrl+S", Action: "save encrypted"}, {Key: "Esc", Action: "cancel"}}
+	m.dialog.Secret = &secretState{editor: editor, Hint: hint}
+	m.dialog.Shortcuts = []popup.Shortcut{{Key: "Ctrl+S", Action: "save encrypted"}, {Key: "Esc", Action: "cancel"}}
 	m.refreshSecret()
 }
 
 func (m *Controls) SecretInput(msg tea.Msg) tea.Cmd {
-	s := m.Dialog.Secret
+	s := m.dialog.Secret
 	if key, ok := msg.(tea.KeyPressMsg); ok {
 		switch key.String() {
 		case "esc":
@@ -98,14 +98,14 @@ func (m *Controls) SecretInput(msg tea.Msg) tea.Cmd {
 }
 
 func (m *Controls) refreshSecret() {
-	s := m.Dialog.Secret
+	s := m.dialog.Secret
 	_, _, width, _ := m.Area()
 	s.editor.SetWidth(max(popup.ModalWidth(width, 0)-14, 8))
-	m.Dialog.Lines = []string{s.Hint, "", s.editor.View()}
+	m.dialog.Lines = []string{s.Hint, "", s.editor.View()}
 	if s.Error != "" {
-		m.Dialog.Lines = append(m.Dialog.Lines, "", s.Error)
+		m.dialog.Lines = append(m.dialog.Lines, "", s.Error)
 	}
 }
 
-func (s *SecretState) String() string   { return "[masked secret input]" }
-func (s *SecretState) GoString() string { return "[masked secret input]" }
+func (s *secretState) String() string   { return "[masked secret input]" }
+func (s *secretState) GoString() string { return "[masked secret input]" }

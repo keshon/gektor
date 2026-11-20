@@ -1,6 +1,7 @@
 package tui
 
 import (
+ "github.com/keshon/gektor/internal/tui/screen"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -116,7 +117,7 @@ func TestWorkflowGlobalNavigationStaysWithRoot(t *testing.T) {
 	m.closeHeader()
 	seedWorkflow(t, m, workflowRecipe())
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF10})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Quit with unsaved workflow?" || m.quit {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Title != "Quit with unsaved workflow?" || m.quit {
 		t.Fatal("workflow bypassed the root's unsaved-draft protection")
 	}
 }

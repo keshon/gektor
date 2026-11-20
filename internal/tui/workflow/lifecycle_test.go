@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
@@ -33,7 +34,7 @@ func TestClosedScreenReleasesWaitAndRejectsLateWork(t *testing.T) {
 	before := model.editor.Source()
 	model.Update(workflowResult{action: "open-path", source: before, path: "late.json"})
 	model.Command("add")
-	if model.editor.Path != "" || model.editor.Source() != before || host.chrome.Dialog != nil {
+	if model.editor.Path != "" || model.editor.Source() != before || host.chrome.DialogID() != (screen.DialogID{}) {
 		t.Fatal("late work changed a closed screen or opened a dialog")
 	}
 }

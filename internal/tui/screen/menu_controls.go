@@ -165,7 +165,7 @@ func (m *Controls) HeaderMouse(msg tea.MouseMsg) (bool, string) {
 		}
 	}
 
-	if m.Dialog != nil || m.Props.Blocked {
+	if m.dialog != nil || m.Props.Blocked {
 		return false, ""
 	}
 	if m.ActionBarVisible() && mouse.Y >= m.Props.Height-m.ActionBarRows() {
@@ -210,7 +210,7 @@ func (m *Controls) NormalizeHeader() {
 
 // MenuCells measures the application menu row, respecting blocked input ownership.
 func (m *Controls) MenuCells() []ActionCell {
-	enabled := m.Dialog == nil && !m.Props.Blocked
+	enabled := m.dialog == nil && !m.Props.Blocked
 	x := 1
 	var cells []ActionCell
 	menus := m.VisibleMenus()

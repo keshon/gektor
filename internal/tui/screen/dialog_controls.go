@@ -18,7 +18,7 @@ import (
 
 // DialogView renders the current overlay inside its available rectangle.
 func (m *Controls) DialogView() string {
-	if m.Dialog.Form != nil {
+	if m.dialog.Form != nil {
 		return m.FormView()
 	}
 	rows, width, height := m.DialogRows()
@@ -27,8 +27,8 @@ func (m *Controls) DialogView() string {
 
 // OverlayDialog paints the current overlay over the supplied pane body.
 func (m *Controls) OverlayDialog(background string) string {
-	if m.Dialog.Form != nil {
-		return m.Dialog.Form.Overlay(background, m.FormProps())
+	if m.dialog.Form != nil {
+		return m.dialog.Form.Overlay(background, m.FormProps())
 	}
 	rows, width, height := m.DialogRows()
 	return popup.OverlayBox(background, rows, width, height, m.dialogWidth(width), m.popupSurface())
@@ -36,12 +36,12 @@ func (m *Controls) OverlayDialog(background string) string {
 
 // DialogRows fits the open table or information overlay without changing scroll state.
 func (m *Controls) DialogRows() ([]string, int, int) {
-	if m.Dialog.Table != nil {
+	if m.dialog.Table != nil {
 		p := m.TableProps()
-		return m.Dialog.Table.model.Layout(p).Rows, p.Width, p.Height
+		return m.dialog.Table.model.Layout(p).Rows, p.Width, p.Height
 	}
 	layout := m.LayoutDialog()
-	offset := min(max(m.Dialog.Offset, 0), max(len(layout.Lines)-layout.Capacity, 0))
+	offset := min(max(m.dialog.Offset, 0), max(len(layout.Lines)-layout.Capacity, 0))
 	rows := layout.Rows
 	body := []string{}
 	for _, line := range layout.Lines[offset:min(offset+layout.Capacity, len(layout.Lines))] {
@@ -57,16 +57,16 @@ func (m *Controls) DialogRows() ([]string, int, int) {
 
 // ScrollDialog clamps an information overlay to its scrollable range.
 func (m *Controls) ScrollDialog(delta int) {
-	if m.Dialog == nil || m.Dialog.Form != nil || m.Dialog.Table != nil {
+	if m.dialog == nil || m.dialog.Form != nil || m.dialog.Table != nil {
 		return
 	}
 	layout := m.LayoutDialog()
-	m.Dialog.Offset = min(max(m.Dialog.Offset+delta, 0), max(len(layout.Lines)-layout.Capacity, 0))
+	m.dialog.Offset = min(max(m.dialog.Offset+delta, 0), max(len(layout.Lines)-layout.Capacity, 0))
 }
 
 // LayoutDialog measures the open information overlay for painting and hit testing.
 func (m *Controls) LayoutDialog() DialogLayout {
-	d := m.Dialog
+	d := m.dialog
 	availW, availH := m.Props.Width, m.Props.Height-3
 	if m.Props.Ready {
 		_, _, availW, availH = m.Area()
@@ -119,26 +119,26 @@ func (m *Controls) LayoutDialog() DialogLayout {
 
 // FormView renders the open form using the shared overlay geometry.
 func (m *Controls) FormView() string {
-	return m.Dialog.Form.View(m.FormProps())
+	return m.dialog.Form.View(m.FormProps())
 }
 
 // UpdateFormInput routes paste and editor messages to the open form or table; other overlays ignore them.
 func (m *Controls) UpdateFormInput(msg tea.Msg) tea.Cmd {
-	if m.Dialog != nil && m.Dialog.Secret != nil {
+	if m.dialog != nil && m.dialog.Secret != nil {
 		return m.SecretInput(msg)
 	}
-	if m.Dialog != nil && m.Dialog.Table != nil {
+	if m.dialog != nil && m.dialog.Table != nil {
 		return m.TableInput(msg)
 	}
-	if m.Dialog == nil || m.Dialog.Form == nil {
+	if m.dialog == nil || m.dialog.Form == nil {
 		return nil
 	}
-	return m.Dialog.Form.UpdateInput(msg)
+	return m.dialog.Form.UpdateInput(msg)
 }
 
 // FocusForm selects a visible field or button and refits its editor.
 func (m *Controls) FocusForm(index int) {
-	f := m.Dialog.Form
+	f := m.dialog.Form
 	f.Focus(index, m.FieldVisible)
 
 	m.ResizeFormEditor()
@@ -147,26 +147,26 @@ func (m *Controls) FocusForm(index int) {
 // OpenForm initializes draft editing; confirmation emits an Apply event.
 func (m *Controls) OpenForm(title, hint, applyLabel string, fields []form.Field) {
 	m.Open(title, nil)
-	f := &FormState{Model: fieldform.NewModel(fields, m.NewEditor())}
+	f := &formState{Model: fieldform.NewModel(fields, m.NewEditor())}
 	f.Hint, f.ApplyLabel = hint, applyLabel
 	f.Editor.SetVirtualCursor(true)
 	f.Editor.DynamicHeight = false
 	f.Editor.Prompt = ""
 	f.Editor.CharLimit = 65536
-	m.Dialog.Form = f
+	m.dialog.Form = f
 	m.FocusForm(0)
 }
 
 // OpenRemoval opens a destructive confirmation with Cancel initially selected.
 func (m *Controls) OpenRemoval(title, hint, label string, fields []form.Field) {
 	m.OpenForm(title, hint, label, fields)
-	m.Dialog.Form.Destructive = true
+	m.dialog.Form.Destructive = true
 	m.FocusForm(len(fields) + 1)
 }
 
 // ApplyForm closes on success and keeps validation errors beside the current draft.
 func (m *Controls) ApplyForm() {
-	f := m.Dialog.Form
+	f := m.dialog.Form
 	if f.DisablePrimary {
 		return
 	}
@@ -175,7 +175,7 @@ func (m *Controls) ApplyForm() {
 
 // FormKey interprets a key in the open form and applies any resulting intent.
 func (m *Controls) FormKey(msg tea.KeyPressMsg) tea.Cmd {
-	intent, cmd := m.Dialog.Form.UpdateKey(msg, m.FormProps())
+	intent, cmd := m.dialog.Form.UpdateKey(msg, m.FormProps())
 	m.ResizeFormEditor()
 	return tea.Batch(cmd, m.HandleIntent(intent))
 }
@@ -188,7 +188,7 @@ func (m *Controls) HandleIntent(intent fieldform.Intent) tea.Cmd {
 	case fieldform.Cancel:
 		m.Close()
 	case fieldform.SaveCopy:
-		if m.Dialog.Form.SaveCopy {
+		if m.dialog.Form.SaveCopy {
 			m.events = append(m.events, Event{Kind: SaveCopy, ID: m.DialogID()})
 		}
 	}
@@ -197,17 +197,17 @@ func (m *Controls) HandleIntent(intent fieldform.Intent) tea.Cmd {
 
 // FormMouse uses the same form layout for pointer input and painting.
 func (m *Controls) FormMouse(msg tea.MouseMsg) tea.Cmd {
-	intent, cmd := m.Dialog.Form.Mouse(msg, m.FormProps())
+	intent, cmd := m.dialog.Form.Mouse(msg, m.FormProps())
 	m.ResizeFormEditor()
 	return tea.Batch(cmd, m.HandleIntent(intent))
 }
 
 // ResizeFormEditor refits the active field after a resize or focus change.
 func (m *Controls) ResizeFormEditor() {
-	if m.Dialog == nil || m.Dialog.Form == nil {
+	if m.dialog == nil || m.dialog.Form == nil {
 		return
 	}
-	f := m.Dialog.Form
+	f := m.dialog.Form
 	f.Editor.SetWidth(max(popup.ModalWidth(m.Props.Area.Width, 0)-5, 1))
 	height := 1
 	if f.Index < len(f.Fields) && f.Fields[f.Index].Multiline {
@@ -217,18 +217,18 @@ func (m *Controls) ResizeFormEditor() {
 }
 
 // FieldVisible reports whether the open form currently displays a field.
-func (m *Controls) FieldVisible(index int) bool { return m.Dialog.Form.FieldVisible(index) }
+func (m *Controls) FieldVisible(index int) bool { return m.dialog.Form.FieldVisible(index) }
 
 // FormRows returns rendered rows and the matching control hit regions.
 func (m *Controls) FormRows() ([]string, []form.Hit, int, int) {
-	return m.Dialog.Form.Rows(m.FormProps())
+	return m.dialog.Form.Rows(m.FormProps())
 }
 
 // TableProps reads the prepared table snapshot and shared bounds.
 func (m *Controls) TableProps() table.Props {
-	d := m.Dialog.Table
+	d := m.dialog.Table
 	_, _, width, height := m.Area()
-	return table.Props{Title: m.Dialog.Title, Description: d.Description, EmptyMessage: d.EmptyMessage, Width: width, Height: height, DefaultAction: "details", PreferredWidth: m.dialogWidth(width), List: d.List,
+	return table.Props{Title: m.dialog.Title, Description: d.Description, EmptyMessage: d.EmptyMessage, Width: width, Height: height, DefaultAction: "details", PreferredWidth: m.dialogWidth(width), List: d.List,
 		Columns: d.Columns, Actions: d.Actions, Surface: m.popupSurface(),
 		Styles: form.Styles{Normal: m.popupSurface().Normal, Title: m.Props.Styles.Title, Muted: m.Props.Styles.Dim,
 			Focus: m.Props.Styles.Focus, Disabled: m.Props.Styles.Disabled, Error: m.Props.Styles.Err}}
@@ -237,10 +237,10 @@ func (m *Controls) TableProps() table.Props {
 // TableInput handles table navigation, filtering, and stable-ID activation.
 func (m *Controls) TableInput(msg tea.Msg) tea.Cmd {
 	if key, ok := msg.(tea.KeyPressMsg); ok && key.String() == "f11" {
-		m.Dialog.Maximized = !m.Dialog.Maximized
+		m.dialog.Maximized = !m.dialog.Maximized
 		return nil
 	}
-	model := m.Dialog.Table.model
+	model := m.dialog.Table.model
 	model.Search.SetStyles(m.palette().TextInputStyles(model.Search.Styles()))
 	props := m.TableProps()
 	action, cmd := model.Update(msg, props)
@@ -257,7 +257,7 @@ func (m *Controls) TableAction(action string) tea.Cmd {
 		m.Close()
 		return nil
 	}
-	d := m.Dialog.Table
+	d := m.dialog.Table
 	id := d.model.Selected()
 	m.events = append(m.events, Event{Kind: TableAction, ID: m.DialogID(), Action: action, Row: id})
 	return nil
@@ -271,7 +271,7 @@ func (m *Controls) NewTable() TableID {
 
 // DialogScrollbarMouse retains thumb ownership until release, including outside the scrollbar.
 func (m *Controls) DialogScrollbarMouse(msg tea.MouseMsg) bool {
-	d := m.Dialog
+	d := m.dialog
 	if d == nil || d.Form != nil || d.Table != nil {
 		return false
 	}
@@ -290,11 +290,11 @@ func (m *Controls) DialogScrollbarMouse(msg tea.MouseMsg) bool {
 
 // InfoKey consumes keys for the open information overlay; the shell handles application quit policy.
 func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
-	m.Dialog.Drag = popup.ScrollDrag{}
-	if m.Dialog.Secret != nil {
+	m.dialog.Drag = popup.ScrollDrag{}
+	if m.dialog.Secret != nil {
 		return m.SecretInput(msg)
 	}
-	for _, action := range m.Dialog.Actions {
+	for _, action := range m.dialog.Actions {
 		if strings.EqualFold(msg.String(), string(action.Key)) {
 			m.events = append(m.events, Event{Kind: DialogActionRequested, ID: m.DialogID(), Action: action.ID})
 			return nil
@@ -307,7 +307,7 @@ func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
 	// this branch; an info dialog has nothing to confirm.
 	switch msg.String() {
 	case "f11":
-		m.Dialog.Maximized = !m.Dialog.Maximized
+		m.dialog.Maximized = !m.dialog.Maximized
 		return nil
 	case "n", "N", "esc":
 		m.Close()
@@ -318,7 +318,7 @@ func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "ctrl+c":
 		return tea.Quit
 	}
-	if !m.Dialog.Help {
+	if !m.dialog.Help {
 		switch msg.String() {
 		case "down":
 			m.ScrollDialog(1)
@@ -330,14 +330,14 @@ func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.ScrollDialog(-max(m.Props.Area.Height/2, 1))
 		}
 	}
-	if m.Dialog.Help && len(m.Props.Help) > 0 {
+	if m.dialog.Help && len(m.Props.Help) > 0 {
 		switch msg.String() {
 		case "tab", "right":
-			m.Dialog.Page = (m.Dialog.Page + 1) % len(m.Props.Help)
-			m.Dialog.Offset = 0
+			m.dialog.Page = (m.dialog.Page + 1) % len(m.Props.Help)
+			m.dialog.Offset = 0
 		case "shift+tab", "left":
-			m.Dialog.Page = (m.Dialog.Page + len(m.Props.Help) - 1) % len(m.Props.Help)
-			m.Dialog.Offset = 0
+			m.dialog.Page = (m.dialog.Page + len(m.Props.Help) - 1) % len(m.Props.Help)
+			m.dialog.Offset = 0
 		case "down":
 			m.ScrollDialog(1)
 		case "up":
@@ -352,8 +352,8 @@ func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (m *Controls) dialogWidth(area int) int {
-	preferred := m.Dialog.PreferredWidth
-	if m.Dialog.Maximized {
+	preferred := m.dialog.PreferredWidth
+	if m.dialog.Maximized {
 		preferred = area
 	}
 	return popup.ModalWidth(area, preferred)
@@ -362,7 +362,7 @@ func (m *Controls) dialogWidth(area int) int {
 // DialogInput routes overlay input without requiring hosts to inspect its type.
 // Application-wide shortcuts and quit policy remain the host's responsibility.
 func (m *Controls) DialogInput(msg tea.Msg) tea.Cmd {
-	if m.Dialog == nil {
+	if m.dialog == nil {
 		return nil
 	}
 	if mouse, ok := msg.(tea.MouseMsg); ok {
@@ -370,11 +370,11 @@ func (m *Controls) DialogInput(msg tea.Msg) tea.Cmd {
 	}
 	if key, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
-		case m.Dialog.Secret != nil:
+		case m.dialog.Secret != nil:
 			return m.SecretInput(key)
-		case m.Dialog.Table != nil:
+		case m.dialog.Table != nil:
 			return m.TableInput(key)
-		case m.Dialog.Form != nil:
+		case m.dialog.Form != nil:
 			return m.FormKey(key)
 		default:
 			return m.InfoKey(key)

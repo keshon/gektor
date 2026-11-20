@@ -69,7 +69,7 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 		t.Fatal(m.chrome.TableSnapshot(m.chrome.DialogID()).Rows)
 	}
 	m.confirmStopProcess(id, view)
-	if !m.chrome.Dialog.Form.Destructive || m.chrome.Dialog.Form.Index != 1 {
+	if !testFormSnapshot(m).Destructive || testFormSnapshot(m).Index != 1 {
 		t.Fatal("stop confirmation must default to Cancel")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -81,13 +81,13 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	m.confirmStopProcess(id, view)
 	m.testControls().FocusForm(0)
 	m.applyTestForm()
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("confirmation did not close")
 	}
 	msg := m.pendingCommands[0]().(processStopMsg)
 	m.pendingCommands = nil
 	cmd := m.stopProcess(msg)
-	if cmd == nil || m.chrome.Dialog == nil {
+	if cmd == nil || m.chrome.DialogInfo().Kind == 0 {
 		t.Fatal("stop did not start asynchronously")
 	}
 	result := cmd().(processStoppedMsg)
@@ -98,10 +98,10 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	if p, _, _ := m.baseEnv.Procs.Inspect(id); !p.Exited || !p.Stopped {
 		t.Fatal(p)
 	}
-	if m.chrome.Dialog.Table == nil || processStatus(m.baseEnv.Procs.List()[0]) != "Stopped" {
+	if !testTableOpen(m) || processStatus(m.baseEnv.Procs.List()[0]) != "Stopped" {
 		t.Fatal("manager did not return after stop")
 	}
-	for _, a := range m.chrome.Dialog.Table.Actions {
+	for _, a := range m.chrome.TableSnapshot(m.chrome.DialogID()).Actions {
 		if a.ID == "stop" && a.Enabled {
 			t.Fatal("stopped process remains stoppable")
 		}
@@ -113,23 +113,23 @@ func TestProcessManagerOutputReturnAndLateCompletion(t *testing.T) {
 	m.openProcesses(screen.TableID{})
 	view := m.processTable
 	m.inspectProcess(id, view)
-	if text := strings.Join(m.chrome.Dialog.Lines, "\n"); !strings.Contains(text, "Workspace:") || !strings.Contains(text, "managed output marker") {
-		t.Fatal(m.chrome.Dialog.Lines)
+	if text := strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"); !strings.Contains(text, "Workspace:") || !strings.Contains(text, "managed output marker") {
+		t.Fatal(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines)
 	}
 	m.chrome.Close()
 	m.syncControls()
 	m.testUpdate(processListMsg{view})
-	if m.chrome.Dialog.Table == nil || m.chrome.TableSelectedID(m.chrome.DialogID()) != id {
+	if !testTableOpen(m) || m.chrome.TableSelectedID(m.chrome.DialogID()) != id {
 		t.Fatal("return lost process selection")
 	}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	cmd := m.stopProcess(processStopMsg{id, view})
 	m.chrome.Close()
 	m.syncControls()
 	m.testControls().Open("Another dialog", []string{"keep this"})
-	other := m.chrome.Dialog
+	other := m.chrome.DialogID()
 	m.testUpdate(cmd())
-	if m.chrome.Dialog != other {
+	if m.chrome.DialogID() != other {
 		t.Fatal("late stop completion stole focus")
 	}
 }

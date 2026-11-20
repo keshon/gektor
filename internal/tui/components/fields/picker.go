@@ -152,7 +152,7 @@ func (f *Model) AcceptScan(msg ScanMsg) {
 	p.Loading = false
 	p.DetailPath = ""
 	p.Detail = ""
-	p.Items = msg.Items
+	p.Items = slices.Clone(msg.Items)
 	p.Err = ""
 	if msg.Err != nil {
 		p.Err = msg.Err.Error()

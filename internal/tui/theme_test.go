@@ -24,7 +24,7 @@ func TestEveryThemeCanBeChosenSavedAndReopened(t *testing.T) {
 				t.Fatalf("command did not save and apply %s: %+v, %v", theme, p, err)
 			}
 			m.openTheme()
-			if m.chrome.Dialog.Form.Editor.Value() != theme {
+			if formSnapshot(m).EditorValue != theme {
 				t.Fatal("theme form lost the saved selection")
 			}
 			if settings.ChoiceLabel("theme", theme) == theme {
@@ -50,7 +50,7 @@ func TestThemeChangesOnlyAppearanceAndPersists(t *testing.T) {
 	}
 	draft := draftOf(m)
 	m.openTheme()
-	m.chrome.Dialog.Form.Editor.SetValue("light")
+	replaceFormText(m, "light")
 	m.applyForm()
 	p, err := config.LoadPreferences(path)
 	after, err2 := os.ReadFile(stateFileOf(m))
@@ -74,7 +74,7 @@ func TestInlineThemeChangesStayInDraftUntilApply(t *testing.T) {
 	*m.application = Application{PreferencePath: path, Preferences: p}
 	m.openTheme()
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.chrome.Dialog.Form.Picker != nil || m.chrome.Dialog.Form.Editor.Value() != "light" || currentPalette().Name != "dark" {
+	if formSnapshot(m).Picker != nil || formSnapshot(m).EditorValue != "light" || currentPalette().Name != "dark" {
 		t.Fatal("inline choice opened another modal or applied before confirmation")
 	}
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -86,7 +86,7 @@ func TestInlineThemeChangesStayInDraftUntilApply(t *testing.T) {
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
 	m.formKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	saved, err = config.LoadPreferences(path)
-	if err != nil || saved.Theme != "light" || currentPalette().Name != "light" || m.chrome.Dialog != nil {
+	if err != nil || saved.Theme != "light" || currentPalette().Name != "light" || m.chrome.DialogInfo().Kind != screen.NoDialog {
 		t.Fatal("Apply did not save and apply the staged choice")
 	}
 }

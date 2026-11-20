@@ -37,7 +37,7 @@ func TestReuseInteractionPreview(t *testing.T) {
 
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 		m.editSettings("generation")
-		m.chrome.Dialog.Form.Error = strings.Repeat("The response could not be saved. ", 30) + "Check the target directory permissions and try again."
+		m.chrome.FormFeedback(m.chrome.DialogID(), strings.Repeat("The response could not be saved. ", 30)+"Check the target directory permissions and try again.")
 		m.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
 		path = filepath.Join(dir, fmt.Sprintf("error-details-%d.ansi", width))
@@ -65,7 +65,7 @@ func TestModalCleanupPreview(t *testing.T) {
 			t.Fatal(err)
 		}
 		m.focusForm(0)
-		m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
+		m.chrome.OpenFormPicker(m.chrome.DialogID())
 		if err := os.WriteFile(filepath.Join(dir, "modal-picker-"+theme+".ansi"), []byte(m.View().Content), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -129,11 +129,11 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	}
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
-	p := m.chrome.Dialog.Form.Picker
+	m.chrome.OpenFormPicker(m.chrome.DialogID())
+	p := formSnapshot(m).Picker
 	m.Update(fieldform.ScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
 	write("profile-picker")
-	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.editSettings("prompts")
 	write("prompts-page")
 }

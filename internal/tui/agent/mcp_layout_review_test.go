@@ -75,7 +75,7 @@ func TestMCPReviewLayouts(t *testing.T) {
 				}
 			}
 			m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
-			if m.chrome.Dialog == nil || m.chrome.TableSnapshot(m.chrome.DialogID()).MoreOpen || m.chrome.TableSelectedID(m.chrome.DialogID()) != selected {
+			if m.chrome.DialogInfo().Kind == 0 || m.chrome.TableSnapshot(m.chrome.DialogID()).MoreOpen || m.chrome.TableSelectedID(m.chrome.DialogID()) != selected {
 				t.Fatal("returning from More lost the server list")
 			}
 			for _, row := range layout.Rows {

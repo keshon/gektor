@@ -19,33 +19,33 @@ type Controls struct {
 	Props  ControlProps
 	events []Event
 	Header MenuState
-	Dialog *DialogState
+	dialog *dialogState
 }
 
 // Open copies the content and replaces the current overlay. Replacement does not
 // restore underlying focus; the shell observes one continuous overlay lifetime.
 func (m *Controls) Open(title string, lines []string) {
-	first := m.Dialog == nil
-	if m.Dialog != nil {
-		if m.Dialog.Secret != nil {
-			m.Dialog.Secret.Clear()
+	first := m.dialog == nil
+	if m.dialog != nil {
+		if m.dialog.Secret != nil {
+			m.dialog.Secret.Clear()
 		}
 		m.events = append(m.events, Event{Kind: Replaced, ID: m.DialogID()})
 	}
-	m.Dialog = &DialogState{Title: title, Lines: append([]string(nil), lines...)}
+	m.dialog = &dialogState{Title: title, Lines: append([]string(nil), lines...)}
 	m.events = append(m.events, Event{Kind: Opened, ID: m.DialogID(), First: first})
 }
 
 func (m *Controls) Close() {
-	if m.Dialog == nil {
+	if m.dialog == nil {
 		return
 	}
-	dialog := m.Dialog
+	dialog := m.dialog
 	id := m.DialogID()
 	if dialog.Secret != nil {
 		dialog.Secret.Clear()
 	}
-	m.Dialog = nil
+	m.dialog = nil
 	m.events = append(m.events, Event{Kind: Closed, ID: id})
 }
 
@@ -64,17 +64,17 @@ type Drag struct {
 	Moved  bool
 }
 
-// DialogState holds controls-owned presentation state. Its identity is retained
+// dialogState holds controls-owned presentation state. Its identity is retained
 // in events so owners can discard results from replaced overlays.
-type DialogState struct {
+type dialogState struct {
 	suspended bool
-	Table     *TableState
-	Secret    *SecretState
+	Table     *tableState
+	Secret    *secretState
 	Shortcuts []popup.Shortcut
 
 	Drag           popup.ScrollDrag
 	Actions        []DialogAction
-	Form           *FormState
+	Form           *formState
 	Title          string
 	PreferredWidth int
 	Maximized      bool
@@ -83,14 +83,14 @@ type DialogState struct {
 	Page, Offset   int
 }
 
-// FormState holds the draft only; the opening feature owns its submission.
-type FormState struct {
+// formState holds the draft only; the opening feature owns its submission.
+type formState struct {
 	fieldform.Model
 	SaveCopy bool
 }
 
-// TableState keeps presentation and stable-ID actions together for an overlay.
-type TableState struct {
+// tableState keeps presentation and stable-ID actions together for an overlay.
+type tableState struct {
 	model                     *table.Model
 	List                      bool
 	Columns                   []table.Column

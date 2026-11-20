@@ -33,14 +33,14 @@ func TestPermissionsFilterKeepsRuleOrderAndFullDetails(t *testing.T) {
 		t.Fatal("precedence or filtered rule missing")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "*.env · keep this full pattern") {
+	if testTableOpen(m) || !strings.Contains(strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"), "*.env · keep this full pattern") {
 		t.Fatal("Details lost the full rule")
 	}
 	m.chrome.Close()
 	m.syncControls()
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
 	m.testUpdate(msg)
-	if m.chrome.Dialog.Table == nil || m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "read_file" || m.chrome.TableSelectedID(m.chrome.DialogID()) != "1" {
+	if !testTableOpen(m) || m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "read_file" || m.chrome.TableSelectedID(m.chrome.DialogID()) != "1" {
 		t.Fatal("returning from Details lost table state")
 	}
 	m.chrome.Close()
@@ -95,7 +95,7 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 					break
 				}
 			}
-			if m.chrome.Dialog != nil {
+			if m.chrome.DialogInfo().Kind != 0 {
 				t.Fatal("table trapped focus")
 			}
 			m.mcp, m.state = manager, stDone
@@ -105,7 +105,7 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 				t.Fatalf("%s %v: MCP table exceeds pane", theme, size)
 			}
 			m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-			if m.chrome.Dialog != nil {
+			if m.chrome.DialogInfo().Kind != 0 {
 				t.Fatal("MCP table trapped focus")
 			}
 		}
@@ -137,7 +137,7 @@ func TestReturningToTableDoesNotReplaceAnotherDialog(t *testing.T) {
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
 	m.testControls().Open("Another dialog", nil)
 	m.testUpdate(msg)
-	if m.chrome.Dialog.Title != "Another dialog" {
+	if m.chrome.DialogInfo().Title != "Another dialog" {
 		t.Fatal("late table return replaced a newer dialog")
 	}
 }

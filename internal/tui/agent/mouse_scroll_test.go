@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/tui/screen"
 
 	"github.com/keshon/gektor/internal/events"
 )
@@ -96,12 +97,12 @@ func TestWheelScrollsTheDialogNotTheTranscript(t *testing.T) {
 	}
 	m.testControls().Open("long", rows)
 	m.testView() // the offset is clamped against the visible capacity at render
-	if m.chrome.Dialog.Offset != 0 {
+	if m.chrome.DialogInfo().Offset != 0 {
 		t.Fatal("a dialog longer than the pane does not start at the top")
 	}
 	_, _ = m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
-	if m.chrome.Dialog.Offset != 1 {
-		t.Fatalf("the dialog did not scroll: offset=%d", m.chrome.Dialog.Offset)
+	if m.chrome.DialogInfo().Offset != 1 {
+		t.Fatalf("the dialog did not scroll: offset=%d", m.chrome.DialogInfo().Offset)
 	}
 	if got := m.transcript.Viewport.YOffset(); got != before {
 		t.Fatalf("the transcript moved behind the overlay: %d -> %d", before, got)
@@ -129,9 +130,9 @@ func TestDialogOverscrollRespondsToTheFirstReverseStep(t *testing.T) {
 		m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	}
 	before := m.testView().Content
-	bottom := m.chrome.Dialog.Offset
+	bottom := m.chrome.DialogInfo().Offset
 	m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
-	if m.chrome.Dialog.Offset != bottom-1 || m.testView().Content == before {
+	if m.chrome.DialogInfo().Offset != bottom-1 || m.testView().Content == before {
 		t.Fatal("reverse wheel was swallowed by an invisible overscroll")
 	}
 	for range 200 {
@@ -149,14 +150,13 @@ func TestHelpCategoriesStayWithinVisibleSections(t *testing.T) {
 	for _, title := range []string{"Help", "Commands", "Keyboard shortcuts"} {
 		t.Run(title, func(t *testing.T) {
 			m := sizeModel(t, testModel())
-			m.testControls().Open(title, nil)
-			m.chrome.Dialog.Help = true
+			m.testControls().PresentDialog(screen.Dialog{Title: title, Help: true})
 			count := len(m.dialogHelpSections())
 			for _, key := range []rune{tea.KeyRight, tea.KeyLeft, tea.KeyTab} {
 				for range 12 {
 					m.testUpdate(tea.KeyPressMsg{Code: key})
-					if m.chrome.Dialog.Page < 0 || m.chrome.Dialog.Page >= count {
-						t.Fatalf("category %d outside %d sections", m.chrome.Dialog.Page, count)
+					if m.chrome.DialogInfo().Page < 0 || m.chrome.DialogInfo().Page >= count {
+						t.Fatalf("category %d outside %d sections", m.chrome.DialogInfo().Page, count)
 					}
 					m.testView()
 					m.testUpdate(tea.WindowSizeMsg{Width: 100, Height: 30})

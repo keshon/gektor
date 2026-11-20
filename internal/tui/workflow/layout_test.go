@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
@@ -36,10 +38,10 @@ func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
 		t.Fatal("locking disabled panning")
 	}
 	m.workflows.key(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Kind != screen.FormDialog {
 		t.Fatal("locking disabled argument editing")
 	}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	w.positionsLocked = false
 	m.workflows.loadLayout()
 	if !w.positionsLocked {

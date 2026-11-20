@@ -16,8 +16,8 @@ func TestEnterRunsACommandThatTakesNoArgument(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/hel")
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Help" {
-		t.Fatalf("Enter did not run /help; dialog = %+v", m.chrome.Dialog)
+	if m.chrome.DialogInfo().Kind == 0 || m.chrome.DialogInfo().Title != "Help" {
+		t.Fatalf("Enter did not run /help; dialog = %+v", m.chrome.DialogInfo())
 	}
 	if m.input.Value() != "" {
 		t.Fatalf("composer kept %q after the command ran", m.input.Value())
@@ -43,7 +43,7 @@ func TestTabAlwaysInserts(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/help")
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("Tab ran the command")
 	}
 	if m.input.Value() != "/help " {

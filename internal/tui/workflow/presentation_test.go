@@ -31,8 +31,8 @@ func TestScreenUsesCurrentSurfaceAndSharedDialogs(t *testing.T) {
 	}
 	child.Activate()
 	child.Command("help")
-	if controls.Dialog.Title != "Workflow keys" {
-		t.Fatal("shared dialog host was not connected", controls.Dialog.Title)
+	if controls.DialogInfo().Title != "Workflow keys" {
+		t.Fatal("shared dialog host was not connected", controls.DialogInfo().Title)
 	}
 	width, height := child.CanvasSize()
 	surface.Area.Width, surface.Area.Height = 60, 18

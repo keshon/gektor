@@ -50,7 +50,7 @@ func TestCompletionMouseSelectsWithoutRunningAndClosePreservesDraft(t *testing.T
 	m.syncSuggestions()
 	l, x, y := m.suggestionLayout()
 	m.handleMouse(tea.MouseClickMsg{X: x + 2, Y: y + l.BodyTop + 1, Button: tea.MouseLeft})
-	if m.suggestions.Selected != 1 || m.chrome.Dialog != nil || m.sessions != nil || m.input.Value() != "/" {
+	if m.suggestions.Selected != 1 || m.chrome.DialogInfo().Kind != 0 || m.sessions != nil || m.input.Value() != "/" {
 		t.Fatal("completion click executed or inserted a command")
 	}
 	selected, offset := m.suggestions.Selected, m.transcript.Viewport.YOffset()

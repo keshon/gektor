@@ -154,7 +154,7 @@ func TestLearnReviewReopensFailureWithoutInference(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, cmd := m.learn("review")
-	if cmd != nil || calls != 0 || m.chrome.Dialog == nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), f.LastValidation) {
+	if cmd != nil || calls != 0 || m.chrome.DialogInfo().Kind == 0 || !strings.Contains(strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"), f.LastValidation) {
 		t.Fatal("failure not reopened locally")
 	}
 }

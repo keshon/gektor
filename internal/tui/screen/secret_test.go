@@ -38,10 +38,10 @@ func TestSecretInputIsMaskedAndConsumedOutsideOrdinaryForms(t *testing.T) {
 	controls.PresentSecret("Save encrypted credential", "Windows account storage")
 	controls.SecretInput(tea.PasteMsg{Content: "private-secret-sentinel"})
 	rendered := controls.DialogView()
-	if strings.Contains(rendered, "private-secret-sentinel") || controls.Dialog.Form != nil {
+	if strings.Contains(rendered, "private-secret-sentinel") || controls.dialog.Form != nil {
 		t.Fatal("secret entered ordinary form or rendered plaintext")
 	}
-	if strings.Contains(fmt.Sprintf("%#v", controls.Dialog.Secret), "sentinel") {
+	if strings.Contains(fmt.Sprintf("%#v", controls.dialog.Secret), "sentinel") {
 		t.Fatal("diagnostic representation exposed secret")
 	}
 	controls.TakeEvents()
@@ -50,8 +50,8 @@ func TestSecretInputIsMaskedAndConsumedOutsideOrdinaryForms(t *testing.T) {
 	if len(events) != 1 || events[0].Kind != SecretApply || events[0].Values != nil {
 		t.Fatal("secret entered ordinary submission values")
 	}
-	value := controls.Dialog.Secret.Take()
-	if value != "private-secret-sentinel" || controls.Dialog.Secret.Take() != "" {
+	value := controls.dialog.Secret.Take()
+	if value != "private-secret-sentinel" || controls.dialog.Secret.Take() != "" {
 		t.Fatal("secret was not consumed once")
 	}
 }
@@ -61,7 +61,7 @@ func TestSecretInputClearsOnEveryExitAndRejectsMultilineAndOversize(t *testing.T
 		controls := &Controls{}
 		controls.PresentSecret("Secret", "Account storage")
 		controls.SecretInput(tea.PasteMsg{Content: "private-secret-sentinel"})
-		previous := controls.Dialog
+		previous := controls.dialog
 		switch exit {
 		case "close":
 			controls.Close()
@@ -78,7 +78,7 @@ func TestSecretInputClearsOnEveryExitAndRejectsMultilineAndOversize(t *testing.T
 	controls.PresentSecret("Secret", "Account storage")
 	for _, value := range []string{"line\nbreak", strings.Repeat("x", 16385)} {
 		controls.SecretInput(tea.PasteMsg{Content: value})
-		if controls.Dialog.Secret.Error == "" || controls.Dialog.Secret.Take() != "" {
+		if controls.dialog.Secret.Error == "" || controls.dialog.Secret.Take() != "" {
 			t.Fatal("invalid secret retained or silently truncated")
 		}
 	}

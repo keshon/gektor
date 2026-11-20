@@ -24,10 +24,10 @@ func TestCommand_HelpAndUnknown(t *testing.T) {
 	if mm.quit || mm.state != stDone {
 		t.Fatalf("help must not quit or resume: quit=%v state=%v", mm.quit, mm.state)
 	}
-	if mm.chrome.Dialog == nil || !mm.chrome.Dialog.Help {
+	if mm.chrome.DialogInfo().Kind == 0 || !mm.chrome.DialogInfo().Help {
 		t.Fatal("/help must open the shared help modal")
 	}
-	mm.chrome.Dialog.Page = 3
+	testHelpPage(mm, 3)
 	for _, want := range []string{"/help", "/sessions"} {
 		if !strings.Contains(mm.testControls().DialogView(), want) {
 			t.Fatalf("help missing %q", want)

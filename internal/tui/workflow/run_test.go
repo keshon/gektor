@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
@@ -32,8 +33,8 @@ func TestReviewFormSelectsChildOperation(t *testing.T) {
 		Steps:      []workflow.StepResult{{ID: "call", Status: "waiting_review", Child: &child}},
 	}
 	m.workflows.reviewForm()
-	dialog := m.chrome.Dialog
-	if dialog == nil || dialog.Form.Fields[0].Value != "call/save" || !strings.Contains(dialog.Form.Fields[1].Value, "child resolved input") {
+	dialog := m.formSnapshot(t)
+	if dialog.Fields[0].Value != "call/save" || !strings.Contains(dialog.Fields[1].Value, "child resolved input") {
 		t.Fatal("review selected a scope container instead of its operation", dialog)
 	}
 }
@@ -47,8 +48,8 @@ func TestReviewFormSelectsMappedChildOperation(t *testing.T) {
 		Steps:      []workflow.StepResult{{ID: "batch", Status: "waiting_review", Iterations: []workflow.StepResult{{ID: "batch[0]", Status: "waiting_review", Child: &child}}}},
 	}
 	m.workflows.reviewForm()
-	dialog := m.chrome.Dialog
-	if dialog == nil || dialog.Form.Fields[0].Value != "batch[0]/save" || !strings.Contains(dialog.Form.Fields[1].Value, "mapped input") {
+	dialog := m.formSnapshot(t)
+	if dialog.Fields[0].Value != "batch[0]/save" || !strings.Contains(dialog.Fields[1].Value, "mapped input") {
 		t.Fatal("review selected the mapped container", dialog)
 	}
 }
@@ -133,7 +134,7 @@ func TestWorkflowFrozenRunCannotEditAndDraftSurvives(t *testing.T) {
 	source := w.editor.Source()
 	w.run = &workflow.Run{RunID: "run", Definition: workflowRecipe()}
 	m.workflowCommand("add")
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		t.Fatal("frozen run editable")
 	}
 	m.workflowCommand("draft")
@@ -179,7 +180,7 @@ func TestWorkflowAIProposalCannotApplyToChangedDraft(t *testing.T) {
 	w.editor.Definition = workflowRecipe()
 	before := w.editor.Source()
 	m.workflows.acceptProposal(workflowProposal{before: before, source: before})
-	if m.chrome.Dialog == nil || len(m.chrome.Dialog.Actions) == 0 {
+	if m.chrome.DialogID() == (screen.DialogID{}) || len(m.chrome.DialogSnapshot(m.chrome.DialogID()).Actions) == 0 {
 		t.Fatal("missing proposal review")
 	}
 	w.editor.Definition.Name = "Changed elsewhere"
@@ -194,7 +195,7 @@ func TestWorkflowProposalShowsScheduleHandoff(t *testing.T) {
 	before := m.workflows.editor.Source()
 	note := "Add a Schedule card to save the trigger. This proposal has not scheduled anything."
 	m.workflows.acceptProposal(workflowProposal{before: before, source: before, note: note})
-	if m.chrome.Dialog == nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), note) {
+	if m.chrome.DialogID() == (screen.DialogID{}) || !strings.Contains(strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"), note) {
 		t.Fatal("missing handoff")
 	}
 }
@@ -213,13 +214,13 @@ func TestMissingWorkflowKeepsDraftAndOffersPathCorrection(t *testing.T) {
 	if w.editor.Source() != before {
 		t.Fatal("failed open replaced draft")
 	}
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Kind != screen.FormDialog {
 		t.Fatal("path correction form missing")
 	}
-	if m.chrome.Dialog.Form.Editor.Value() != "missing.json" || !strings.Contains(m.chrome.Dialog.Form.Error, "Recipe not found") {
-		t.Fatal(m.chrome.Dialog.Form.Error)
+	if m.formSnapshot(t).EditorValue != "missing.json" || !strings.Contains(m.formSnapshot(t).Error, "Recipe not found") {
+		t.Fatal(m.formSnapshot(t).Error)
 	}
-	if !strings.Contains(m.chrome.Dialog.Form.Hint, m.wsRoot) {
+	if !strings.Contains(m.formSnapshot(t).Hint, m.wsRoot) {
 		t.Fatal("workspace not shown")
 	}
 }
@@ -232,10 +233,10 @@ func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
 	d.Steps = append(d.Steps, second)
 	m.workflows.editor.Replace(d)
 	m.workflows.linkTarget(`["transform","second"]`)
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Kind != screen.FormDialog {
 		t.Fatal("missing mapping form")
 	}
-	f := m.chrome.Dialog.Form
+	f := m.formSnapshot(t)
 	if !strings.Contains(strings.Join(f.Choices["arg"], ","), "Argument: input") {
 		t.Fatal(f.Choices)
 	}
@@ -249,10 +250,10 @@ func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
 	if err := m.applyValues(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
 		t.Fatal(err)
 	}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	action := m.workflows.commands[len(m.workflows.commands)-1]()
 	m.workflows.action(action.(workflowAction))
-	f = m.chrome.Dialog.Form
+	f = m.formSnapshot(t)
 	if err := m.applyValues(map[string]string{"pointer": "/result"}); err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +377,7 @@ func TestRunListRetainsNavigationAcrossInspection(t *testing.T) {
 		t.Fatal("run list did not establish navigation context")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		t.Fatal("run inspection did not leave the list")
 	}
 	m.chrome.Open("Run inspection", []string{before.Selected})

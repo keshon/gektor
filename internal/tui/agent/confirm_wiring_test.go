@@ -28,18 +28,18 @@ func restartModel(t *testing.T) *Model {
 func TestRestartCommandOpensADestructiveConfirmation(t *testing.T) {
 	m := restartModel(t)
 	m.command("/max-steps 40")
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+	if m.chrome.DialogInfo().Kind == 0 || !testFormOpen(m) {
 		t.Fatal("no confirmation is open")
 	}
-	if !m.chrome.Dialog.Form.Destructive {
+	if !testFormSnapshot(m).Destructive {
 		t.Fatal("a restart confirmation is not marked destructive")
 	}
-	if len(m.chrome.Dialog.Form.Fields) != 0 {
-		t.Fatalf("confirmation asks for input: %+v", m.chrome.Dialog.Form.Fields)
+	if len(testFormSnapshot(m).Fields) != 0 {
+		t.Fatalf("confirmation asks for input: %+v", testFormSnapshot(m).Fields)
 	}
 	// It must open on Cancel. A confirmation that starts on Restart is one
 	// stray Enter away from a restart the user never chose.
-	if got := m.chrome.Dialog.Form.Index; got != 1 {
+	if got := testFormSnapshot(m).Index; got != 1 {
 		t.Fatalf("focus starts at %d, want Cancel (1)", got)
 	}
 
@@ -61,7 +61,7 @@ func TestConfirmationEnterOnCancelDoesNotRestart(t *testing.T) {
 	if ran {
 		t.Fatal("Enter on Cancel ran the restart")
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("the confirmation stayed open after cancelling")
 	}
 }
@@ -73,14 +73,14 @@ func TestConfirmationSelectsThenConfirms(t *testing.T) {
 
 	// Move from Cancel to Restart, then commit.
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyUp})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Index != 0 {
+	if m.chrome.DialogInfo().Kind == 0 || testFormSnapshot(m).Index != 0 {
 		t.Fatal("did not move onto the Restart button")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !ran {
 		t.Fatal("Enter on Restart did not run it")
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("the confirmation stayed open after confirming")
 	}
 }
@@ -94,7 +94,7 @@ func TestConfirmationEscapeCancelsWithoutRunning(t *testing.T) {
 	if ran {
 		t.Fatal("Esc ran the restart")
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("Esc left the confirmation open")
 	}
 	if !m.input.Focused() {
@@ -116,7 +116,7 @@ func TestConfirmationSwallowsTyping(t *testing.T) {
 	if m.input.Value() != "" {
 		t.Fatalf("a letter reached the composer: %q", m.input.Value())
 	}
-	if m.chrome.Dialog == nil {
+	if m.chrome.DialogInfo().Kind == 0 {
 		t.Fatal("confirmation closed on an unrelated key")
 	}
 }
@@ -164,7 +164,7 @@ func TestNoSessionRunsWithoutPrompting(t *testing.T) {
 	if !ran {
 		t.Fatal("action did not run")
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("a prompt was shown with no session to restart")
 	}
 }

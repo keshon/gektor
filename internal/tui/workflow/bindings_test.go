@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/credentials"
@@ -39,7 +40,7 @@ func TestHTTPConnectionPickerPinsRemovesAndUndoesWithoutTouchingArguments(t *tes
 	w.graph.Selected = d.Steps[0].ID
 	before := w.editor.Source()
 	m.workflowCommand("binding")
-	values := m.chrome.Dialog.Form.Values()
+	values := m.formSnapshot(t).Values()
 	values["connection"] = "api / https://api.example.com"
 	err := m.applyValues(values)
 	if err != nil {
@@ -60,7 +61,7 @@ func TestHTTPConnectionPickerPinsRemovesAndUndoesWithoutTouchingArguments(t *tes
 	}
 	w.editor.Redo()
 	w.savedConnectionForm()
-	values = m.chrome.Dialog.Form.Values()
+	values = m.formSnapshot(t).Values()
 	values["connection"] = "No credential"
 	err = m.applyValues(values)
 	if err != nil {
@@ -90,7 +91,7 @@ func TestHTTPConnectionPickerRejectsChangedRevokedOrWrongOrigin(t *testing.T) {
 			w.editor.Replace(d)
 			w.graph.Selected = d.Steps[0].ID
 			w.savedConnectionForm()
-			values := m.chrome.Dialog.Form.Values()
+			values := m.formSnapshot(t).Values()
 			values["connection"] = "api / https://api.example.com"
 			var err error
 			switch change {
@@ -146,7 +147,7 @@ func TestSSHConnectionPickerPinsAllExecutableNodesWithoutAuthenticating(t *testi
 			w.editor.Replace(d)
 			w.graph.Selected = d.Steps[0].ID
 			m.workflowCommand("binding")
-			values := m.chrome.Dialog.Form.Values()
+			values := m.formSnapshot(t).Values()
 			unchanged := w.editor.Source()
 			err = m.applyValues(values)
 			if err == nil || w.editor.Source() != unchanged {
@@ -174,7 +175,7 @@ func TestSSHConnectionPickerPinsAllExecutableNodesWithoutAuthenticating(t *testi
 				t.Fatal("SSH selection changed operation arguments", got, want, err)
 			}
 			w.savedConnectionForm()
-			values = m.chrome.Dialog.Form.Values()
+			values = m.formSnapshot(t).Values()
 			err = store.Revoke("remote")
 			if err != nil {
 				t.Fatal(err)
@@ -207,7 +208,7 @@ func TestConnectionPickerRefusesMappedNodesAndOmitsRevokedChoices(t *testing.T) 
 	w.graph.Selected = d.Steps[0].ID
 	before := w.editor.Source()
 	m.workflowCommand("binding")
-	if m.chrome.Dialog != nil || w.editor.Source() != before || !strings.Contains(w.notice, "each item's arguments") {
+	if m.chrome.DialogID() != (screen.DialogID{}) || w.editor.Source() != before || !strings.Contains(w.notice, "each item's arguments") {
 		t.Fatal("picker silently changed mapped arguments", w.notice)
 	}
 }

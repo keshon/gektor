@@ -26,8 +26,13 @@ func TestDialogScrollbarMatchesDrawnTrack(t *testing.T) {
 	m.handleMouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 	m.handleMouse(tea.MouseMotionMsg{X: x, Y: y + l.Capacity, Button: tea.MouseLeft})
 	m.handleMouse(tea.MouseReleaseMsg{X: x, Y: y + l.Capacity, Button: tea.MouseLeft})
-	if m.chrome.Dialog.Offset != len(l.Lines)-l.Capacity || m.chrome.Dialog.Drag.Active {
-		t.Fatal(m.chrome.Dialog.Offset)
+	if m.chrome.DialogInfo().Offset != len(l.Lines)-l.Capacity {
+		t.Fatal(m.chrome.DialogInfo().Offset)
+	}
+	offset := m.chrome.DialogInfo().Offset
+	m.handleMouse(tea.MouseMotionMsg{X: x, Y: y, Button: tea.MouseLeft})
+	if m.chrome.DialogInfo().Offset != offset {
+		t.Fatal("released scrollbar kept dragging")
 	}
 }
 
@@ -36,14 +41,14 @@ func TestModalCloseButtonCancelsWithoutApplying(t *testing.T) {
 	applied := false
 	m.openForm(screen.Form{Title: "Edit", ApplyLabel: "Apply", Fields: []form.Field{{Key: "value", Label: "Value", Value: "old"}}}, func(map[string]string) error { applied = true; return nil })
 	m.testControls().FocusForm(0)
-	m.chrome.Dialog.Form.Editor.SetValue("unsaved")
+	testFormValue(m, "unsaved")
 	clickVisible(t, m, "×")
-	if m.chrome.Dialog != nil || applied {
+	if m.chrome.DialogInfo().Kind != 0 || applied {
 		t.Fatal("close applied changes")
 	}
 	m.testControls().Open("Info", []string{"body"})
 	clickVisible(t, m, "×")
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("info close missed")
 	}
 }

@@ -11,14 +11,14 @@ func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
 	m := settingsModel(t)
 	path := m.stateFile
 	m.renameActive()
-	m.chrome.Dialog.Form.Editor.SetValue("New title")
+	testFormValue(m, "New title")
 	m.testKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.chrome.Dialog != nil || m.sessionTitle != "New title" {
+	if m.chrome.DialogInfo().Kind != 0 || m.sessionTitle != "New title" {
 		t.Fatal("rename failed")
 	}
 	m.deleteActive()
 	m.testKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.chrome.Dialog == nil {
+	if m.chrome.DialogInfo().Kind == 0 {
 		t.Fatal("delete bypassed default cancel")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})

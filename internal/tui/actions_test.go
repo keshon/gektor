@@ -15,14 +15,14 @@ func TestActionsOpenAndDispatchThroughBothScreens(t *testing.T) {
 			m.openWorkflows()
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyF12})
-		dialog := m.chrome.Dialog
+		dialog := m.chrome.DialogInfo()
 		dialogID := m.chrome.DialogID()
-		if dialog == nil || m.chrome.DialogID() != m.actionsDialog || dialog.Table == nil {
+		if dialog.Kind == screen.NoDialog || m.chrome.DialogID() != m.actionsDialog || dialog.Kind != screen.TableDialog {
 			t.Fatal("Actions did not open")
 		}
 		m.Update(tea.PasteMsg{Content: "Appearance"})
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Title != "Appearance" {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Kind != screen.FormDialog || m.chrome.DialogInfo().Title != "Appearance" {
 			t.Fatal("selected action did not open Appearance")
 		}
 		if dialogID == m.chrome.DialogID() {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -14,9 +15,9 @@ func nextConnectionForm(t *testing.T, m *model) {
 		t.Fatal("no queued form")
 	}
 	action := m.workflows.commands[len(m.workflows.commands)-1]()
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	m.workflows.action(action.(workflowAction))
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Kind != screen.FormDialog {
 		t.Fatal("missing connection form")
 	}
 }
@@ -36,7 +37,7 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
-	current := m.chrome.Dialog.Form.Fields[0]
+	current := m.formSnapshot(t).Fields[0]
 	if !current.ReadOnly || current.Value != "2" {
 		t.Fatal("replacement value hidden", current)
 	}
@@ -45,7 +46,7 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 	}
 	created := w.editor.Source()
 	m.workflowCommand("connections")
-	f := m.chrome.Dialog.Form
+	f := m.formSnapshot(t)
 	label := f.Choices["connection"][0]
 	if !strings.Contains(label, "args/input") || !strings.Contains(label, "/first") {
 		t.Fatal(label)
@@ -68,13 +69,13 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 	}
 	w.editor.Redo()
 	m.workflowCommand("connections")
-	f = m.chrome.Dialog.Form
+	f = m.formSnapshot(t)
 	label = f.Choices["connection"][0]
 	if err := m.applyValues(map[string]string{"connection": label, "action": "Remove"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
-	if f := m.chrome.Dialog.Form; !f.Destructive || f.Index != len(f.Fields)+1 {
+	if f := m.formSnapshot(t); !f.Destructive || f.Index != len(f.Fields)+1 {
 		t.Fatal("connection removal does not start on Cancel")
 	}
 	if err := m.applyValues(nil); err != nil {
@@ -100,7 +101,7 @@ func TestConnectionFormsProtectFrozenAndStaleDrafts(t *testing.T) {
 	w.editor.Replace(workflowRecipe())
 	w.run = &workflow.Run{}
 	m.workflowCommand("connections")
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		t.Fatal("frozen run opened edit form")
 	}
 	w.run = nil
@@ -109,7 +110,7 @@ func TestConnectionFormsProtectFrozenAndStaleDrafts(t *testing.T) {
 	d.Name = "Changed"
 	w.editor.Replace(d)
 	m.workflows.connectionEdit(edit)
-	if m.chrome.Dialog != nil || !strings.Contains(w.notice, "Draft changed") {
+	if m.chrome.DialogID() != (screen.DialogID{}) || !strings.Contains(w.notice, "Draft changed") {
 		t.Fatal(w.notice)
 	}
 }

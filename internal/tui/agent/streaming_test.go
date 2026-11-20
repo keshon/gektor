@@ -69,7 +69,7 @@ func TestHelpMentionsThinkKey(t *testing.T) {
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
-	mm.chrome.Dialog.Page = 1
+	testHelpPage(mm, 1)
 	if !strings.Contains(mm.testControls().DialogView(), "Ctrl+G") {
 		t.Fatal("help must document the think key")
 	}

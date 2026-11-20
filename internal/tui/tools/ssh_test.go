@@ -112,11 +112,11 @@ func TestSSHFormOnlyShowsRelevantAuthenticationFields(t *testing.T) {
 	}
 	controls := &screen.Controls{}
 	controls.PresentForm(request)
-	draft := controls.Dialog.Form
+	draft, _ := controls.FormSnapshot(controls.DialogID())
 	visible := func(key string) bool {
 		for i, field := range draft.Fields {
 			if field.Key == key {
-				return draft.FieldVisible(i)
+				return controls.FieldVisible(i)
 			}
 		}
 		return false
@@ -129,6 +129,8 @@ func TestSSHFormOnlyShowsRelevantAuthenticationFields(t *testing.T) {
 			draft.Fields[i].Value = sshPrivateKey
 		}
 	}
+	request.Fields = draft.Fields
+	controls.PresentForm(request)
 	if visible("password") || !visible("private_key") || !visible("passphrase") {
 		t.Fatal("key authentication did not replace password fields")
 	}
@@ -140,6 +142,8 @@ func TestSSHFormOnlyShowsRelevantAuthenticationFields(t *testing.T) {
 			draft.Fields[i].Value = sshEnvironment
 		}
 	}
+	request.Fields = draft.Fields
+	controls.PresentForm(request)
 	if !visible("passphrase_env") || visible("password_env") || visible("passphrase_connection") || visible("passphrase") {
 		t.Fatal("advanced key source exposes unrelated fields")
 	}

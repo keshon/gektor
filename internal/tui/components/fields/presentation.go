@@ -8,24 +8,63 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
-// Snapshot copies the edited values and feedback without exposing editor or
-// picker navigation state. Taking it synchronizes the focused field first.
+// PickerSnapshot describes navigation without retaining a picker or text input.
+type PickerSnapshot struct {
+	ID                            RequestID
+	Items, Filtered               []string
+	Search, Err, Directory, Field string
+	Cursor, Control               int
+	Loading, NoSearch             bool
+}
+
+// Snapshot copies values and navigation without exposing mutable widgets.
+// Taking it synchronizes the focused field first.
 type Snapshot struct {
-	Fields       []form.Field
-	Error        string
-	FieldErrors  map[string]string
-	PickerID     RequestID
-	PickerOpen   bool
-	FeedbackOpen bool
+	Index, EditorColumn, EditorHeight int
+	EditorValue                       string
+	EditorFocused, Destructive        bool
+	Hint, ApplyLabel                  string
+	Choices                           map[string][]string
+	Picker                            *PickerSnapshot
+	Fields                            []form.Field
+	Error                             string
+	FieldErrors                       map[string]string
+	PickerID                          RequestID
+	PickerOpen                        bool
+	FeedbackOpen                      bool
 }
 
 func (f *Model) Snapshot() Snapshot {
 	f.Sync()
-	s := Snapshot{Fields: slices.Clone(f.Fields), Error: f.Error, FieldErrors: maps.Clone(f.FieldErrors), FeedbackOpen: f.FeedbackOpen}
-	if f.Picker != nil {
-		s.PickerOpen, s.PickerID = true, f.Picker.ID
+	s := Snapshot{
+		Fields: slices.Clone(f.Fields), Index: f.Index,
+		EditorValue: f.Editor.Value(), EditorColumn: f.Editor.Column(),
+		EditorHeight: f.Editor.Height(), EditorFocused: f.Editor.Focused(),
+		Destructive: f.Destructive, Hint: f.Hint, ApplyLabel: f.ApplyLabel,
+		Choices: maps.Clone(f.Choices), Error: f.Error,
+		FieldErrors: maps.Clone(f.FieldErrors), FeedbackOpen: f.FeedbackOpen,
+	}
+	for key, choices := range s.Choices {
+		s.Choices[key] = slices.Clone(choices)
+	}
+	if p := f.Picker; p != nil {
+		s.PickerOpen, s.PickerID = true, p.ID
+		s.Picker = &PickerSnapshot{
+			ID: p.ID, Items: slices.Clone(p.Items), Filtered: slices.Clone(p.Filtered),
+			Search: p.Search.Value(), Err: p.Err, Directory: p.Directory, Field: p.Field,
+			Cursor: p.Cursor, Control: p.Control, Loading: p.Loading, NoSearch: p.NoSearch,
+		}
 	}
 	return s
+}
+
+// Values returns a detached map of the copied edited field values.
+func (s Snapshot) Values() map[string]string {
+	values := make(map[string]string, len(s.Fields))
+	for _, field := range s.Fields {
+		values[field.Key] = field.Value
+	}
+	return values
 }
 
 // Presentation supplies domain choices, visibility and feedback. Values contains

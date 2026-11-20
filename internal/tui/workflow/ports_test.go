@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func clickWorkflowPort(t *testing.T, m *model, id, key string, output bool) {
@@ -49,10 +50,10 @@ func TestNamedPortClicksPreserveExactSourceAndDestination(t *testing.T) {
 	before := w.editor.Source()
 	clickWorkflowPort(t, m, "source", "/label", true)
 	clickWorkflowPort(t, m, "target", "args/input/label", false)
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Kind != screen.FormDialog {
 		t.Fatal("named ports did not open mapping")
 	}
-	for _, f := range m.chrome.Dialog.Form.Fields {
+	for _, f := range m.formSnapshot(t).Fields {
 		if f.Key == "pointer" || f.Key == "source_field" {
 			t.Fatal("named mapping lost its source selection")
 		}
@@ -67,14 +68,14 @@ func TestNamedPortClicksPreserveExactSourceAndDestination(t *testing.T) {
 	if w.editor.Source() != before {
 		t.Fatal("named mapping undo lost data")
 	}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	clickWorkflowPort(t, m, "source", "@order", true)
 	clickWorkflowPort(t, m, "target", "args/input/label", false)
-	if m.chrome.Dialog != nil || !strings.Contains(w.notice, "data ports") {
+	if m.chrome.DialogID() != (screen.DialogID{}) || !strings.Contains(w.notice, "data ports") {
 		t.Fatal("mixed execution and data ports")
 	}
 	clickWorkflowPort(t, m, "target", "@order", false)
-	if m.chrome.Dialog == nil {
+	if m.chrome.DialogID() == (screen.DialogID{}) {
 		t.Fatal("ordering ports did not map")
 	}
 	if err := m.applyValues(map[string]string{}); err != nil {

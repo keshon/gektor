@@ -13,6 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
@@ -23,11 +24,10 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 			for _, field := range []string{"run", "app-workspace"} {
 				m := sizeModelTo(t, testModel(), size[0], size[1])
 				m.applyTheme(theme)
-				m.testControls().OpenForm("Choose", "", "Apply", []form.Field{{Key: field, Value: root}})
-				f, props := m.chrome.Dialog.Form, m.testControls().FormProps()
-				f.Choices = map[string][]string{"run": {"first", "second"}}
-				f.Focus(0, nil)
-				f.OpenPicker(props)
+				m.chrome.PresentForm(screen.Form{Title: "Choose", ApplyLabel: "Apply", Fields: []form.Field{{Key: field, Value: root}}, Choices: map[string][]string{"run": {"first", "second"}}, FileFields: map[string]fieldform.FilePicker{"app-workspace": {Directory: true}}})
+				props := m.chrome.FormProps()
+				m.chrome.FocusForm(0)
+				m.chrome.OpenFormPicker(m.chrome.DialogID())
 				items := make([]string, 80)
 				for i := range items {
 					items[i] = fmt.Sprintf("Choice %02d", i)
@@ -35,8 +35,8 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 						items[i] = filepath.Join(root, items[i]) + string(os.PathSeparator)
 					}
 				}
-				f.AcceptScan(fieldform.ScanMsg{ID: f.Picker.ID, Items: items})
-				rows, hits, _, _ := f.PickerRows(props)
+				m.chrome.AcceptFormScan(fieldform.ScanMsg{ID: testFormSnapshot(m).PickerID, Items: items})
+				rows, hits, _, _ := m.chrome.FormRows()
 				if len(rows)+2 > props.Height {
 					t.Fatal("picker hid its footer below available area", theme, size, field, len(rows), props.Height)
 				}
@@ -46,16 +46,16 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 				if strings.Contains(ansi.Strip(rows[len(rows)-2]), "…") {
 					t.Fatal("picker clipped its shortcut group", theme, size)
 				}
-				x, y := f.Origin(props)
+				x, y := m.chrome.FormOrigin(m.chrome.DialogID())
 				cancelled := false
 				for _, hit := range hits {
 					if hit.Index == -4 {
-						f.Mouse(tea.MouseClickMsg{X: x + hit.X0, Y: y + hit.Y0, Button: tea.MouseLeft}, props)
+						m.chrome.DialogInput(tea.MouseClickMsg{X: x + hit.X0, Y: y + hit.Y0, Button: tea.MouseLeft})
 						cancelled = true
 						break
 					}
 				}
-				if !cancelled || f.Picker != nil || f.Editor.Value() != root {
+				if !cancelled || testFormSnapshot(m).PickerOpen || testFormSnapshot(m).EditorValue != root {
 					t.Fatal("visible Cancel did not preserve parent draft", theme, size, field)
 				}
 			}
@@ -65,12 +65,11 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 
 func TestPickerToolbarEnterMatchesFocusedCancel(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 120, 30)
-	m.testControls().OpenForm("Choose run", "", "Apply", []form.Field{{Key: "run", Value: "old"}})
-	f := m.chrome.Dialog.Form
-	f.Choices = map[string][]string{"run": {"old", "new"}}
-	f.Focus(0, nil)
-	f.OpenPicker(m.testControls().FormProps())
-	f.Picker.Cursor, f.Picker.Control = 1, 2
+	m.chrome.PresentForm(screen.Form{Title: "Choose run", ApplyLabel: "Apply", Fields: []form.Field{{Key: "run", Value: "old"}}, Choices: map[string][]string{"run": {"old", "new"}}})
+	m.chrome.FocusForm(0)
+	m.chrome.OpenFormPicker(m.chrome.DialogID())
+	m.chrome.FormKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.chrome.FormKey(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	for i, action := range m.footerActions() {
 		if action.Key == tea.KeyEnter {
 			if action.Label != "Cancel" || !action.Enabled {
@@ -78,7 +77,7 @@ func TestPickerToolbarEnterMatchesFocusedCancel(t *testing.T) {
 			}
 			hit := m.testControls().ToolbarLayout().Cells[i].Bounds
 			m.handleMouse(tea.MouseClickMsg{X: hit.X, Y: m.termH - 1, Button: tea.MouseLeft})
-			if m.chrome.Dialog == nil || f.Picker != nil || f.Editor.Value() != "old" {
+			if m.chrome.DialogInfo().Kind == 0 || testFormSnapshot(m).PickerOpen || testFormSnapshot(m).EditorValue != "old" {
 				t.Fatal("toolbar Enter did not cancel just the picker")
 			}
 			return

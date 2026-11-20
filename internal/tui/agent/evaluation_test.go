@@ -38,7 +38,7 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	}
 	worker.Wait()
 	m.refreshEvaluation()
-	view := strings.Join(m.chrome.Dialog.Lines, "\n")
+	view := strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n")
 	if !strings.Contains(view, "Step 2/12") || !strings.Contains(view, "inspected 4 of 8") || !strings.Contains(view, "Waiting for model response") {
 		t.Fatalf("missing live counters: %s", view)
 	}
@@ -50,7 +50,7 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	m.testControls().Open("Other dialog", []string{"keep"})
 	job.update(retrospective.Progress{Stage: "stale update"})
 	m.refreshEvaluation()
-	if strings.Join(m.chrome.Dialog.Lines, "") != "keep" {
+	if strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "") != "keep" {
 		t.Fatal("cancelled evaluation changed another dialog")
 	}
 }
@@ -83,7 +83,7 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 			job := &evaluationJob{learn: true, cancel: func() {}}
 			m.evaluation = job
 			m.acceptEvaluation(evaluationDoneMsg{job: job, result: r})
-			if m.chrome.Dialog == nil || len(m.chrome.Dialog.Actions) == 0 || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "PASS module tests") {
+			if m.chrome.DialogInfo().Kind == 0 || len(m.chrome.DialogSnapshot(m.chrome.DialogID()).Actions) == 0 || !strings.Contains(strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"), "PASS module tests") {
 				t.Fatal("proposal lacks reviewable evidence or save action")
 			}
 			entries, _ := m.ws.Skills()
@@ -97,14 +97,14 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 				m.testKey(tea.KeyPressMsg{Code: 's', Text: "s"})
 			case "edit":
 				m.testKey(tea.KeyPressMsg{Code: 'e', Text: "e"})
-				if m.chrome.Dialog.Form == nil {
+				if !testFormOpen(m) {
 					t.Fatal("edit did not open form")
 				}
 				m.testControls().FocusForm(1)
-				m.chrome.Dialog.Form.Editor.SetValue("Run the focused API tests first.")
+				testFormValue(m, "Run the focused API tests first.")
 				m.applyTestForm()
 			}
-			if m.chrome.Dialog != nil {
+			if m.chrome.DialogInfo().Kind != 0 {
 				t.Fatal("action did not close dialog")
 			}
 			if len(m.overlays) != 0 {
@@ -155,7 +155,7 @@ func TestLearnFailureKeepsReviewOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.testKey(tea.KeyPressMsg{Code: 's', Text: "s"})
-	if m.chrome.Dialog == nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "session changed") {
+	if m.chrome.DialogInfo().Kind == 0 || !strings.Contains(strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"), "session changed") {
 		t.Fatal("lost actionable save error")
 	}
 	if _, err := os.Stat(filepath.Join(m.ws.Root(), "skills")); !os.IsNotExist(err) {
@@ -168,7 +168,7 @@ func TestLearnWithoutCandidateNeedsNoApproval(t *testing.T) {
 	job := &evaluationJob{learn: true, cancel: func() {}}
 	m.evaluation = job
 	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospective.Result{Summary: "Routine task."}})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "No lesson to save" || len(m.chrome.Dialog.Actions) != 0 {
+	if m.chrome.DialogInfo().Kind == 0 || m.chrome.DialogInfo().Title != "No lesson to save" || len(m.chrome.DialogSnapshot(m.chrome.DialogID()).Actions) != 0 {
 		t.Fatal("empty review offered approval")
 	}
 }
@@ -187,7 +187,7 @@ func TestLearnReopensProposalWithoutInference(t *testing.T) {
 		return llm.ChatResponse{}, nil
 	})
 	_, cmd := m.learn("review")
-	if cmd != nil || m.chrome.Dialog == nil || len(m.chrome.Dialog.Actions) == 0 {
+	if cmd != nil || m.chrome.DialogInfo().Kind == 0 || len(m.chrome.DialogSnapshot(m.chrome.DialogID()).Actions) == 0 {
 		t.Fatal("saved proposal not reopened locally")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -214,7 +214,7 @@ func TestLessonPreviewFitsTerminalAndScrolls(t *testing.T) {
 			}
 		}
 		m.testControls().ScrollDialog(len(layout.Lines))
-		if m.chrome.Dialog.Offset != len(layout.Lines)-layout.Capacity {
+		if m.chrome.DialogInfo().Offset != len(layout.Lines)-layout.Capacity {
 			t.Fatal("cannot reach final evidence and caveats")
 		}
 		m.testKey(tea.KeyPressMsg{Code: 'e', Text: "e"})
@@ -236,7 +236,7 @@ func TestEvaluationDoesNotReplaceTaskAndClosesOnEscape(t *testing.T) {
 	})
 	m.baseEnv.Client = client
 	_, cmd := m.evaluate("session")
-	if cmd == nil || m.evaluation == nil || !m.busy() || m.chrome.Dialog == nil {
+	if cmd == nil || m.evaluation == nil || !m.busy() || m.chrome.DialogInfo().Kind == 0 {
 		t.Fatal("evaluation did not open a cancellable dialog")
 	}
 	job := m.evaluation
@@ -250,7 +250,7 @@ func TestEvaluationDoesNotReplaceTaskAndClosesOnEscape(t *testing.T) {
 		t.Fatalf("client did not receive cancellation: %+v", msg)
 	}
 	m.acceptEvaluation(msg)
-	if m.chrome.Dialog != nil || m.steps != 7 || m.tokens != 1234 || m.input.Value() != "unfinished draft" {
+	if m.chrome.DialogInfo().Kind != 0 || m.steps != 7 || m.tokens != 1234 || m.input.Value() != "unfinished draft" {
 		t.Fatal("stale completion changed task or draft")
 	}
 	current, _ := os.ReadFile(m.stateFile)
@@ -276,7 +276,7 @@ func TestEvaluationRejectsActiveTaskAndReportsLegacyScope(t *testing.T) {
 		t.Fatalf("legacy scope should be explicit: %v", msg.err)
 	}
 	m.acceptEvaluation(msg)
-	if m.evaluation != nil || m.chrome.Dialog == nil {
+	if m.evaluation != nil || m.chrome.DialogInfo().Kind == 0 {
 		t.Fatal("failure did not finish review")
 	}
 	if commandTakesArgument("/eval") || !runsImmediate("/eval") {
@@ -291,7 +291,7 @@ func TestEvaluationCompletionPreservesRunCounters(t *testing.T) {
 	job := &evaluationJob{cancel: cancel}
 	m.evaluation = job
 	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospective.Result{Scope: "run 1", Start: 2, End: 5, Read: 4, Summary: "Historical assessment."}})
-	if m.evaluation != nil || m.chrome.Dialog == nil || m.steps != 9 || m.tokens != 4321 || m.input.Value() != "unfinished draft" {
+	if m.evaluation != nil || m.chrome.DialogInfo().Kind == 0 || m.steps != 9 || m.tokens != 4321 || m.input.Value() != "unfinished draft" {
 		t.Fatal("review completion replaced task facts")
 	}
 }
@@ -333,7 +333,7 @@ func TestEvaluationReplyBeforeReplacementEventsDoesNotReplaceNewDialog(t *testin
 	job.update(retrospective.Progress{Stage: "stale progress"})
 	m.refreshEvaluation()
 	m.acceptEvaluation(evaluationDoneMsg{job: job, err: errors.New("stale completion")})
-	if m.chrome.DialogID() != replacement || m.chrome.Dialog.Title != "Replacement" || strings.Join(m.chrome.Dialog.Lines, "") != "keep this content" {
+	if m.chrome.DialogID() != replacement || m.chrome.DialogInfo().Title != "Replacement" || strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "") != "keep this content" {
 		t.Fatal("late evaluation reply mutated replacement before lifecycle events drained")
 	}
 	m.syncControls()

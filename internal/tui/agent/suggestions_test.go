@@ -74,7 +74,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 		m.input.SetValue(prefix)
 		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.chrome.Dialog == nil || !m.chrome.Dialog.Help || m.input.Value() != "" {
+		if m.chrome.DialogInfo().Kind == 0 || !m.chrome.DialogInfo().Help || m.input.Value() != "" {
 			t.Fatalf("Enter on %q must execute selected help", prefix)
 		}
 		for _, block := range m.transcript.blocks {
@@ -88,7 +88,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyDown})
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.sessions == nil || m.chrome.Dialog != nil {
+	if m.sessions == nil || m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("Enter must execute the highlighted Sessions command")
 	}
 }
@@ -117,7 +117,7 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 	m.input.SetValue("/ne")
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.queued != "/new" || m.chrome.Dialog != nil {
+	if m.queued != "/new" || m.chrome.DialogInfo().Kind != 0 {
 		t.Fatalf("a run-affecting command must queue during a run: %q", m.queued)
 	}
 
@@ -128,9 +128,9 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 	m.input.SetValue("/he")
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.queued != "" || m.chrome.Dialog == nil {
+	if m.queued != "" || m.chrome.DialogInfo().Kind == 0 {
 		t.Fatalf("a view command must run during a run: queued %q, dialog %v",
-			m.queued, m.chrome.Dialog != nil)
+			m.queued, m.chrome.DialogInfo().Kind != 0)
 	}
 }
 

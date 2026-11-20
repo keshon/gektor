@@ -15,6 +15,7 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow/script"
 	"github.com/keshon/gektor/internal/workspace"
@@ -93,7 +94,7 @@ func sizeModelTo(t *testing.T, m *Model, width, height int) *Model {
 func setMinimal(t *testing.T, m *Model, minimal bool) {
 	t.Helper()
 	m.runAction("appearance")
-	values := m.chrome.Dialog.Form.Values()
+	values := formSnapshot(m).Values()
 	values["frame"] = "outlined"
 	if minimal {
 		values["frame"] = "minimal"
@@ -209,10 +210,48 @@ func (m *Model) applyValues(values map[string]string) error {
 	if m.form.dialog == m.chrome.DialogID() && m.form.apply != nil {
 		return m.applySubmission(m.chrome.DialogID(), values)
 	}
-	dialog := m.chrome.Dialog
+	id := m.chrome.DialogID()
 	m.workflows.HandleControl(screen.Event{Kind: screen.Apply, ID: m.chrome.DialogID(), Values: values})
-	if dialog.Form.Error != "" {
-		return fmt.Errorf("%s", dialog.Form.Error)
+	if snapshot, ok := m.chrome.FormSnapshot(id); ok && snapshot.Error != "" {
+		return fmt.Errorf("%s", snapshot.Error)
 	}
 	return nil
+}
+
+func formSnapshot(m *Model) fieldform.Snapshot {
+	snapshot, _ := m.chrome.FormSnapshot(m.chrome.DialogID())
+	return snapshot
+}
+func dialogSnapshot(m *Model) screen.DialogSnapshot {
+	return m.chrome.DialogSnapshot(m.chrome.DialogID())
+}
+func replaceFormText(m *Model, value string) {
+	snapshot := formSnapshot(m)
+	if snapshot.Index < 0 || snapshot.Index >= len(snapshot.Fields) {
+		panic("no focused form field")
+	}
+	options := snapshot.Choices[snapshot.Fields[snapshot.Index].Key]
+	if len(options) > 0 {
+		m.chrome.OpenFormPicker(m.chrome.DialogID())
+		m.chrome.FormKey(tea.KeyPressMsg{Code: tea.KeyHome, Mod: tea.ModCtrl})
+		for range len(options) {
+			picker := formSnapshot(m).Picker
+			if picker == nil {
+				panic("choice picker unavailable")
+			}
+			if len(picker.Filtered) > 0 && picker.Filtered[picker.Cursor] == value {
+				m.chrome.FormKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+				return
+			}
+			m.chrome.FormKey(tea.KeyPressMsg{Code: tea.KeyDown})
+		}
+		panic("requested choice is unavailable: " + value)
+	}
+	m.chrome.FormKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+	m.chrome.UpdateFormInput(tea.PasteMsg{Content: value})
+}
+
+func secretValue(m *Model, id screen.DialogID) string {
+	value, _ := m.chrome.TakeSecret(id)
+	return value
 }

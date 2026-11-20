@@ -19,22 +19,21 @@ import (
 func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	m := settingsModel(t)
 	calls := 0
-	m.openForm(screen.Form{Title: "Confirm", ApplyLabel: "Delete"}, func(map[string]string) error { calls++; return nil })
-	m.chrome.Dialog.Form.Destructive = true
+	m.openForm(screen.Form{Title: "Confirm", ApplyLabel: "Delete", Destructive: true}, func(map[string]string) error { calls++; return nil })
 	m.testControls().FocusForm(1)
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyLeft})
-	if m.chrome.Dialog.Form.Index != 0 {
+	if testFormSnapshot(m).Index != 0 {
 		t.Fatal("left did not select primary")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.chrome.Dialog.Form.Index != 1 {
+	if testFormSnapshot(m).Index != 1 {
 		t.Fatal("right did not select cancel")
 	}
 	// Click where Cancel is drawn. Working the position out here duplicated
 	// the layout maths, which made it a second opinion about where the
 	// renderer put the button rather than a check that it did.
 	clickVisible(t, m, "[ Cancel ]")
-	if m.chrome.Dialog != nil || calls != 0 {
+	if m.chrome.DialogInfo().Kind != 0 || calls != 0 {
 		t.Fatal("cancel mouse hit missed")
 	}
 }
@@ -53,7 +52,7 @@ func TestFormHintsDescribeTheFocusedInput(t *testing.T) {
 	if strings.Contains(m.statusLine(), "newline") {
 		t.Fatal("choice advertises text editing")
 	}
-	m.chrome.Dialog.Form.Error = "A validation error"
+	m.chrome.FormFeedback(m.chrome.DialogID(), "A validation error")
 	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	hint := m.statusLine()
 	if !strings.Contains(hint, "back") || !strings.Contains(hint, "scroll") || strings.Contains(hint, "cancel") {
@@ -129,7 +128,7 @@ func TestActionRowsFitNarrowWidths(t *testing.T) {
 	m := settingsModel(t)
 	m.testControls().OpenForm("Confirm", "", "A very long primary action", nil)
 	for _, width := range []int{12, 18, 24, 72} {
-		row, hits := m.chrome.Dialog.Form.Actions(width, 0, m.chrome.Dialog.Form.ApplyLabel, true, false, form.Styles{})
+		row, hits := (form.Model{}).Actions(width, 0, testFormSnapshot(m).ApplyLabel, true, false, form.Styles{})
 		if ansi.StringWidth(row) != width || hits[1].X1 != width {
 			t.Fatal(width, ansi.Strip(row), hits)
 		}

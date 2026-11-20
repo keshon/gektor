@@ -11,10 +11,10 @@ import (
 // PresentForm copies its fields and choices into the controls-owned draft.
 func (m *Controls) PresentForm(f Form) {
 	m.OpenForm(f.Title, f.Hint, f.ApplyLabel, f.Fields)
-	draft := m.Dialog.Form
+	draft := m.dialog.Form
 	draft.Title = f.Title
 	if f.DialogTitle != "" {
-		m.Dialog.Title = f.DialogTitle
+		m.dialog.Title = f.DialogTitle
 	}
 	draft.SaveCopy = f.SaveCopy
 	draft.Destructive = f.Destructive
@@ -46,58 +46,58 @@ func (m *Controls) PresentForm(f Form) {
 
 // FormSnapshot returns edited values and feedback only for the current form.
 func (m *Controls) FormSnapshot(id DialogID) (fieldform.Snapshot, bool) {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form == nil {
 		return fieldform.Snapshot{}, false
 	}
-	return m.Dialog.Form.Snapshot(), true
+	return m.dialog.Form.Snapshot(), true
 }
 
 // ConfigureForm copies domain presentation without replacing the editable draft.
 func (m *Controls) ConfigureForm(id DialogID, p fieldform.Presentation) bool {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form == nil {
 		return false
 	}
-	m.Dialog.Form.Configure(p)
+	m.dialog.Form.Configure(p)
 	return true
 }
 
 // FormFeedback updates validation feedback without completing the form.
 func (m *Controls) FormFeedback(id DialogID, message string) bool {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form == nil {
 		return false
 	}
-	m.Dialog.Form.Error = message
+	m.dialog.Form.Error = message
 	return true
 }
 
 // FormDetailRequest captures the current file preview once for owner execution.
 func (m *Controls) FormDetailRequest(id DialogID) (fieldform.DetailRequest, bool) {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form == nil {
 		return fieldform.DetailRequest{}, false
 	}
-	return m.Dialog.Form.TakeDetailRequest()
+	return m.dialog.Form.TakeDetailRequest()
 }
 
 // AcceptFormDetail lets the controls reject results for replaced picker requests.
 func (m *Controls) AcceptFormDetail(msg fieldform.DetailMsg) {
-	if m.Dialog != nil && m.Dialog.Form != nil {
-		m.Dialog.Form.AcceptDetail(msg)
+	if m.dialog != nil && m.dialog.Form != nil {
+		m.dialog.Form.AcceptDetail(msg)
 	}
 }
 
 // AcceptFormScan lets the controls reject results for replaced picker requests.
 func (m *Controls) AcceptFormScan(msg fieldform.ScanMsg) {
-	if m.Dialog != nil && m.Dialog.Form != nil {
-		m.Dialog.Form.AcceptScan(msg)
+	if m.dialog != nil && m.dialog.Form != nil {
+		m.dialog.Form.AcceptScan(msg)
 	}
 }
 
 func (m *Controls) PresentDialog(d Dialog) {
 	m.Open(d.Title, d.Lines)
-	m.Dialog.Help = d.Help
-	m.Dialog.PreferredWidth = d.PreferredWidth
-	m.Dialog.Shortcuts = slices.Clone(d.Shortcuts)
-	m.Dialog.Actions = slices.Clone(d.Actions)
+	m.dialog.Help = d.Help
+	m.dialog.PreferredWidth = d.PreferredWidth
+	m.dialog.Shortcuts = slices.Clone(d.Shortcuts)
+	m.dialog.Actions = slices.Clone(d.Actions)
 	if d.Table != nil {
 		state := d.Table.State
 		if state.owner != m || state.model == nil {
@@ -109,7 +109,7 @@ func (m *Controls) PresentDialog(d Dialog) {
 		if d.Table.Selected != "" {
 			state.model.Select(d.Table.Selected)
 		}
-		m.Dialog.Table = &TableState{
+		m.dialog.Table = &tableState{
 			model:        state.model,
 			Columns:      slices.Clone(d.Table.Columns),
 			Description:  d.Table.Description,
@@ -121,7 +121,7 @@ func (m *Controls) PresentDialog(d Dialog) {
 }
 
 func (m *Controls) refreshTable(rows []table.Row) {
-	m.Dialog.Table.model.SetRows(copyTableRows(rows))
+	m.dialog.Table.model.SetRows(copyTableRows(rows))
 }
 
 func copyTableRows(rows []table.Row) []table.Row {
@@ -156,74 +156,76 @@ type TableSnapshot struct {
 	Focus, Offset    int
 	MoreOpen         bool
 	Layout           table.Layout
+	Actions          []table.Action
+	Description      string
 }
 
 // TableSnapshot returns a detached view, or its zero value for a stale dialog.
 func (m *Controls) TableSnapshot(id DialogID) TableSnapshot {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Table == nil {
 		return TableSnapshot{}
 	}
-	model := m.Dialog.Table.model
+	model := m.dialog.Table.model
 	layout := model.Layout(m.TableProps())
 	layout.Actions = slices.Clone(layout.Actions)
 	layout.MenuActions = slices.Clone(layout.MenuActions)
 	return TableSnapshot{
-		Rows: copyTableRows(model.Rows), Selected: model.Selected(), Filter: model.Search.Value(),
+		Description: m.dialog.Table.Description, Actions: slices.Clone(m.dialog.Table.Actions), Rows: copyTableRows(model.Rows), Selected: model.Selected(), Filter: model.Search.Value(),
 		Focus: model.Focus, Offset: model.Offset, MoreOpen: model.MoreOpen, Layout: layout,
 	}
 }
 
 // SyncTableFocus changes input focus only for the current table lifetime.
 func (m *Controls) SyncTableFocus(id DialogID, active bool) bool {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Table == nil {
 		return false
 	}
-	m.Dialog.Table.model.SyncFocus(active)
+	m.dialog.Table.model.SyncFocus(active)
 	return true
 }
 
 // DialogID identifies one overlay lifetime without exposing its mutable state.
 // The zero value identifies no dialog; IDs remain comparable after replacement.
 type DialogID struct {
-	dialog *DialogState
+	dialog *dialogState
 	owner  *Controls
 }
 
 // DialogID returns the identity of the currently presented overlay.
 func (m *Controls) DialogID() DialogID {
-	if m.Dialog == nil {
+	if m.dialog == nil {
 		return DialogID{}
 	}
-	return DialogID{dialog: m.Dialog, owner: m}
+	return DialogID{dialog: m.dialog, owner: m}
 }
 
 // UpdateDialog replaces information content in the same overlay lifetime.
 // It preserves scroll and expansion and ignores replies to closed or replaced
 // overlays. Forms and tables have their own draft and row update operations.
 func (m *Controls) UpdateDialog(id DialogID, title string, lines []string) bool {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form != nil || m.Dialog.Table != nil || m.Dialog.Secret != nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form != nil || m.dialog.Table != nil || m.dialog.Secret != nil {
 		return false
 	}
-	m.Dialog.Title = title
-	m.Dialog.Lines = append([]string(nil), lines...)
+	m.dialog.Title = title
+	m.dialog.Lines = append([]string(nil), lines...)
 	m.ScrollDialog(0)
 	return true
 }
 
 // TableSelectedID returns the selected row identity, or empty for a stale dialog.
 func (m *Controls) TableSelectedID(id DialogID) string {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Table == nil {
 		return ""
 	}
-	return m.Dialog.Table.model.Selected()
+	return m.dialog.Table.model.Selected()
 }
 
 // SetTableActions copies action availability for the current table lifetime.
 func (m *Controls) SetTableActions(id DialogID, actions []table.Action) bool {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Table == nil {
 		return false
 	}
-	m.Dialog.Table.Actions = slices.Clone(actions)
+	m.dialog.Table.Actions = slices.Clone(actions)
 	return true
 }
 
@@ -233,7 +235,7 @@ func (m *Controls) UpdateTable(id DialogID, description string, rows []table.Row
 	if !m.SetTableActions(id, actions) {
 		return false
 	}
-	m.Dialog.Table.Description = description
+	m.dialog.Table.Description = description
 	m.refreshTable(rows)
 	return true
 }

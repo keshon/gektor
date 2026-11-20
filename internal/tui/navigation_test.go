@@ -27,7 +27,7 @@ func TestSettingsMenuRowsAreActionable(t *testing.T) {
 				}
 			}
 			clickVisible(t, m, "Appearance…")
-			if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Appearance" {
+			if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Title != "Appearance" {
 				t.Fatalf("Appearance click failed in %s at width %d", mode, width)
 			}
 		}
@@ -140,13 +140,13 @@ func TestMenuBrandAndHeaderWidth(t *testing.T) {
 func TestAboutMenuAndCommandShareContent(t *testing.T) {
 	m := settingsModel(t)
 	m.command("/about")
-	expected := strings.Join(m.chrome.Dialog.Lines, "\n")
+	expected := strings.Join(dialogSnapshot(m).Lines, "\n")
 	m.closeDialog()
 	m.chrome.Header.Focused = true
 	m.chrome.Header.Menu = "help"
 	m.chrome.Header.Row = headerRowFor(m, "about")
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "GEKTOR" || strings.Join(m.chrome.Dialog.Lines, "\n") != expected {
-		t.Fatalf("About menu and command disagree: %+v", m.chrome.Dialog)
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Title != "GEKTOR" || strings.Join(dialogSnapshot(m).Lines, "\n") != expected {
+		t.Fatalf("About menu and command disagree: %+v", dialogSnapshot(m))
 	}
 }

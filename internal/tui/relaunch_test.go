@@ -10,6 +10,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 type settingsClient struct {
@@ -65,14 +66,14 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	}
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
-	picker := m.chrome.Dialog.Form.Picker
+	m.chrome.OpenFormPicker(m.chrome.DialogID())
+	picker := formSnapshot(m).Picker
 	m.Update(fieldform.ScanMsg{ID: picker.ID, Items: []string{path}})
-	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m.editSettings("generation")
 	m.applyForm()
-	if m.chrome.Dialog != nil {
-		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		t.Fatalf("apply refused: %q", formSnapshot(m).Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply did not queue a restart")
@@ -129,12 +130,12 @@ func TestRefusedApplyLeavesFilesAndRuntimeAlone(t *testing.T) {
 	delete(before, custom)
 	m.editSettings("generation")
 	focusSetting(m, "max")
-	m.chrome.Dialog.Form.Editor.SetValue("200")
+	replaceFormText(m, "200")
 	m.applyForm()
 	if m.modeChange != nil {
 		t.Fatal("a refused apply queued a restart")
 	}
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || formSnapshot(m).Error == "" {
 		t.Fatal("a refused apply closed the form without reporting the failure")
 	}
 	for path, want := range before {
@@ -155,9 +156,9 @@ func TestInvalidCandidateKeepsTheDraftOpen(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("generation")
 	focusSetting(m, "temperature")
-	m.chrome.Dialog.Form.Editor.SetValue("not-a-number")
+	replaceFormText(m, "not-a-number")
 	m.applyForm()
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || formSnapshot(m).Error == "" {
 		t.Fatal("invalid candidate closed the form or applied silently")
 	}
 	if m.modeChange != nil {
@@ -175,14 +176,14 @@ func TestSettingsApplyQueuesRestartWithContextAndDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.editSettings("model")
-	if m.chrome.Dialog == nil || m.preferences.EditSession.Section != "model" {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || m.preferences.EditSession.Section != "model" {
 		t.Fatal("model editor unavailable")
 	}
 	focusSetting(m, "model")
-	m.chrome.Dialog.Form.Editor.SetValue("another-model")
+	replaceFormText(m, "another-model")
 	m.applyForm()
-	if m.chrome.Dialog != nil {
-		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		t.Fatalf("apply refused: %q", formSnapshot(m).Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply did not queue a restart")
@@ -213,13 +214,13 @@ func TestWorkspacePageRetainsStagedModelAndSession(t *testing.T) {
 	m.application.Preferences.Workspace = original
 	m.editSettings("model")
 	focusSetting(m, "model")
-	m.chrome.Dialog.Form.Editor.SetValue("selected-model")
+	replaceFormText(m, "selected-model")
 	m.editSettings("workspace")
 	focusSetting(m, "app-workspace")
-	m.chrome.Dialog.Form.Editor.SetValue(t.TempDir())
+	replaceFormText(m, t.TempDir())
 	m.applyForm()
-	if m.chrome.Dialog != nil {
-		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		t.Fatalf("apply refused: %q", formSnapshot(m).Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply did not queue a restart")
@@ -238,9 +239,9 @@ func TestWorkspacePageRejectsAMissingWorkspace(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("workspace")
 	focusSetting(m, "app-workspace")
-	m.chrome.Dialog.Form.Editor.SetValue(filepath.Join(t.TempDir(), "does-not-exist"))
+	replaceFormText(m, filepath.Join(t.TempDir(), "does-not-exist"))
 	m.applyForm()
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || formSnapshot(m).Error == "" {
 		t.Fatal("a missing workspace was accepted")
 	}
 	if m.modeChange != nil {
@@ -254,7 +255,7 @@ func TestUnchangedSettingsDoNotRestart(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("model")
 	m.applyForm()
-	if m.modeChange != nil || m.chrome.Dialog == nil {
+	if m.modeChange != nil || m.chrome.DialogInfo().Kind == screen.NoDialog {
 		t.Fatal("an unchanged draft restarted the launch")
 	}
 }

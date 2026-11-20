@@ -128,7 +128,7 @@ func clickVisible(t *testing.T, m *Model, label string) {
 func clickHit(t *testing.T, m *Model, index int) {
 	t.Helper()
 	_, hits, _, _ := m.formRows()
-	x, y := m.chrome.Dialog.Form.Origin(m.settingsProps())
+	x, y := m.chrome.FormOrigin(m.chrome.DialogID())
 	for _, hit := range hits {
 		if hit.Index != index {
 			continue
@@ -143,7 +143,7 @@ func clickHit(t *testing.T, m *Model, index int) {
 // means instead of its position in a list that a toggle can change.
 func fieldHit(t *testing.T, m *Model, key string) int {
 	t.Helper()
-	for i, f := range m.chrome.Dialog.Form.Fields {
+	for i, f := range formSnapshot(m).Fields {
 		if f.Key == key {
 			return i
 		}
@@ -153,7 +153,7 @@ func fieldHit(t *testing.T, m *Model, key string) int {
 }
 
 func focusSetting(m *Model, key string) {
-	for i, f := range m.chrome.Dialog.Form.Fields {
+	for i, f := range formSnapshot(m).Fields {
 		if f.Key == key {
 			m.focusForm(i)
 			return

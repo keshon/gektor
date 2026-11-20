@@ -115,7 +115,7 @@ func TestGektorDefaultAttributionAndCommandsHeading(t *testing.T) {
 		t.Fatal("custom identity was overwritten")
 	}
 	m.openHelp()
-	m.chrome.Dialog.Title = "Commands"
+	m.chrome.UpdateDialog(m.chrome.DialogID(), "Commands", nil)
 	text := ansi.Strip(m.testControls().DialogView())
 	if strings.Contains(text, "[Commands]") || strings.Count(text, "Commands") != 1 {
 		t.Fatal("duplicate Commands heading", text)

@@ -1,6 +1,7 @@
 package tui
 
 import (
+ "github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 	"testing"
 
@@ -34,18 +35,18 @@ func TestWorkflowFormButtonsMatchRenderedScreen(t *testing.T) {
 			}
 			m.workflowCommand("open")
 			clickWorkflowText(t, m, "Cancel")
-			if m.chrome.Dialog != nil {
+			if m.chrome.DialogInfo().Kind != screen.NoDialog {
 				t.Fatalf("cancel missed at width %d inspector %v", width, inspect)
 			}
 			m.workflowCommand("open")
-			m.chrome.Dialog.Form.Editor.SetValue("recipe.json")
+			replaceFormText(m, "recipe.json")
 			clickWorkflowText(t, m, "Continue")
-			if m.chrome.Dialog != nil || len(m.workflows.TakeCommands()) == 0 {
+			if m.chrome.DialogInfo().Kind != screen.NoDialog || len(m.workflows.TakeCommands()) == 0 {
 				t.Fatalf("continue missed at width %d inspector %v", width, inspect)
 			}
 			m.workflowCommand("open")
 			clickWorkflowText(t, m, "×")
-			if m.chrome.Dialog != nil {
+			if m.chrome.DialogInfo().Kind != screen.NoDialog {
 				t.Fatalf("close missed width %d inspector %v\n%s", width, inspect, ansi.Strip(m.screenContent()))
 			}
 		}

@@ -15,11 +15,11 @@ import (
 func settingsPickerRequest(t *testing.T, m *Model) fieldform.DiscoveryRequest {
 	t.Helper()
 	m.editSettings("model")
-	f := m.chrome.Dialog.Form
+	f := formSnapshot(m)
 	for i, field := range f.Fields {
 		if field.Key == "model" {
-			f.Focus(i, f.FieldVisible)
-			return f.OpenPicker(m.chrome.FormProps())().(fieldform.DiscoveryRequest)
+			m.focusForm(i)
+			return m.chrome.OpenFormPicker(m.chrome.DialogID())().(fieldform.DiscoveryRequest)
 		}
 	}
 	t.Fatal("model picker missing")
@@ -85,7 +85,7 @@ func TestClosingSettingsCancelsActiveDiscovery(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("canceled discovery did not finish")
 	}
-	if m.chrome.Dialog.Title != "replacement" {
+	if dialogSnapshot(m).Title != "replacement" {
 		t.Fatal("late discovery changed replacement dialog")
 	}
 }
@@ -93,14 +93,14 @@ func TestClosingSettingsCancelsActiveDiscovery(t *testing.T) {
 func TestStaleDiscoveryRequestDoesNotStartBackendWork(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("model")
-	f := m.chrome.Dialog.Form
+	f := formSnapshot(m)
 	for i, field := range f.Fields {
 		if field.Key == "model" {
-			f.Focus(i, f.FieldVisible)
+			m.focusForm(i)
 			break
 		}
 	}
-	command := f.OpenPicker(m.chrome.FormProps())
+	command := m.chrome.OpenFormPicker(m.chrome.DialogID())
 	request := command().(fieldform.DiscoveryRequest)
 	m.chrome.Close()
 
@@ -108,14 +108,14 @@ func TestStaleDiscoveryRequestDoesNotStartBackendWork(t *testing.T) {
 		t.Fatal("closed picker started backend discovery")
 	}
 	m.editSettings("model")
-	f = m.chrome.Dialog.Form
+	f = formSnapshot(m)
 	for i, field := range f.Fields {
 		if field.Key == "model" {
-			f.Focus(i, f.FieldVisible)
+			m.focusForm(i)
 			break
 		}
 	}
-	f.OpenPicker(m.chrome.FormProps())
+	m.chrome.OpenFormPicker(m.chrome.DialogID())
 	if m.discoverSettings(request) != nil {
 		t.Fatal("old request started discovery for a new form")
 	}

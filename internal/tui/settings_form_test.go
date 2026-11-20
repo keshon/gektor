@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // A form is framed to the pane, so no row of one may be wider than the pane
@@ -101,8 +102,8 @@ func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 	clean := focusApply(t, m)
 
 	// The first field is the temperature, focused on open.
-	m.chrome.Dialog.Form.Focus(0, m.chrome.Dialog.Form.FieldVisible)
-	m.chrome.Dialog.Form.Editor.SetValue("0.9")
+	m.focusForm(0)
+	replaceFormText(m, "0.9")
 	m.preparePreferences()
 	if !m.preferences.Dirty() {
 		t.Fatal("an edit did not make the form dirty")
@@ -121,10 +122,10 @@ func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 // drawn in.
 func focusApply(t *testing.T, m *Model) string {
 	t.Helper()
-	apply := len(m.chrome.Dialog.Form.Fields)
-	m.chrome.Dialog.Form.Focus(apply, m.chrome.Dialog.Form.FieldVisible)
-	if m.chrome.Dialog.Form.Index != apply {
-		t.Fatalf("could not focus Apply; index is %d", m.chrome.Dialog.Form.Index)
+	apply := len(formSnapshot(m).Fields)
+	m.focusForm(apply)
+	if formSnapshot(m).Index != apply {
+		t.Fatalf("could not focus Apply; index is %d", formSnapshot(m).Index)
 	}
 	return applyColour(t, m)
 }
@@ -210,7 +211,7 @@ func formRowsOf(t *testing.T, m *Model) []string {
 func TestUnsetTemperatureShowsTheNumberThatWillBeUsed(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("generation")
-	got := m.chrome.Dialog.Form.Editor.Value()
+	got := formSnapshot(m).EditorValue
 	if !strings.Contains(got, "default") {
 		t.Fatalf("unset temperature shows as %q", got)
 	}
@@ -224,7 +225,7 @@ func TestExplicitTemperatureShowsAsItself(t *testing.T) {
 	m := settingsModel(t)
 	m.profile.Profile.Generation.Temperature = 0.9
 	m.editSettings("generation")
-	got := m.chrome.Dialog.Form.Editor.Value()
+	got := formSnapshot(m).EditorValue
 	if strings.Contains(got, "default") || !strings.Contains(got, "0.9") {
 		t.Fatalf("an explicit temperature shows as %q", got)
 	}
@@ -268,7 +269,7 @@ func TestSettingsButtonsAreClickableWhereTheyAreDrawn(t *testing.T) {
 		// itself failed on the change without anything being wrong, and had
 		// been agreeing with a genuinely misplaced renderer when it was.
 		clickVisible(t, m, "[ Cancel ]")
-		if m.chrome.Dialog != nil {
+		if m.chrome.DialogInfo().Kind != screen.NoDialog {
 			t.Fatalf("width %d: clicking Cancel at its drawn position did nothing", width)
 		}
 	}

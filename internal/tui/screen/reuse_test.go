@@ -35,7 +35,7 @@ func TestActionBrowserUsesMenuAvailabilityAndCommands(t *testing.T) {
 		{Text: "Delete record", Command: "record:delete", Enabled: false},
 	}}}}}
 	controls.OpenActions("")
-	model := controls.Dialog.Table.model
+	model := controls.dialog.Table.model
 	if len(model.Rows) != 1 || model.Rows[0].ID != "record:open" || model.Focus != 1 {
 		t.Fatal("browser ignored availability or menu command identity", model.Rows)
 	}
@@ -53,9 +53,9 @@ func TestExpandedReadingPreservesTableAndDialogScroll(t *testing.T) {
 	controls := &Controls{Props: ControlProps{Width: 120, Height: 30, Ready: true, Area: pane.Rect{Width: 120, Height: 26}}}
 	controls.Open("Details", []string{strings.Repeat("Read this text. ", 200)})
 	controls.ScrollDialog(7)
-	offset := controls.Dialog.Offset
+	offset := controls.dialog.Offset
 	controls.InfoKey(tea.KeyPressMsg{Code: tea.KeyF11})
-	if controls.LayoutDialog().Inner != 114 || controls.Dialog.Offset != offset {
+	if controls.LayoutDialog().Inner != 114 || controls.dialog.Offset != offset {
 		t.Fatal("expanding details lost scroll or did not expand")
 	}
 	controls.InfoKey(tea.KeyPressMsg{Code: tea.KeyF11})

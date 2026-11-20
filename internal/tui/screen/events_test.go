@@ -24,7 +24,7 @@ func TestDialogResumeRequiresOwnedSuspendedLifetime(t *testing.T) {
 	if other.ResumeID(id) {
 		t.Fatal("another host resumed the draft")
 	}
-	if !controls.ResumeID(id) || controls.Dialog.Form.Fields[0].Value != "unsaved" {
+	if !controls.ResumeID(id) || controls.dialog.Form.Fields[0].Value != "unsaved" {
 		t.Fatal("suspended draft was not restored")
 	}
 	controls.Close()
@@ -55,14 +55,14 @@ func TestTableRefreshRejectsOldLifetimeAndCopiesSnapshots(t *testing.T) {
 	selected := controls.TableSelectedID(id)
 	rows[0].Cells[0] = "caller mutation"
 	actions[0].Enabled = false
-	if view.Rows[0].Cells[0] != "message one" || !controls.Dialog.Table.Actions[0].Enabled {
+	if view.Rows[0].Cells[0] != "message one" || !controls.dialog.Table.Actions[0].Enabled {
 		t.Fatal("table retained caller-owned slices")
 	}
-	if !controls.UpdateTable(id, "refreshed", view.Rows, controls.Dialog.Table.Actions) || view.Search.Value() != "message" || view.Focus != 1 || controls.TableSelectedID(id) != selected {
+	if !controls.UpdateTable(id, "refreshed", view.Rows, controls.dialog.Table.Actions) || view.Search.Value() != "message" || view.Focus != 1 || controls.TableSelectedID(id) != selected {
 		t.Fatal("refresh lost filter, focus or selection")
 	}
 	controls.Open("replacement", []string{"keep"})
-	if controls.UpdateTable(id, "stale", nil, nil) || controls.SetTableActions(id, nil) || controls.TableSelectedID(id) != "" || controls.Dialog.Title != "replacement" {
+	if controls.UpdateTable(id, "stale", nil, nil) || controls.SetTableActions(id, nil) || controls.TableSelectedID(id) != "" || controls.dialog.Title != "replacement" {
 		t.Fatal("stale refresh touched replacement")
 	}
 }
@@ -73,7 +73,7 @@ func TestFormCopiesInputsAndSubmissionSnapshot(t *testing.T) {
 	choices := map[string][]string{"name": {"original", "other"}}
 	files := map[string]fieldform.FilePicker{"path": {Extensions: []string{".json"}}}
 	controls.PresentForm(Form{Title: "Draft", Fields: fields, Choices: choices, FileFields: files})
-	dialog := controls.Dialog
+	dialog := controls.dialog
 	controls.TakeEvents()
 
 	fields[0].Value = "caller changed"
@@ -90,7 +90,7 @@ func TestFormCopiesInputsAndSubmissionSnapshot(t *testing.T) {
 	if len(events) != 1 || events[0].Kind != Apply || events[0].ID != controls.DialogID() || events[0].Values["name"] != "original" {
 		t.Fatal("submission did not capture the producing draft", events)
 	}
-	if controls.Dialog != dialog {
+	if controls.dialog != dialog {
 		t.Fatal("controls applied or closed an unanswered submission")
 	}
 }
@@ -100,12 +100,12 @@ func TestReplacementIgnoresLateFormAndSaveReplies(t *testing.T) {
 	controls.PresentForm(Form{Title: "First"})
 	firstID := controls.DialogID()
 	controls.PresentForm(Form{Title: "Second"})
-	second := controls.Dialog
+	second := controls.dialog
 	secondID := controls.DialogID()
 	controls.CompleteFormID(firstID, errors.New("late validation"))
 	controls.CompleteFormID(firstID, nil)
 	controls.CompleteSaveID(firstID, nil)
-	if controls.Dialog != second || second.Form.Error != "" {
+	if controls.dialog != second || second.Form.Error != "" {
 		t.Fatal("late reply changed the replacement")
 	}
 
@@ -126,7 +126,7 @@ func TestOpaqueDialogUpdatePreservesStateAndRejectsOldLifetime(t *testing.T) {
 	c.Props = ControlProps{Width: 80, Height: 24}
 	c.Open("notes", nil)
 	id := c.DialogID()
-	c.Dialog.Maximized = true
+	c.dialog.Maximized = true
 	lines := make([]string, 100)
 	for i := range lines {
 		lines[i] = "line"
@@ -135,12 +135,12 @@ func TestOpaqueDialogUpdatePreservesStateAndRejectsOldLifetime(t *testing.T) {
 		t.Fatal("current dialog rejected")
 	}
 	c.ScrollDialog(12)
-	offset := c.Dialog.Offset
-	if !c.UpdateDialog(id, "restyled notes", lines) || c.Dialog.Offset != offset || !c.Dialog.Maximized || c.DialogID() != id {
+	offset := c.dialog.Offset
+	if !c.UpdateDialog(id, "restyled notes", lines) || c.dialog.Offset != offset || !c.dialog.Maximized || c.DialogID() != id {
 		t.Fatal("update replaced presentation state")
 	}
 	c.Open("replacement", nil)
-	if c.UpdateDialog(id, "stale", lines) || c.Dialog.Title != "replacement" {
+	if c.UpdateDialog(id, "stale", lines) || c.dialog.Title != "replacement" {
 		t.Fatal("stale result changed replacement")
 	}
 	c.Close()
@@ -156,12 +156,12 @@ func TestOpaqueFormCompletionCannotAffectReplacement(t *testing.T) {
 	c.OpenForm("second", "", "save", nil)
 	c.CompleteFormID(id, errors.New("stale error"))
 	c.CompleteFormID(id, nil)
-	if c.Dialog == nil || c.Dialog.Form.Error != "" {
+	if c.dialog == nil || c.dialog.Form.Error != "" {
 		t.Fatal("stale completion affected replacement")
 	}
 	current := c.DialogID()
 	c.CompleteFormID(current, errors.New("validation"))
-	if c.Dialog.Form.Error != "validation" {
+	if c.dialog.Form.Error != "validation" {
 		t.Fatal("current validation result missing")
 	}
 	for _, event := range c.TakeEvents() {

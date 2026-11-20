@@ -134,10 +134,10 @@ Both were corrected before the successful full run.
 1. Native terminal review was waived by the user on 2026-11-20. The automated
    96-frame matrix passes; native input, fonts and cross-platform parity remain
    unverified. No manual review is required for this continuation.
-2. Finish control-state encapsulation around dialog/form presentation and layout.
-   Settings now use copied snapshots and presentation configuration; retained
-   tables use opaque owner-bound handles. Both consumers preserve navigation,
-   but some dialog/form presentation state remains directly accessible.
+2. Dialog/form encapsulation is complete for production and integration tests.
+   Active dialog, form, table and secret state are private to controls; hosts
+   use copied snapshots, input and lifetime-checked operations. The isolated
+   candidate and separate workbench consumer pass without application imports.
 3. Resume GEKTOR-only tool/context experiments if changing defaults. Eighteen
    paired simple-task runs and one baseline ledger run passed; the ledger pair
    was interrupted when the user returned work to the TUI. Context-policy and
@@ -326,3 +326,34 @@ source SHA-256 before import rewriting was
 `e8ea78ec71deb0c945e59d5a97447ceb7189dd2a527527425c535fb52aabea47`.
 The import-boundary guard tests, script vet and documentation checks also passed.
 Public-state cleanup and a real pinned release consumer remain outstanding.
+
+
+### Private dialog state and integration coverage
+
+`Controls` no longer exposes its active dialog, and dialog/form/table/secret
+state types are private to `screen`. Integration tests in the shell, Agent,
+Workflow and tools now read detached snapshots and edit using routed input or
+declarative fixtures. Retained identities use `DialogID`; no mutable test
+accessor was added. Focus, picker opening and copied choices are guarded by the
+current form identity. Dialog content, choice lists, picker results and table
+actions are copied before being returned. Scan results also copy their input
+items so an effect cannot mutate accepted picker contents afterward.
+
+The previously outstanding exported dialog-state cleanup is complete. Earlier
+notes about tests retaining widget pointers describe the pre-migration state.
+Native review remains waived, and no new model experiment or performance claim
+is part of this change. A public module name/layout, versioned distribution and
+a consumer pinned to that actual release remain separate work; the temporary
+package check uses a local replacement and does not publish anything.
+
+
+Validation for the private-state migration:
+
+- `go test -p 1 ./...`: passed.
+- `go test -race -p 1 ./internal/tui/... ./examples/workbench`: passed.
+- Final snapshot isolation/lifetime tests passed with the race detector.
+- `go vet ./...` and the native executable build: passed.
+- Isolated candidate and separate workbench consumer tests, vet and builds: passed.
+  Input source SHA-256:
+  `b848418e5fbc077d4cdda962aa2faca4d58c54b4985394ee884547d157fd5ce9`.
+- Documentation links/anchors and `git diff --check`: passed.

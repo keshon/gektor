@@ -24,11 +24,11 @@ func TestMCPManagementUsesSharedFormsAndGuardsRunningTurns(t *testing.T) {
 	m.mcp = manager
 	m.state = stDone
 	m.openMCP()
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
+	if m.chrome.DialogInfo().Kind == 0 || !testTableOpen(m) {
 		t.Fatal("manager did not use the shared table")
 	}
 	m.handleMCPAction(mcpActionMsg{"add", ""})
-	if m.chrome.Dialog.Form == nil || len(m.chrome.Dialog.Form.Fields) < 3 {
+	if !testFormOpen(m) || len(testFormSnapshot(m).Fields) < 3 {
 		t.Fatal("add form missing")
 	}
 	m.state = stRunning
@@ -49,17 +49,17 @@ func TestMCPPasteImportFromEmptyManager(t *testing.T) {
 	m.mcp, m.state = manager, stDone
 	m.openMCP()
 	m.testKey(tea.KeyPressMsg{Code: 'p', Text: "p"})
-	if !m.chrome.Dialog.Form.Fields[0].Multiline {
+	if !testFormSnapshot(m).Fields[0].Multiline {
 		t.Fatal("JSON field does not accept multiple lines")
 	}
 	raw := "{\n  \"mcpServers\": {\n    \"reference\": {\"type\": \"http\", \"url\": \"https://example.com/mcp\"}\n  }\n}"
 	m.testUpdate(tea.PasteMsg{Content: raw})
-	if m.chrome.Dialog.Form.Values()["json"] != raw {
+	if testFormValues(m)["json"] != raw {
 		t.Fatal("paste changed the configuration")
 	}
 	m.applyTestForm()
-	if m.chrome.Dialog != nil {
-		t.Fatal("import failed:", m.chrome.Dialog.Form.Error)
+	if m.chrome.DialogInfo().Kind != 0 {
+		t.Fatal("import failed:", testFormSnapshot(m).Error)
 	}
 	saved, err := manager.Get("reference")
 	if err != nil || saved.URL != "https://example.com/mcp" {
@@ -177,19 +177,19 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	m.mcp, m.state = manager, stRunning
 	m.openMCP()
 	m.testKey(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	if m.mcpBusy || m.chrome.Dialog.Table == nil {
+	if m.mcpBusy || !testTableOpen(m) {
 		t.Fatal("Connect activated while a turn was running")
 	}
 	m.testKey(tea.KeyPressMsg{Code: '/'})
 	m.testUpdate(tea.PasteMsg{Content: "reference"})
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "Server: reference") {
+	if testTableOpen(m) || !strings.Contains(strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"), "Server: reference") {
 		t.Fatal("Details did not open for the selected server")
 	}
 	m.chrome.Close()
 	m.syncControls()
 	m.testUpdate(m.pendingCommands[len(m.pendingCommands)-1]())
-	if m.chrome.Dialog.Table == nil || m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "reference" {
+	if !testTableOpen(m) || m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "reference" {
 		t.Fatal("Details lost the parent filter")
 	}
 	m.state = stDone
@@ -198,11 +198,11 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	if err != nil || saved.Enabled || manager.List()[0].Connected {
 		t.Fatal("Disable did not update exactly the selected server", err)
 	}
-	if m.chrome.Dialog.Table == nil || m.chrome.TableSelectedID(m.chrome.DialogID()) != "reference" {
+	if !testTableOpen(m) || m.chrome.TableSelectedID(m.chrome.DialogID()) != "reference" {
 		t.Fatal("refresh lost selected server")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyDelete})
-	if m.chrome.Dialog.Form == nil || !m.chrome.Dialog.Form.Destructive || m.chrome.Dialog.Form.Index != 1 {
+	if !testFormOpen(m) || !testFormSnapshot(m).Destructive || testFormSnapshot(m).Index != 1 {
 		t.Fatal("Delete bypassed the safe confirmation")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -229,13 +229,13 @@ func TestBundledMCPUsesSharedSettingsWithoutRawCommand(t *testing.T) {
 	if row.Cells[2] != "Bundled" {
 		t.Fatal("bundled origin missing", row)
 	}
-	for _, action := range m.chrome.Dialog.Table.Actions {
+	for _, action := range m.chrome.TableSnapshot(m.chrome.DialogID()).Actions {
 		if action.ID == "delete" && action.Enabled {
 			t.Fatal("bundle can be deleted")
 		}
 	}
 	m.handleMCPAction(mcpActionMsg{"edit", "browser"})
-	if m.chrome.Dialog.Form == nil || len(m.chrome.Dialog.Form.Fields) != 2 {
+	if !testFormOpen(m) || len(testFormSnapshot(m).Fields) != 2 {
 		t.Fatal("bundle opened generic command editor")
 	}
 	if err = m.applySubmission(m.chrome.DialogID(), map[string]string{"enabled": "on", "loading": "on load"}); err != nil {
@@ -249,7 +249,7 @@ func TestBundledMCPUsesSharedSettingsWithoutRawCommand(t *testing.T) {
 		t.Fatal("bundle cannot be disabled")
 	}
 	m.handleMCPAction(mcpActionMsg{"details", "browser"})
-	text := strings.Join(m.chrome.Dialog.Lines, "\n")
+	text := strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n")
 	if !strings.Contains(text, "Origin: Bundled") || !strings.Contains(text, "Loading: On load") {
 		t.Fatal(text)
 	}

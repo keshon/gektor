@@ -14,11 +14,11 @@ func TestFooterActionsKeepDraftAndToggleScreens(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("draft\nsecond line")
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyF1})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Help" {
+	if m.chrome.DialogInfo().Kind == 0 || m.chrome.DialogInfo().Title != "Help" {
 		t.Fatal("help did not open")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyF1})
-	if m.chrome.Dialog != nil || m.input.Value() != "draft\nsecond line" {
+	if m.chrome.DialogInfo().Kind != 0 || m.input.Value() != "draft\nsecond line" {
 		t.Fatal("help lost draft")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyF2})
@@ -44,7 +44,7 @@ func TestFooterActionsCannotHidePendingPrompts(t *testing.T) {
 		for _, key := range []rune{tea.KeyF1, tea.KeyF2, tea.KeyF3, tea.KeyF4, tea.KeyF5, tea.KeyF6, tea.KeyF7} {
 			m.testKey(tea.KeyPressMsg{Code: key})
 		}
-		if m.chrome.Dialog != nil || m.sessions != nil || m.state != state || m.transcript.compact != before {
+		if m.chrome.DialogInfo().Kind != 0 || m.sessions != nil || m.state != state || m.transcript.compact != before {
 			t.Fatal("function key hid prompt")
 		}
 		m.testKey(tea.KeyPressMsg{Code: tea.KeyF10})

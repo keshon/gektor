@@ -17,7 +17,7 @@ func TestHiddenAgentResultsCannotReplaceApplicationOverlay(t *testing.T) {
 		m.input.SetValue("retained draft")
 		m.Hide()
 		m.Update(result)
-		if m.chrome.Dialog != nil || m.input.Focused() || m.input.Value() != "retained draft" {
+		if m.chrome.DialogInfo().Kind != 0 || m.input.Focused() || m.input.Value() != "retained draft" {
 			t.Fatalf("hidden result %T took control of the application", result)
 		}
 		m.Activate()

@@ -25,22 +25,22 @@ func TestWorkflowValueRemovalStartsOnCancelAndRequiresExplicitAction(t *testing.
 			m.workflows.parameterEdit(workflowParameterEdit{Kind: kind, Name: "value", Draft: before, Remove: true})
 		}
 		open()
-		f := m.chrome.Dialog.Form
+		f := m.formSnapshot(t)
 		if !f.Destructive || f.Index != len(f.Fields)+1 || !f.Fields[0].ReadOnly {
 			t.Fatal("removal lost context, destructive style or Cancel-first focus")
 		}
 		m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-		if w.editor.Source() != before || m.chrome.Dialog == nil {
+		if w.editor.Source() != before || m.chrome.DialogID() == (screen.DialogID{}) {
 			t.Fatal("save shortcut performed a removal")
 		}
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.chrome.Dialog != nil || w.editor.Source() != before {
+		if m.chrome.DialogID() != (screen.DialogID{}) || w.editor.Source() != before {
 			t.Fatal("Enter on Cancel removed a value")
 		}
 		open()
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyUp})
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.chrome.Dialog != nil || w.editor.Source() == before {
+		if m.chrome.DialogID() != (screen.DialogID{}) || w.editor.Source() == before {
 			t.Fatal("explicit removal did not apply")
 		}
 		w.editor.Undo()
@@ -54,7 +54,7 @@ func TestWorkflowJSONInputsNameTheirActualAction(t *testing.T) {
 	m := workflowTestModel(t)
 	for _, item := range []struct{ action, label string }{{"run", "Run"}, {"validate", "Check"}, {"schedule", "Next"}} {
 		m.workflows.inputForm(workflowInvocation{Action: item.action, Mode: "JSON", Draft: m.workflows.editor.Source()})
-		if m.chrome.Dialog.Form.ApplyLabel != item.label || !strings.Contains(m.chrome.Dialog.Title, "JSON") {
+		if m.formSnapshot(t).ApplyLabel != item.label || !strings.Contains(m.chrome.DialogInfo().Title, "JSON") {
 			t.Fatal("JSON form does not name what its primary action does")
 		}
 		m.closeDialog()
@@ -69,7 +69,7 @@ func TestDraftFormsRejectChangedTargets(t *testing.T) {
 			w.editor.Replace(workflowRecipe())
 			w.graph.Selected = "transform"
 			m.workflowCommand(action)
-			values := m.chrome.Dialog.Form.Values()
+			values := m.formSnapshot(t).Values()
 			changed := w.editor.Clone()
 			changed.Steps = nil
 			w.editor.Replace(changed)
@@ -94,7 +94,7 @@ func TestCollectionBehaviorFormPreservesOperationAndEditsPolicy(t *testing.T) {
 	w.editor.Replace(d)
 	w.graph.Selected = d.Steps[0].ID
 	w.editBehavior(behaviorEdit{StepID: w.graph.Selected, Section: "Map", Draft: w.editor.Source()})
-	values := m.chrome.Dialog.Form.Values()
+	values := m.formSnapshot(t).Values()
 	values["concurrency"] = "3"
 	values["on_error"] = "collect"
 	err := m.applyValues(values)
@@ -117,7 +117,7 @@ func TestRepeatBehaviorFormPreservesAndEditsPolicy(t *testing.T) {
 	w.editor.Replace(d)
 	w.graph.Selected = d.Steps[0].ID
 	w.editBehavior(behaviorEdit{StepID: w.graph.Selected, Section: "Loop", Draft: w.editor.Source()})
-	values := m.chrome.Dialog.Form.Values()
+	values := m.formSnapshot(t).Values()
 	values["max_iterations"] = "5"
 	values["until"] = "/finished"
 	values["next_inputs"] = "/cursor"
@@ -140,18 +140,18 @@ func TestBehaviorSectionOpensAfterChooserCloses(t *testing.T) {
 	w.graph.Selected = "transform"
 	before := w.editor.Source()
 	m.workflowCommand("behavior")
-	chooser := m.chrome.Dialog
+	chooser := m.chrome.DialogID()
 	w.HandleControl(screen.Event{Kind: screen.Apply, ID: m.chrome.DialogID(), Values: map[string]string{"section": "Retry"}})
-	if m.chrome.Dialog != nil || w.editor.Source() != before || len(w.commands) == 0 {
+	if m.chrome.DialogID() != (screen.DialogID{}) || w.editor.Source() != before || len(w.commands) == 0 {
 		t.Fatal("chooser changed the recipe or retained its dialog")
 	}
 	w.action(w.commands[len(w.commands)-1]().(workflowAction))
-	if m.chrome.Dialog == nil || m.chrome.Dialog == chooser || !strings.HasSuffix(m.chrome.Dialog.Title, "/ Retry") {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogID() == chooser || !strings.HasSuffix(m.chrome.DialogInfo().Title, "/ Retry") {
 		t.Fatal("queued section did not open independently")
 	}
-	f := m.chrome.Dialog.Form
+	f := m.formSnapshot(t)
 	for i, field := range f.Fields {
-		if field.Key != "enabled" && f.FieldVisible(i) {
+		if field.Key != "enabled" && m.chrome.FieldVisible(i) {
 			t.Fatal("disabled retry exposed a policy field", field.Key)
 		}
 	}
@@ -192,7 +192,7 @@ func TestBehaviorFormsRemoveOptionalPoliciesAndKeepOtherSettings(t *testing.T) {
 			w.graph.Selected = step.ID
 			before := w.editor.Source()
 			w.editBehavior(behaviorEdit{StepID: step.ID, Section: section, Draft: before})
-			values := m.chrome.Dialog.Form.Values()
+			values := m.formSnapshot(t).Values()
 			values["enabled"] = "false"
 			values["for_each"] = ""
 			values["when"] = ""
@@ -236,7 +236,7 @@ func TestExecutionBehaviorEditsRoutesAndFinalizers(t *testing.T) {
 	w.editor.Replace(d)
 	w.graph.Selected = d.Steps[0].ID
 	w.editBehavior(behaviorEdit{StepID: w.graph.Selected, Section: "Execution", Draft: w.editor.Source()})
-	values := m.chrome.Dialog.Form.Values()
+	values := m.formSnapshot(t).Values()
 	values["on_failure"] = "report"
 	err := m.applyValues(values)
 	if err != nil {
@@ -251,7 +251,7 @@ func TestExecutionBehaviorEditsRoutesAndFinalizers(t *testing.T) {
 	}
 
 	w.editBehavior(behaviorEdit{StepID: "report", Section: "Execution", Draft: w.editor.Source()})
-	values = m.chrome.Dialog.Form.Values()
+	values = m.formSnapshot(t).Values()
 	values["finally"] = "true"
 	err = m.applyValues(values)
 	if err != nil || !w.editor.Definition.Steps[1].Finally {
@@ -266,7 +266,7 @@ func TestBehaviorSectionRejectsStaleDraftAndFrozenRun(t *testing.T) {
 			w := m.workflows
 			w.editor.Replace(workflowRecipe())
 			w.editBehavior(behaviorEdit{StepID: "transform", Section: section, Draft: w.editor.Source()})
-			values := m.chrome.Dialog.Form.Values()
+			values := m.formSnapshot(t).Values()
 			if frozen {
 				w.run = &workflow.Run{}
 			} else {

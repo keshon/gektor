@@ -9,10 +9,10 @@ import (
 // DialogMouse handles pointer input for the shared overlay. Toolbar actions are
 // routed by the application before reaching this method.
 func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
-	if m.Dialog == nil {
+	if m.dialog == nil {
 		return nil
 	}
-	if m.Dialog.Table != nil {
+	if m.dialog.Table != nil {
 		mouse := msg.Mouse()
 		mouse.X -= m.Props.Area.X
 		mouse.Y -= m.Props.Area.Y
@@ -29,9 +29,9 @@ func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
 		default:
 			return nil
 		}
-		return m.TableAction(m.Dialog.Table.model.Mouse(local, m.TableProps()))
+		return m.TableAction(m.dialog.Table.model.Mouse(local, m.TableProps()))
 	}
-	if m.Dialog.Form != nil {
+	if m.dialog.Form != nil {
 		return m.FormMouse(msg)
 	}
 	mouse := msg.Mouse()
@@ -44,12 +44,12 @@ func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
 			m.Close()
 			return nil
 		}
-		if m.Dialog.Help {
+		if m.dialog.Help {
 			layout := m.LayoutDialog()
 			if tab := layout.Tabs.Hit(mouse.X-x, mouse.Y-y-2); tab >= 0 {
-				m.Dialog.Page = tab
-				m.Dialog.Offset = 0
-				m.Dialog.Drag = popup.ScrollDrag{}
+				m.dialog.Page = tab
+				m.dialog.Offset = 0
+				m.dialog.Drag = popup.ScrollDrag{}
 				return nil
 			}
 		}

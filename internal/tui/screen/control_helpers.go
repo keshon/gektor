@@ -55,7 +55,7 @@ func (m *Controls) NewEditor() textarea.Model {
 func (m *Controls) FormProps() fieldform.Props {
 	a := m.Props.Area
 	s := m.Props.Styles
-	return fieldform.Props{Width: a.Width, Height: a.Height, Left: a.X, Top: a.Y, Title: m.Dialog.Title,
+	return fieldform.Props{Width: a.Width, Height: a.Height, Left: a.X, Top: a.Y, Title: m.dialog.Title,
 		Styles:  fieldform.Styles{Title: s.Title, Disabled: s.Disabled, Muted: s.Dim, Focus: s.Focus, Error: s.Err, Selected: s.Hunk},
 		Surface: m.popupSurface(), SearchStyles: m.palette().TextInputStyles(textinput.New().Styles())}
 }

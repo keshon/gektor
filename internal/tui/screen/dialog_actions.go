@@ -5,20 +5,20 @@ import tea "charm.land/bubbletea/v2"
 // DialogActions supplies shortcuts for the shared form or table currently open.
 // Information overlays retain the active screen's normal navigation shortcuts.
 func (m *Controls) DialogActions() []Action {
-	if m.Dialog != nil && m.Dialog.Secret != nil {
+	if m.dialog != nil && m.dialog.Secret != nil {
 		return []Action{{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: "Save encrypted", Short: "Save", Enabled: true}, {Key: tea.KeyEscape, Name: "Esc", Label: "Cancel", Short: "Cancel", Enabled: true}}
 	}
-	if m.Dialog != nil && m.Dialog.Table != nil {
+	if m.dialog != nil && m.dialog.Table != nil {
 		props := m.TableProps()
 
-		usable := m.Dialog.Table.model.Layout(props).Capacity > 0
+		usable := m.dialog.Table.model.Layout(props).Capacity > 0
 		enter := Action{Key: tea.KeyEnter, Mod: 0, Name: "Enter", Label: "Choose", Short: "Choose", Enabled: false}
 		for _, action := range props.Actions {
 			if action.ID == props.DefaultAction {
 				enter.Label, enter.Short, enter.Enabled = action.Label, action.Label, action.Enabled
 			}
 		}
-		if usable && m.Dialog.Table.model.MoreOpen {
+		if usable && m.dialog.Table.model.MoreOpen {
 			return []Action{{Key: tea.KeyEnter, Mod: 0, Name: "Enter", Label: "Choose", Short: "Choose", Enabled: true}, {Key: tea.KeyEscape, Mod: 0, Name: "Esc", Label: "Back", Short: "Back", Enabled: true}, {Key: 'q', Mod: tea.ModCtrl, Name: "Ctrl+Q", Label: "Quit", Short: "Quit", Enabled: true}}
 		}
 		if !usable {
@@ -31,12 +31,12 @@ func (m *Controls) DialogActions() []Action {
 			enter,
 			{Key: tea.KeyEscape, Mod: 0, Name: "Esc", Label: "Back", Short: "Back", Enabled: true}, {Key: 'q', Mod: tea.ModCtrl, Name: "Ctrl+Q", Label: "Quit", Short: "Quit", Enabled: true}}
 	}
-	if m.Dialog != nil && m.Dialog.Form != nil {
-		if m.Dialog.Form.FeedbackOpen {
+	if m.dialog != nil && m.dialog.Form != nil {
+		if m.dialog.Form.FeedbackOpen {
 			return []Action{{Key: tea.KeyEscape, Name: "Esc", Label: "Back", Short: "Back", Enabled: true}}
 		}
-		if m.Dialog.Form.Picker != nil {
-			p := m.Dialog.Form.Picker
+		if m.dialog.Form.Picker != nil {
+			p := m.dialog.Form.Picker
 			label, enabled := p.EnterAction()
 			enter := Action{Key: tea.KeyEnter, Mod: 0, Name: "Enter", Label: label, Short: label, Enabled: enabled}
 			if p.NoSearch {
@@ -45,14 +45,14 @@ func (m *Controls) DialogActions() []Action {
 			if p.Folders() {
 				return []Action{enter, {Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: "Select folder", Short: "Select", Enabled: !p.Location && !p.Loading && p.Err == "" && p.Directory != ""}, {Key: 'l', Mod: tea.ModCtrl, Name: "Ctrl+L", Label: "Path", Short: "Path", Enabled: true}, {Key: 'd', Mod: tea.ModCtrl, Name: "Ctrl+D", Label: "Drives", Short: "Drives", Enabled: true}, {Key: tea.KeyEscape, Mod: 0, Name: "Esc", Label: "Back", Short: "Back", Enabled: true}}
 			}
-			return []Action{enter, {Key: tea.KeyEscape, Mod: 0, Name: "Esc", Label: "Back", Short: "Back", Enabled: true}, {Key: 'b', Mod: tea.ModCtrl, Name: "Ctrl+B", Label: "Browse", Short: "Browse", Enabled: m.Dialog.Form.Picker.IsFiles()}, {Key: 'r', Mod: tea.ModCtrl, Name: "Ctrl+R", Label: "Refresh", Short: "Refresh", Enabled: true}, {Key: 'q', Mod: tea.ModCtrl, Name: "Ctrl+Q", Label: "Quit", Short: "Quit", Enabled: true}}
+			return []Action{enter, {Key: tea.KeyEscape, Mod: 0, Name: "Esc", Label: "Back", Short: "Back", Enabled: true}, {Key: 'b', Mod: tea.ModCtrl, Name: "Ctrl+B", Label: "Browse", Short: "Browse", Enabled: m.dialog.Form.Picker.IsFiles()}, {Key: 'r', Mod: tea.ModCtrl, Name: "Ctrl+R", Label: "Refresh", Short: "Refresh", Enabled: true}, {Key: 'q', Mod: tea.ModCtrl, Name: "Ctrl+Q", Label: "Quit", Short: "Quit", Enabled: true}}
 		}
-		label := m.Dialog.Form.ApplyLabel
+		label := m.dialog.Form.ApplyLabel
 		if label == "" {
 			label = "Apply"
 		}
-		apply := Action{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: label, Short: label, Enabled: !m.Dialog.Form.DisablePrimary}
-		if m.Dialog.Form.Destructive {
+		apply := Action{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: label, Short: label, Enabled: !m.dialog.Form.DisablePrimary}
+		if m.dialog.Form.Destructive {
 			apply = Action{Key: tea.KeyEnter, Mod: 0, Name: "Enter", Label: "Choose", Short: "Choose", Enabled: true}
 		}
 		if m.Props.Width < 64 {

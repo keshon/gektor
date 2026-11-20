@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -109,10 +110,10 @@ func TestRecipeSetupRejectsInvalidValuesAndStaleForms(t *testing.T) {
 		t.Fatal("stale overwrite", err)
 	}
 	w.run = &workflow.Run{}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	for _, action := range []string{"name", "inputs", "outputs"} {
 		m.workflowCommand(action)
-		if m.chrome.Dialog != nil {
+		if m.chrome.DialogID() != (screen.DialogID{}) {
 			t.Fatal("frozen run opened setup", action)
 		}
 	}

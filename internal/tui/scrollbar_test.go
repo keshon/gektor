@@ -21,8 +21,8 @@ func TestAppearanceScrollbarDragThroughBothScreens(t *testing.T) {
 			}
 			m.runAction("appearance")
 			m.settleControls()
-			dialog := m.chrome.Dialog
-			f := dialog.Form
+			dialog := m.chrome.DialogID()
+			f := formSnapshot(m)
 			values := f.Values()
 			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
 			x, y := -1, -1
@@ -48,7 +48,8 @@ func TestAppearanceScrollbarDragThroughBothScreens(t *testing.T) {
 			m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 			m.Update(tea.MouseMotionMsg{X: 0, Y: m.termH + 10, Button: tea.MouseLeft})
 			m.Update(tea.MouseReleaseMsg{X: 0, Y: m.termH - 1})
-			if m.chrome.Dialog != dialog || f.Index != 1 || f.Values()["theme"] != values["theme"] || f.Values()["frame"] != values["frame"] {
+			f = formSnapshot(m)
+			if m.chrome.DialogID() != dialog || f.Index != 1 || f.Values()["theme"] != values["theme"] || f.Values()["frame"] != values["frame"] {
 				t.Fatal("drag missed second field, changed a choice or activated toolbar", workflow, width, f.Index)
 			}
 			if !strings.Contains(ansi.Strip(m.View().Content), "Panel frame") {
@@ -71,7 +72,7 @@ func TestTableScrollbarMotionAndReleaseReachOffsetDialog(t *testing.T) {
 		}
 		m.chrome.PresentDialog(screen.Dialog{Title: "Rows", Table: &screen.Table{State: state, Rows: tableRows, Columns: []table.Column{{Label: "Name"}}}})
 		m.settleControls()
-		dialog := m.chrome.Dialog
+		dialog := m.chrome.DialogID()
 		p := m.chrome.TableProps()
 		l := m.chrome.TableSnapshot(m.chrome.DialogID()).Layout
 		x := m.chrome.Props.Area.X + max((p.Width-l.Width)/2, 0) + 2 + l.Scroll.X
@@ -83,7 +84,7 @@ func TestTableScrollbarMotionAndReleaseReachOffsetDialog(t *testing.T) {
 		m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 		m.Update(tea.MouseMotionMsg{X: 0, Y: m.termH + 10, Button: tea.MouseLeft})
 		m.Update(tea.MouseReleaseMsg{X: 0, Y: m.termH - 1})
-		if m.chrome.Dialog != dialog || m.chrome.TableSnapshot(m.chrome.DialogID()).Offset != len(tableRows)-l.Capacity {
+		if m.chrome.DialogID() != dialog || m.chrome.TableSnapshot(m.chrome.DialogID()).Offset != len(tableRows)-l.Capacity {
 			t.Fatal("shared modal discarded motion/release or activated footer", workflow, m.chrome.TableSnapshot(m.chrome.DialogID()).Offset)
 		}
 		m.chrome.Close()

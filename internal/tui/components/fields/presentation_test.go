@@ -47,3 +47,22 @@ func TestPresentationAndSnapshotDoNotShareMutableStorage(t *testing.T) {
 		t.Fatal("snapshot exposed the form's mutable storage")
 	}
 }
+
+func TestPickerAndChoicesSnapshotsAreDetached(t *testing.T) {
+	f := NewModel([]form.Field{{Key: "choice", Value: "one"}}, textarea.New())
+	f.Choices = map[string][]string{"choice": {"one", "two"}}
+	f.Focus(0, nil)
+	f.OpenPicker(Props{Width: 80, Height: 24})
+	items := []string{"one", "two"}
+	f.AcceptScan(ScanMsg{ID: f.Picker.ID, Items: items})
+	items[0] = "caller changed scan"
+	snapshot := f.Snapshot()
+	snapshot.Choices["choice"][0] = "caller changed choices"
+	snapshot.Picker.Items[0] = "caller changed items"
+	snapshot.Picker.Filtered[0] = "caller changed filter"
+	snapshot.Picker.Search = "caller changed search"
+	current := f.Snapshot()
+	if current.Choices["choice"][0] != "one" || current.Picker.Items[0] != "one" || current.Picker.Filtered[0] != "one" || current.Picker.Search != "" {
+		t.Fatal("snapshot or scan result shares picker storage")
+	}
+}

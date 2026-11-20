@@ -287,7 +287,7 @@ func TestDialogQDoesNotClose(t *testing.T) {
 	m.testControls().Open("help", helpText())
 	m.syncControls()
 	updated, _ := m.testUpdate(keyRunes('q'))
-	if mm := updated.(*Model); mm.chrome.Dialog == nil {
+	if mm := updated.(*Model); mm.chrome.DialogInfo().Kind == 0 {
 		t.Fatal("q must not close the dialog")
 	}
 }
@@ -460,7 +460,7 @@ func TestStatusPostsToHistory(t *testing.T) {
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
-	if mm.chrome.Dialog != nil {
+	if mm.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("status must post to history, not a modal")
 	}
 	view := mm.transcript.Viewport.View()
@@ -526,7 +526,7 @@ func TestStartRunClosesDialog(t *testing.T) {
 	}
 	m.startRun(func(ctx context.Context) (string, error) { return "done", nil })
 	m.syncControls()
-	if m.chrome.Dialog != nil || len(m.overlays) != 0 {
+	if m.chrome.DialogInfo().Kind != 0 || len(m.overlays) != 0 {
 		t.Fatal("run start must close the dialog")
 	}
 }

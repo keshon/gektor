@@ -9,6 +9,7 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestAgentControlsUseSharedShortcutRoles(t *testing.T) {
@@ -40,8 +41,7 @@ func TestAgentControlsUseSharedShortcutRoles(t *testing.T) {
 
 func TestCustomDialogShortcutsKeepWholeActions(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.testControls().Open("Review proposal", []string{"Proposed changes"})
-	m.chrome.Dialog.Shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}}
+	m.chrome.PresentDialog(screen.Dialog{Title: "Review proposal", Lines: []string{"Proposed changes"}, Shortcuts: []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}}})
 	for _, width := range []int{40, 80} {
 		sizeModelTo(t, m, width, 24)
 		hint := ansi.Strip(m.testControls().LayoutDialog().Hint)

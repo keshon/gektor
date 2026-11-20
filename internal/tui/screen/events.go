@@ -31,8 +31,8 @@ func (m *Controls) TakeEvents() []Event {
 	return events
 }
 
-func (m *Controls) completeForm(dialog *DialogState, err error) {
-	if m.Dialog != dialog {
+func (m *Controls) completeForm(dialog *dialogState, err error) {
+	if m.dialog != dialog {
 		return
 	}
 	if err != nil {
@@ -43,10 +43,10 @@ func (m *Controls) completeForm(dialog *DialogState, err error) {
 }
 
 func (m *Controls) Suspend() {
-	if m.Dialog == nil {
+	if m.dialog == nil {
 		return
 	}
-	dialog := m.Dialog
+	dialog := m.dialog
 	id := m.DialogID()
 	if dialog.Secret != nil {
 		dialog.Secret.Clear()
@@ -55,12 +55,12 @@ func (m *Controls) Suspend() {
 		dialog.Form.Sync()
 	}
 	dialog.suspended = true
-	m.Dialog = nil
+	m.dialog = nil
 	m.events = append(m.events, Event{Kind: Suspended, ID: id})
 }
 
-func (m *Controls) completeSave(dialog *DialogState, err error) {
-	if m.Dialog != dialog {
+func (m *Controls) completeSave(dialog *dialogState, err error) {
+	if m.dialog != dialog {
 		return
 	}
 	if err != nil {
@@ -71,16 +71,16 @@ func (m *Controls) completeSave(dialog *DialogState, err error) {
 	m.Close()
 }
 
-func (m *Controls) resume(dialog *DialogState) {
+func (m *Controls) resume(dialog *dialogState) {
 	dialog.suspended = false
-	first := m.Dialog == nil
-	if m.Dialog != nil {
-		if m.Dialog.Secret != nil {
-			m.Dialog.Secret.Clear()
+	first := m.dialog == nil
+	if m.dialog != nil {
+		if m.dialog.Secret != nil {
+			m.dialog.Secret.Clear()
 		}
 		m.events = append(m.events, Event{Kind: Replaced, ID: m.DialogID()})
 	}
-	m.Dialog = dialog
+	m.dialog = dialog
 	// A suspended secret always resumes empty.
 	if dialog.Secret != nil {
 		_ = dialog.Secret.editor.Focus()
@@ -91,19 +91,19 @@ func (m *Controls) resume(dialog *DialogState) {
 
 // Prepare updates editor styles on the update loop, before presentation reads.
 func (m *Controls) Prepare() {
-	if m.Dialog != nil && m.Dialog.Secret != nil {
-		m.Dialog.Secret.editor.SetStyles(m.palette().TextInputStyles(m.Dialog.Secret.editor.Styles()))
+	if m.dialog != nil && m.dialog.Secret != nil {
+		m.dialog.Secret.editor.SetStyles(m.palette().TextInputStyles(m.dialog.Secret.editor.Styles()))
 		m.refreshSecret()
 	}
-	if m.Dialog != nil && m.Dialog.Table != nil {
-		search := &m.Dialog.Table.model.Search
+	if m.dialog != nil && m.dialog.Table != nil {
+		search := &m.dialog.Table.model.Search
 		search.SetStyles(m.palette().TextInputStyles(search.Styles()))
 	}
 }
 
 // CompleteFormID applies a validation result only to its originating form.
 func (m *Controls) CompleteFormID(id DialogID, err error) {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form == nil {
 		return
 	}
 	m.completeForm(id.dialog, err)
@@ -111,7 +111,7 @@ func (m *Controls) CompleteFormID(id DialogID, err error) {
 
 // CompleteSaveID applies a save result only to its originating information dialog.
 func (m *Controls) CompleteSaveID(id DialogID, err error) {
-	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form != nil || m.Dialog.Table != nil || m.Dialog.Secret != nil {
+	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form != nil || m.dialog.Table != nil || m.dialog.Secret != nil {
 		return
 	}
 	m.completeSave(id.dialog, err)

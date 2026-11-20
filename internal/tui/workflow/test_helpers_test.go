@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/permission"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
@@ -67,18 +68,18 @@ func (m *model) syncControls() {
 	props := m.workflows.Presentation()
 	props.Width, props.Height = m.termW, m.termH
 	m.chrome.Props = props
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		m.chrome.Props.Actions = m.chrome.DialogActions()
 	}
 }
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.syncControls()
 	m.syncControls()
-	if m.chrome.Dialog != nil {
-		if m.chrome.Dialog.Form != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
+		if m.chrome.DialogInfo().Kind == screen.FormDialog {
 			return m.workflows, m.chrome.FormKey(msg)
 		}
-		if m.chrome.Dialog.Table != nil {
+		if m.chrome.DialogInfo().Kind == screen.TableDialog {
 			return m.workflows, m.chrome.TableInput(msg)
 		}
 		return m.workflows, m.chrome.InfoKey(msg)
@@ -105,7 +106,7 @@ func (m *model) screenContent() string { return m.workflowScreen() }
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	defer m.syncControls()
 	m.syncControls()
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		return m.workflows, m.chrome.DialogMouse(msg)
 	}
 	return m.workflows.Update(msg)
@@ -119,4 +120,13 @@ func sizeModelTo(t *testing.T, m *model, width, height int) *model {
 
 func (m *model) applyValues(values map[string]string) error {
 	return m.workflows.applySubmission(m.chrome.DialogID(), values)
+}
+
+func (m *model) formSnapshot(t *testing.T) fieldform.Snapshot {
+	t.Helper()
+	snapshot, ok := m.chrome.FormSnapshot(m.chrome.DialogID())
+	if !ok {
+		t.Fatal("missing form")
+	}
+	return snapshot
 }

@@ -67,8 +67,8 @@ func TestPreferenceRestartHelper(t *testing.T) {
 			m.chrome.Header.Row = headerRowFor(m, command)
 			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		}
-		if m.chrome.Dialog != nil {
-			t.Fatal("View save failed", m.chrome.Dialog.Lines)
+		if m.chrome.DialogInfo().Kind != screen.NoDialog {
+			t.Fatal("View save failed", dialogSnapshot(m).Lines)
 		}
 	}
 	m.openAppearance()
@@ -77,10 +77,10 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		frame = "outlined"
 	}
 	focusSetting(m, "frame")
-	m.chrome.Dialog.Form.Editor.SetValue(frame)
+	replaceFormText(m, frame)
 	m.applyForm()
-	if m.chrome.Dialog != nil {
-		t.Fatal("Appearance save failed", m.chrome.Dialog.Form.Error)
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		t.Fatal("Appearance save failed", formSnapshot(m).Error)
 	}
 	if phase == "reset" {
 		m.command("theme dark")
@@ -101,11 +101,11 @@ func TestPreferenceRestartHelper(t *testing.T) {
 			m.formKey(tea.KeyPressMsg{Code: tea.KeyF4})
 		}
 		focusSetting(m, edit[1])
-		m.chrome.Dialog.Form.Editor.SetValue(edit[2])
+		replaceFormText(m, edit[2])
 	}
 	m.applyForm()
 	if m.modeChange == nil {
-		t.Fatal("Settings Apply failed", m.chrome.Dialog)
+		t.Fatal("Settings Apply failed", dialogSnapshot(m))
 	}
 	// The application loop persists this payload before replacing services.
 	if err := config.SavePreferences(path, m.modeChange.Preferences); err != nil {

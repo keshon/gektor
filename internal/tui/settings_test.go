@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
@@ -35,11 +36,11 @@ func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 	// the wrong one.
 	m.chrome.Header.Row = headerRowFor(m, "edit:you")
 	m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Header.Focused || m.chrome.Dialog.Title != "Settings" {
+	if m.chrome.DialogInfo().Kind != screen.FormDialog || m.chrome.Header.Focused || dialogSnapshot(m).Title != "Settings" {
 		t.Fatal("settings redirected instead of opening editor")
 	}
 	m.focusForm(0)
-	if m.chrome.Dialog.Form.Editor.Value() != "User" {
+	if formSnapshot(m).EditorValue != "User" {
 		t.Fatal("initial field lost")
 	}
 	m.Update(tea.PasteMsg{Content: "Alex"})
@@ -49,7 +50,7 @@ func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 		t.Fatal("form input leaked into session actions")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.chrome.Dialog != nil || m.profile != configured || draftOf(m) != "unfinished draft" || m.profile.Profile.Identity.UserName != "User" {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog || m.profile != configured || draftOf(m) != "unfinished draft" || m.profile.Profile.Identity.UserName != "User" {
 		t.Fatal("cancel mutated configuration or draft")
 	}
 }
@@ -64,19 +65,19 @@ func TestSettingsValidateThenApplyLeavesTheSavedTaskAlone(t *testing.T) {
 	m.editSettings("generation")
 	// An unset temperature reads as the number that will actually be used,
 	// not as a bare 0 that looks like deterministic sampling.
-	if got := m.chrome.Dialog.Form.Editor.Value(); !strings.Contains(got, "default") {
+	if got := formSnapshot(m).EditorValue; !strings.Contains(got, "default") {
 		t.Fatalf("unset temperature shows as %q", got)
 	}
-	m.chrome.Dialog.Form.Editor.SetValue("bad")
+	replaceFormText(m, "bad")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" || m.modeChange != nil {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || formSnapshot(m).Error == "" || m.modeChange != nil {
 		t.Fatal("invalid settings applied")
 	}
-	m.chrome.Dialog.Form.Editor.SetValue("0.8")
+	replaceFormText(m, "0.8")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	after, _ := os.ReadFile(path)
-	if m.chrome.Dialog != nil {
-		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		t.Fatalf("apply refused: %q", formSnapshot(m).Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply queued no restart")
@@ -105,7 +106,7 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 		// Every drawn row fills the screen, and Cancel is where it is
 		// drawn - not where a second copy of the layout maths says.
 		clickVisible(t, m, "[ Cancel ]")
-		if m.chrome.Dialog != nil || draftOf(m) != "unfinished draft" {
+		if m.chrome.DialogInfo().Kind != screen.NoDialog || draftOf(m) != "unfinished draft" {
 			t.Fatal("mouse cancel missed or lost draft")
 		}
 	}
@@ -125,11 +126,11 @@ func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 		{"user", 1},
 	} {
 		clickHit(t, m, fieldHit(t, m, c.key))
-		if m.chrome.Dialog.Form.Editor.Height() != c.want {
+		if formSnapshot(m).EditorHeight != c.want {
 			t.Fatalf("clicking %q left the editor at height %d, want %d",
-				c.key, m.chrome.Dialog.Form.Editor.Height(), c.want)
+				c.key, formSnapshot(m).EditorHeight, c.want)
 		}
-		if m.chrome.Dialog.Form.Fields[fieldHit(t, m, c.key)].Key != c.key {
+		if formSnapshot(m).Fields[fieldHit(t, m, c.key)].Key != c.key {
 			t.Fatalf("the click did not focus %q", c.key)
 		}
 	}
@@ -174,7 +175,7 @@ func TestEveryIdleSettingsRowOpens(t *testing.T) {
 			}
 		}
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.chrome.Dialog == nil {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog {
 			t.Fatalf("Settings row %q (%s) opened nothing", item.Text, item.Command)
 		}
 	}
@@ -220,13 +221,13 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
-	if m.chrome.Dialog.Form.Editor.Value() != "custom" {
+	if formSnapshot(m).EditorValue != "custom" {
 		t.Fatal("wrong initial switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
-	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyDown}, m.settingsProps())
-	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
-	if m.chrome.Dialog.Form.Editor.Value() == "custom" {
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if formSnapshot(m).EditorValue == "custom" {
 		t.Fatal("space did not toggle prompt switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -238,13 +239,13 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 func TestFormArrowNavigationPreservesValues(t *testing.T) {
 	m := settingsModel(t)
 	m.chrome.OpenForm("Settings", "", "Apply", []form.Field{{Key: "one", Label: "First", Value: "one", Multiline: false}, {Key: "two", Label: "Second", Value: "two", Multiline: false}})
-	m.chrome.Dialog.Form.Editor.SetValue("edited")
+	replaceFormText(m, "edited")
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.chrome.Dialog.Form.Index != 1 || m.chrome.Dialog.Form.Fields[0].Value != "edited" {
+	if formSnapshot(m).Index != 1 || formSnapshot(m).Fields[0].Value != "edited" {
 		t.Fatal("down lost value or focus")
 	}
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyUp})
-	if m.chrome.Dialog.Form.Index != 0 || m.chrome.Dialog.Form.Editor.Value() != "edited" {
+	if formSnapshot(m).Index != 0 || formSnapshot(m).EditorValue != "edited" {
 		t.Fatal("up lost value or focus")
 	}
 }
@@ -270,16 +271,16 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m.focusForm(1)
-	if m.chrome.Dialog.Form.Editor.Value() != "http://127.0.0.1:5001" {
+	if formSnapshot(m).EditorValue != "http://127.0.0.1:5001" {
 		t.Fatal("suggested URL not visible in editor")
 	}
-	m.chrome.Dialog.Form.Editor.SetValue("http://localhost:9000")
+	replaceFormText(m, "http://localhost:9000")
 	m.focusForm(0)
 	m.Update(tea.KeyPressMsg{Code: tea.KeySpace})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m.focusForm(1)
-	if m.chrome.Dialog.Form.Editor.Value() != "http://localhost:9000" {
+	if formSnapshot(m).EditorValue != "http://localhost:9000" {
 		t.Fatal("custom URL overwritten")
 	}
 }

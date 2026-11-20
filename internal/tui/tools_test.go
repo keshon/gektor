@@ -43,17 +43,18 @@ func TestToolsNavigationAndCancelAreSharedByAgentAndWorkflow(t *testing.T) {
 		m := toolSettingsModel(t)
 		m.runAction(mode)
 		m.runAction("tools")
-		if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Tools" {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Title != "Tools" {
 			t.Fatal("no Tools in", mode)
 		}
 		chooseTool(t, m, "native_media", "settings")
-		if m.chrome.Dialog.Title != "Media executables" {
-			t.Fatal(m.chrome.Dialog.Title)
+		if m.chrome.DialogInfo().Title != "Media executables" {
+			t.Fatal(m.chrome.DialogInfo().Title)
 		}
 		chooseTool(t, m, "ffmpeg", "details")
-		m.chrome.Dialog.Form.Fields[0].Value = filepath.Join(t.TempDir(), "unsaved.exe")
+		m.chrome.FocusForm(0)
+		replaceFormText(m, filepath.Join(t.TempDir(), "unsaved.exe"))
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-		if m.chrome.Dialog.Title != "Media executables" || m.modeChange != nil {
+		if m.chrome.DialogInfo().Title != "Media executables" || m.modeChange != nil {
 			t.Fatal("Cancel failed to return without applying")
 		}
 		_, err := os.Stat(m.tools.Resolver.ConfigPath)
@@ -61,11 +62,11 @@ func TestToolsNavigationAndCancelAreSharedByAgentAndWorkflow(t *testing.T) {
 			t.Fatal("Cancel saved preferences", err)
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-		if m.chrome.Dialog.Title != "Tools" {
+		if m.chrome.DialogInfo().Title != "Tools" {
 			t.Fatal("Media back did not return to Tools")
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-		if m.chrome.Dialog != nil {
+		if m.chrome.DialogInfo().Kind != screen.NoDialog {
 			t.Fatal("Tools did not close")
 		}
 	}
@@ -132,15 +133,15 @@ func TestMediaFormApplyAndToolsOperationNavigation(t *testing.T) {
 	chooseTool(t, m, "native_media", "settings")
 	m.chrome.TableAction("operations")
 	m.settleControls()
-	if m.chrome.Dialog.Title != "Media" || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "video_transcript") {
+	if m.chrome.DialogInfo().Title != "Media" || !strings.Contains(strings.Join(dialogSnapshot(m).Lines, "\n"), "video_transcript") {
 		t.Fatal("missing operation details")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	chooseTool(t, m, "ffmpeg", "details")
 	path := filepath.Join(t.TempDir(), "chosen ffmpeg.exe")
-	m.chrome.Dialog.Form.Editor.SetValue(path)
+	replaceFormText(m, path)
 	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.modeChange == nil || m.chrome.Dialog != nil {
+	if m.modeChange == nil || m.chrome.DialogInfo().Kind != screen.NoDialog {
 		t.Fatal("form did not apply and request relaunch")
 	}
 	saved, err := m.tools.Resolver.Load()
@@ -234,13 +235,13 @@ func TestToolsMouseActionsUseSharedControls(t *testing.T) {
 		chooseTool(t, m, "native_media", "settings")
 		m.syncPresentation()
 		clickVisible(t, m, "Operations")
-		if m.chrome.Dialog.Title != "Media" {
+		if m.chrome.DialogInfo().Title != "Media" {
 			t.Fatal("mouse missed operation details")
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 		m.syncPresentation()
 		clickVisible(t, m, "[ Preferences ]")
-		if m.chrome.Dialog.Form == nil {
+		if m.chrome.DialogInfo().Kind != screen.FormDialog {
 			t.Fatal("mouse missed preferences")
 		}
 		m.syncPresentation()
@@ -258,12 +259,12 @@ func TestSSHSettingsCancelApplyAndDeleteAcrossScreens(t *testing.T) {
 		m.runAction(mode)
 		m.runAction("tools")
 		chooseTool(t, m, "native_ssh", "settings")
-		if m.chrome.Dialog.Title != "SSH connections" {
+		if m.chrome.DialogInfo().Title != "SSH connections" {
 			t.Fatal("SSH list missing")
 		}
 		m.chrome.TableAction("add")
 		m.settleControls()
-		if m.chrome.Dialog.Form == nil {
+		if m.chrome.DialogInfo().Kind != screen.FormDialog {
 			t.Fatal("Add unavailable on an empty list")
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -274,11 +275,15 @@ func TestSSHSettingsCancelApplyAndDeleteAcrossScreens(t *testing.T) {
 		m.chrome.TableAction("add")
 		m.settleControls()
 		values := map[string]string{"name": "dev", "host": "example.com", "port": "22", "user": "tester", "known_hosts": filepath.Join(t.TempDir(), "known_hosts"), "auth": "Password", "advanced": "Yes", "password_source": "Environment variable", "password_env": "SSH_PASSWORD"}
-		for i := range m.chrome.Dialog.Form.Fields {
-			field := &m.chrome.Dialog.Form.Fields[i]
-			field.Value = values[field.Key]
+		for _, key := range []string{"advanced", "auth", "password_source", "name", "host", "port", "user", "known_hosts", "password_env"} {
+			for i, field := range formSnapshot(m).Fields {
+				if field.Key == key {
+					m.chrome.FocusForm(i)
+					replaceFormText(m, values[key])
+					break
+				}
+			}
 		}
-		m.chrome.Dialog.Form.Editor.SetValue("dev")
 		m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 		if m.modeChange == nil {
 			t.Fatal("SSH form did not request restart")
@@ -291,7 +296,7 @@ func TestSSHSettingsCancelApplyAndDeleteAcrossScreens(t *testing.T) {
 		m.modeChange = nil
 		m.openSSHTools()
 		chooseTool(t, m, "dev", "delete")
-		if m.chrome.Dialog.Form == nil || !m.chrome.Dialog.Form.Destructive {
+		if m.chrome.DialogInfo().Kind != screen.FormDialog || !formSnapshot(m).Destructive {
 			t.Fatal("missing delete confirmation")
 		}
 		err = m.deleteSSHPreference("dev", "wrong")
@@ -358,7 +363,7 @@ func TestSSHCheckCannotReplaceAnUnrelatedDialog(t *testing.T) {
 	m.chrome.PresentDialog(screen.Dialog{Title: "Another view"})
 	m.settleControls()
 	m.Update(command())
-	if m.chrome.Dialog.Title != "Another view" {
+	if m.chrome.DialogInfo().Title != "Another view" {
 		t.Fatal("late SSH check replaced another view")
 	}
 }
@@ -375,16 +380,16 @@ func TestSSHMaskedEntrySavesOnlyReferencesAcrossBothScreens(t *testing.T) {
 		m.runAction(mode)
 		values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "Password", "password": "Enter password when saving"}
 		err := m.applySSHPreference("", values)
-		if err != nil || m.chrome.Dialog.Secret == nil || m.modeChange != nil {
+		if err != nil || m.chrome.DialogInfo().Kind != screen.SecretDialog || m.modeChange != nil {
 			t.Fatal("masked prompt was not opened before saving", err)
 		}
 		m.Update(tea.PasteMsg{Content: "private-secret-sentinel"})
-		previous := m.chrome.Dialog
+		previous := m.chrome.DialogID()
 		if strings.Contains(ansi.Strip(m.View().Content), "private-secret-sentinel") {
 			t.Fatal("plaintext rendered")
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-		if previous.Secret.Take() != "" || m.sshSecret != nil {
+		if secretValue(m, previous) != "" || m.sshSecret != nil {
 			t.Fatal("Cancel retained secret state")
 		}
 		_, err = os.Stat(m.tools.SSHProfiles.Path)
@@ -401,14 +406,14 @@ func TestSSHMaskedEntrySavesOnlyReferencesAcrossBothScreens(t *testing.T) {
 			t.Fatal(err)
 		}
 		m.Update(tea.PasteMsg{Content: "private-secret-sentinel"})
-		previous = m.chrome.Dialog
+		previous = m.chrome.DialogID()
 		if mode == "screen:workflows" {
 			m.syncPresentation()
 			clickVisible(t, m, "Save encrypted")
 		} else {
 			m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 		}
-		if m.modeChange == nil || m.sshSecret != nil || previous.Secret.Take() != "" {
+		if m.modeChange == nil || m.sshSecret != nil || secretValue(m, previous) != "" {
 			t.Fatal("saved secret was retained or restart missing")
 		}
 		raw, err := os.ReadFile(m.tools.SSHProfiles.Path)
@@ -440,14 +445,14 @@ func TestSSHMaskedEntryFailureAndReplacementDiscardValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.modeChange != nil || m.chrome.Dialog.Secret.Error == "" {
+	if m.modeChange != nil || dialogSnapshot(m).Error == "" {
 		t.Fatal("empty secret accepted")
 	}
 	m.Update(tea.PasteMsg{Content: "private-secret-sentinel"})
-	previous := m.chrome.Dialog
+	previous := m.chrome.DialogID()
 	m.chrome.PresentDialog(screen.Dialog{Title: "Other"})
 	m.settleControls()
-	if previous.Secret.Take() != "" || m.sshSecret != nil {
+	if secretValue(m, previous) != "" || m.sshSecret != nil {
 		t.Fatal("replacement retained secret")
 	}
 }
@@ -498,7 +503,7 @@ func TestSSHAuthenticationPickerUpdatesFieldsInBothScreens(t *testing.T) {
 		chooseTool(t, m, "native_ssh", "settings")
 		m.chrome.TableAction("add")
 		m.settleControls()
-		for i, field := range m.chrome.Dialog.Form.Fields {
+		for i, field := range formSnapshot(m).Fields {
 			if field.Key == "auth" {
 				m.focusForm(i)
 				break
@@ -510,11 +515,11 @@ func TestSSHAuthenticationPickerUpdatesFieldsInBothScreens(t *testing.T) {
 		} else {
 			m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 		}
-		for i, field := range m.chrome.Dialog.Form.Fields {
-			if field.Key == "private_key" && !m.chrome.Dialog.Form.FieldVisible(i) {
+		for i, field := range formSnapshot(m).Fields {
+			if field.Key == "private_key" && !m.chrome.FieldVisible(i) {
 				t.Fatal("key picker still hidden")
 			}
-			if field.Key == "password" && m.chrome.Dialog.Form.FieldVisible(i) {
+			if field.Key == "password" && m.chrome.FieldVisible(i) {
 				t.Fatal("password row remains after selecting key")
 			}
 		}
@@ -562,7 +567,7 @@ func TestSessionToolControlsPersistAndKeepConversationHistory(t *testing.T) {
 	}
 	draft := draftOf(m)
 	m.openTools()
-	for _, action := range m.chrome.Dialog.Table.Actions {
+	for _, action := range m.chrome.TableSnapshot(m.chrome.DialogID()).Actions {
 		if action.ID == "unload" && action.Enabled {
 			t.Fatal("Always toolset can be unloaded")
 		}
@@ -574,7 +579,7 @@ func TestSessionToolControlsPersistAndKeepConversationHistory(t *testing.T) {
 			t.Fatal("session change did not start")
 		}
 		m.Update(cmd())
-		if m.toolLoadCancel != nil || m.chrome.Dialog.Table == nil {
+		if m.toolLoadCancel != nil || m.chrome.DialogInfo().Kind != screen.TableDialog {
 			t.Fatal("change did not return to inventory")
 		}
 	}
@@ -632,7 +637,7 @@ func TestToolsRunMenuAndNoSessionGuards(t *testing.T) {
 	if m.toolSessionAttached {
 		t.Fatal("workflow selected a conversation")
 	}
-	for _, action := range m.chrome.Dialog.Table.Actions {
+	for _, action := range m.chrome.TableSnapshot(m.chrome.DialogID()).Actions {
 		if (action.ID == "load" || action.ID == "unload") && action.Enabled {
 			t.Fatal("session action enabled in workflow")
 		}

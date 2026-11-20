@@ -64,7 +64,7 @@ func TestRunningAgentCannotOpenSettings(t *testing.T) {
 		t.Fatal("fixture did not start an Agent turn")
 	}
 	m.runAction("edit:model")
-	if m.chrome.Dialog != nil || m.modeChange != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog || m.modeChange != nil {
 		t.Fatal("settings interrupted the active Agent turn")
 	}
 	finishAgentTurn(t, m)
@@ -147,7 +147,7 @@ func TestWorkflowMenuMouseIgnoresFrameAndOutsideWheel(t *testing.T) {
 		}
 		layout := m.chrome.HeaderMenuLayout()
 		m.Update(tea.MouseClickMsg{X: layout.X, Y: layout.Y + 1, Button: tea.MouseLeft})
-		if m.chrome.Dialog != nil || m.chrome.Header.Menu != "settings" {
+		if m.chrome.DialogInfo().Kind != screen.NoDialog || m.chrome.Header.Menu != "settings" {
 			t.Fatal("menu frame executed a command")
 		}
 	}
@@ -159,12 +159,12 @@ func TestQuitChecksRetainedWorkflowFromAgent(t *testing.T) {
 	m.runAction("screen:agent")
 	m.syncPresentation()
 	m.Update(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
-	if m.quit || m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Quit with unsaved workflow?" {
+	if m.quit || m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Title != "Quit with unsaved workflow?" {
 		t.Fatal("hidden dirty workflow bypassed quit protection")
 	}
 	m.Update(tea.PasteMsg{Content: "discard"})
 	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if !m.quit || m.workflows != nil || m.chrome.Dialog != nil {
+	if !m.quit || m.workflows != nil || m.chrome.DialogInfo().Kind != screen.NoDialog {
 		t.Fatal("confirmed discard did not finish quitting")
 	}
 }
@@ -197,7 +197,7 @@ func TestSettingsMenusAreIdenticalAcrossModes(t *testing.T) {
 	}
 	for _, section := range []string{"model", "generation", "profiles", "you", "prompts"} {
 		m.runAction("edit:" + section)
-		if m.chrome.Dialog == nil || m.preferences.EditSession.Section != section {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog || m.preferences.EditSession.Section != section {
 			t.Fatalf("settings %s unavailable in Workflow", section)
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -206,7 +206,7 @@ func TestSettingsMenusAreIdenticalAcrossModes(t *testing.T) {
 		}
 	}
 	m.runAction("appearance")
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Appearance" {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Title != "Appearance" {
 		t.Fatal("global appearance unavailable in Workflow")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -217,10 +217,10 @@ func TestWorkflowWorkspacePickerHasNoAgentSettings(t *testing.T) {
 	m.openWorkflows()
 	m.syncPresentation()
 	m.runAction("workspace")
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Workspace" {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Title != "Workspace" {
 		t.Fatal("workspace picker did not open")
 	}
-	f := m.chrome.Dialog.Form
+	f := formSnapshot(m)
 	if m.preferences != nil || len(f.Fields) != 1 || f.Fields[0].Key != "app-workspace" {
 		t.Fatal("workspace picker exposed Agent settings")
 	}
@@ -238,7 +238,7 @@ func TestWorkflowAppearanceUpdatesBothScreensWithoutRelaunch(t *testing.T) {
 	before := draft.Source()
 	m.syncPresentation()
 	m.runAction("appearance")
-	values := m.chrome.Dialog.Form.Values()
+	values := formSnapshot(m).Values()
 	values["theme"], values["frame"] = "light", "outlined"
 	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
@@ -263,7 +263,7 @@ func TestWorkflowSharedModelApplyPreservesConversation(t *testing.T) {
 	m.openWorkflows()
 	m.syncPresentation()
 	m.runAction("edit:generation")
-	m.chrome.Dialog.Form.Editor.SetValue("0.7")
+	replaceFormText(m, "0.7")
 	m.applyForm()
 	change := m.modeChange
 	if change == nil || change.Preferences.Profile.Generation.Temperature != 0.7 {
@@ -282,9 +282,9 @@ func TestSettingsRelaunchProtectsRetainedWorkflow(t *testing.T) {
 	m.showAgent()
 	m.syncPresentation()
 	m.editSettings("generation")
-	m.chrome.Dialog.Form.Editor.SetValue("0.8")
+	replaceFormText(m, "0.8")
 	m.applyForm()
-	if m.modeChange != nil || m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
+	if m.modeChange != nil || m.chrome.DialogInfo().Kind == screen.NoDialog || formSnapshot(m).Error == "" {
 		t.Fatal("settings discarded a retained unsaved workflow")
 	}
 	if draft.Source() != before || !m.workflows.Dirty() || draftOf(m) != "unfinished draft" {

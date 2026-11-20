@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestAppearanceStagesAndSavesThemeAndFrameTogether(t *testing.T) {
@@ -19,9 +20,9 @@ func TestAppearanceStagesAndSavesThemeAndFrameTogether(t *testing.T) {
 	initial := m.agent.Appearance()
 	m.openAppearance()
 	focusSetting(m, "theme")
-	m.chrome.Dialog.Form.Editor.SetValue("light")
+	replaceFormText(m, "light")
 	focusSetting(m, "frame")
-	m.chrome.Dialog.Form.Editor.SetValue("minimal")
+	replaceFormText(m, "minimal")
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	after, err := config.LoadPreferences(m.application.PreferencePath)
 	if err != nil || !reflect.DeepEqual(before, after) || m.agent.Appearance() != initial {
@@ -29,12 +30,12 @@ func TestAppearanceStagesAndSavesThemeAndFrameTogether(t *testing.T) {
 	}
 	m.openAppearance()
 	focusSetting(m, "theme")
-	m.chrome.Dialog.Form.Editor.SetValue("light")
+	replaceFormText(m, "light")
 	focusSetting(m, "frame")
-	m.chrome.Dialog.Form.Editor.SetValue("minimal")
+	replaceFormText(m, "minimal")
 	m.applyForm()
-	if m.chrome.Dialog != nil {
-		t.Fatal("Appearance did not apply", m.chrome.Dialog.Form.Error)
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		t.Fatal("Appearance did not apply", formSnapshot(m).Error)
 	}
 	after, err = config.LoadPreferences(m.application.PreferencePath)
 	if err != nil || after.Theme != "light" || after.Appearance.Frame != "minimal" || !(m.agent.Appearance().Frame != "outlined") {

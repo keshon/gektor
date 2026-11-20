@@ -51,6 +51,9 @@ mutable table widget.
 Markdown detail content is refreshed in the same overlay lifetime on resize and
 theme changes, preserving scroll and expansion. Forms retain their drafts and
 focus. The example has no persistence, add/remove actions, or background service.
-Controls still expose some dialog and form presentation state. Closing those
-remaining ownership gaps and proving a pinned external consumer remain
-prerequisites for a stable public API.
+Controls keep dialog, form, table and secret widgets private. The host reads
+copied snapshots and routes input or guarded operations; integration tests use
+the same boundary. Run `go run scripts/check-tui-package.go` from the repository
+root to check an unpublished candidate with this example as a separate module.
+A real module layout and pinned release consumer remain prerequisites for a
+stable public API.

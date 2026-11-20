@@ -21,7 +21,7 @@ func (m *Controls) Compose(view tea.View) tea.View {
 		rows[len(rows)-1] = cell.Line(m.ActionBar(), m.Props.Width)
 	}
 	content := strings.Join(rows, "\n")
-	if m.Dialog != nil {
+	if m.dialog != nil {
 		content = m.overlayContent(content)
 		view.Cursor = nil
 	}

@@ -1,6 +1,7 @@
 package tui
 
 import (
+ "github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 	"testing"
 	"time"
@@ -73,7 +74,7 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	before := draft.Source()
 	older, newer := seedWorkflowRuns(t, m)
 	m.workflowCommand("runs")
-	if m.chrome.Dialog.Table == nil || m.chrome.TableSelectedID(m.chrome.DialogID()) != newer {
+	if m.chrome.DialogInfo().Kind != screen.TableDialog || m.chrome.TableSelectedID(m.chrome.DialogID()) != newer {
 		t.Fatal("runs are not newest first")
 	}
 	for _, a := range m.footerActions() {
@@ -84,7 +85,7 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
 	m.Update(tea.PasteMsg{Content: "no match"})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog == nil || len(m.workflows.TakeCommands()) != 0 {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog || len(m.workflows.TakeCommands()) != 0 {
 		t.Fatal("empty search activated a run")
 	}
 	m.closeDialog()
@@ -96,7 +97,7 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	m.handleKey(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m.Update(tea.PasteMsg{Content: older})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog != nil || len(m.workflows.TakeCommands()) != 1 || m.workflows.State().Busy || m.workflows.State().InspectingRun || draft.Source() != before {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog || len(m.workflows.TakeCommands()) != 1 || m.workflows.State().Busy || m.workflows.State().InspectingRun || draft.Source() != before {
 		t.Fatal("browsing started execution or changed the recipe")
 	}
 }
@@ -168,7 +169,7 @@ func TestWorkflowErrorFooterFitsEveryTheme(t *testing.T) {
 	seedWorkflow(t, m, d)
 	m.workflowCommand("validate")
 	driveWorkflow(t, m)
-	if m.chrome.Dialog == nil {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog {
 		t.Fatal("invalid recipe did not report its validation failure")
 	}
 	m.closeDialog()

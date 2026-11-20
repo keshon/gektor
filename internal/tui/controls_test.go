@@ -63,9 +63,9 @@ func TestSettingsToolbarDisabledApplyIsVisibleAndCannotRun(t *testing.T) {
 			if c := screen.CellAt(hit.X, 0); c == nil || !sameColor(c.Style.Fg, themeColor(colorDisabledText)) {
 				t.Fatal("disabled action uses enabled styling", theme)
 			}
-			before := m.chrome.Dialog
+			before := m.chrome.DialogID()
 			_, cmd := m.handleMouse(tea.MouseClickMsg{X: hit.X, Y: m.termH - 1, Button: tea.MouseLeft})
-			if cmd != nil || m.chrome.Dialog != before {
+			if cmd != nil || m.chrome.DialogID() != before {
 				t.Fatal("disabled Apply executed")
 			}
 		}
@@ -75,11 +75,11 @@ func TestSettingsToolbarDisabledApplyIsVisibleAndCannotRun(t *testing.T) {
 func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("generation")
-	before := m.chrome.Dialog.Form.Editor.Value()
-	cursor := m.chrome.Dialog.Form.Editor.Column()
+	before := formSnapshot(m).EditorValue
+	cursor := formSnapshot(m).EditorColumn
 	first := m.View().Content
 	second := m.View().Content
-	if first != second || m.chrome.Dialog.Form.Editor.Value() != before || m.chrome.Dialog.Form.Editor.Column() != cursor {
+	if first != second || formSnapshot(m).EditorValue != before || formSnapshot(m).EditorColumn != cursor {
 		t.Fatal("render mutated form")
 	}
 	for _, action := range m.footerActions() {
@@ -93,7 +93,7 @@ func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
 			break
 		}
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		t.Fatal("footer cancel click failed")
 	}
 }
@@ -107,9 +107,8 @@ func TestReplacedSharedFormCannotApplyPendingValues(t *testing.T) {
 	}
 	m.openAppearance()
 	first := m.chrome.DialogID()
-	m.chrome.Dialog.Form.Fields[1].Value = target
 	m.chrome.FocusForm(1)
-	m.chrome.Dialog.Form.Editor.SetValue(target)
+	replaceFormText(m, target)
 	m.chrome.ApplyForm()
 	m.openTheme()
 	replacement := m.chrome.DialogID()
@@ -136,7 +135,7 @@ func TestPendingFormKeepsReplacementAndReleasesOnClose(t *testing.T) {
 
 	m.chrome.ApplyForm()
 	m.Update(nil)
-	if firstCalls != 0 || secondCalls != 1 || m.chrome.Dialog != nil || m.form.dialog != (screen.DialogID{}) || m.form.apply != nil {
+	if firstCalls != 0 || secondCalls != 1 || m.chrome.DialogInfo().Kind != screen.NoDialog || m.form.dialog != (screen.DialogID{}) || m.form.apply != nil {
 		t.Fatal("current submission did not apply exactly once and release its callback")
 	}
 }

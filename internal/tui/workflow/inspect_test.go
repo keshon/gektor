@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -50,7 +51,7 @@ func TestInspectorPropertiesUseCardPortNamesAndSeparateCode(t *testing.T) {
 	m.workflows.key(tea.KeyPressMsg{Code: '1'})
 	before := w.editor.Source()
 	m.workflows.key(tea.KeyPressMsg{Code: 'e'})
-	for _, f := range m.chrome.Dialog.Form.Fields {
+	for _, f := range m.formSnapshot(t).Fields {
 		if f.Key == "code" {
 			t.Fatal("properties editor exposed code")
 		}
@@ -180,7 +181,7 @@ func TestCodeEditorPreservesArgumentsRejectsStaleAndFrozenEdits(t *testing.T) {
 	m.workflows.setInspectorTab(2)
 	before := w.editor.Source()
 	m.workflows.key(tea.KeyPressMsg{Code: 'e'})
-	f := m.chrome.Dialog.Form
+	f := m.formSnapshot(t)
 	if len(f.Fields) != 1 || f.Fields[0].Key != "code" {
 		t.Fatal("not a dedicated code editor")
 	}
@@ -194,16 +195,16 @@ func TestCodeEditorPreservesArgumentsRejectsStaleAndFrozenEdits(t *testing.T) {
 	if w.editor.Source() != before {
 		t.Fatal("code undo failed")
 	}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	m.workflows.editCode()
-	f = m.chrome.Dialog.Form
+	f = m.formSnapshot(t)
 	d := w.editor.Clone()
 	d.Name = "Changed"
 	w.editor.Replace(d)
 	if err := m.applyValues(map[string]string{"code": "stale"}); err == nil {
 		t.Fatal("accepted stale script")
 	}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	w.run = &workflow.Run{RunID: "recorded", Definition: workflowRecipe(), Steps: []workflow.StepResult{{ID: "transform", Status: "completed", Args: json.RawMessage(`{"code":"return 42;","input":7}`), Output: `42`}}}
 	m.workflows.setInspectorTab(1)
 	text := strings.Join(m.workflows.detailRows(), "\n")
@@ -215,7 +216,7 @@ func TestCodeEditorPreservesArgumentsRejectsStaleAndFrozenEdits(t *testing.T) {
 		t.Fatal("code tab did not use recorded script")
 	}
 	m.workflows.key(tea.KeyPressMsg{Code: 'e'})
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		t.Fatal("frozen script was editable")
 	}
 }
@@ -266,10 +267,10 @@ func TestRunUsesOnePrefilledFormAndSimpleLists(t *testing.T) {
 	d.Inputs = map[string]workflow.Input{"numbers": {Type: "array", Default: json.RawMessage(`[2,3,5]`)}, "label": {Type: "string", Default: json.RawMessage(`"agent-smoke"`)}}
 	m.workflows.editor.Replace(d)
 	m.workflowCommand("run")
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Run workflow" {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Title != "Run workflow" {
 		t.Fatal("did not open run values directly")
 	}
-	f := m.chrome.Dialog.Form
+	f := m.formSnapshot(t)
 	if len(f.Fields) != 2 {
 		t.Fatal("unexpected format or value-source controls", f.Fields)
 	}
@@ -300,9 +301,9 @@ func TestRunUsesOnePrefilledFormAndSimpleLists(t *testing.T) {
 	if err := m.applyValues(values); err == nil {
 		t.Fatal("accepted invalid list")
 	}
-	m.chrome.Dialog = nil
+	m.chrome.Close()
 	m.workflowCommand("run-json")
-	if m.chrome.Dialog == nil || len(m.chrome.Dialog.Form.Fields) != 1 || m.chrome.Dialog.Form.Fields[0].Key != "inputs" {
+	if m.chrome.DialogID() == (screen.DialogID{}) || len(m.formSnapshot(t).Fields) != 1 || m.formSnapshot(t).Fields[0].Key != "inputs" {
 		t.Fatal("advanced JSON unavailable")
 	}
 }
@@ -311,7 +312,7 @@ func TestNoInputWorkflowQueuesRunWithoutEmptyObjectDialog(t *testing.T) {
 	m := workflowTestModel(t)
 	m.workflows.editor.Replace(workflowRecipe())
 	m.workflowCommand("run")
-	if m.chrome.Dialog != nil || string(queuedInvocation(t, m).Inputs) != "{}" {
+	if m.chrome.DialogID() != (screen.DialogID{}) || string(queuedInvocation(t, m).Inputs) != "{}" {
 		t.Fatal("unnecessary no-input dialog")
 	}
 }

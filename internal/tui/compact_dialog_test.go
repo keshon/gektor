@@ -40,7 +40,7 @@ func TestCompactDialogsKeepChromeAndMatchMouseRows(t *testing.T) {
 				sizeModelTo(t, m, 40, 20)
 				m.runAction("/mcp")
 				m.settleControls()
-				if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
+				if m.chrome.DialogInfo().Kind == screen.NoDialog || m.chrome.DialogInfo().Kind != screen.TableDialog {
 					t.Fatal("management command did not open a table")
 				}
 				dialogID := m.chrome.DialogID()
@@ -85,7 +85,7 @@ func TestCompactDialogsKeepChromeAndMatchMouseRows(t *testing.T) {
 					}
 				}
 				m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-				if m.chrome.Dialog != nil || draftOf(m) != "draft-kept" {
+				if m.chrome.DialogInfo().Kind != screen.NoDialog || draftOf(m) != "draft-kept" {
 					t.Fatal("closing the modal lost the underlying draft or input ownership")
 				}
 			})

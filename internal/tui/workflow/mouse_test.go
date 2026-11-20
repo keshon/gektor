@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestWorkflowFormRequestsPreserveRemovalFocus(t *testing.T) {
@@ -16,7 +17,7 @@ func TestWorkflowFormRequestsPreserveRemovalFocus(t *testing.T) {
 	m.workflows.editor.Replace(workflowRecipe())
 	m.workflows.graph.Selected = "transform"
 	m.workflowCommand("delete")
-	if !m.chrome.Dialog.Form.Destructive || m.chrome.Dialog.Form.Index != 0 {
+	if !m.formSnapshot(t).Destructive || m.formSnapshot(t).Index != 0 {
 		t.Fatal("typed confirmation no longer starts at its input")
 	}
 }
@@ -124,7 +125,7 @@ func TestWorkflowPortsOpenMapping(t *testing.T) {
 		t.Fatal("output port started a drag")
 	}
 	m.handleMouse(tea.MouseClickMsg{X: 1 + b.X, Y: 4 + b.Y + graph.NodeHeight/2, Button: tea.MouseLeft})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || w.connectFrom != "" {
+	if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Kind != screen.FormDialog || w.connectFrom != "" {
 		t.Fatal("ports did not open mapping form")
 	}
 

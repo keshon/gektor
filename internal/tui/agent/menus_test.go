@@ -26,7 +26,7 @@ func TestMenuMouseIgnoresOutsideWheelFrameAndDisabledRows(t *testing.T) {
 			t.Fatal("outside wheel changed menu selection", theme)
 		}
 		m.headerMouse(tea.MouseClickMsg{X: l.X, Y: l.Y + 1, Button: tea.MouseLeft})
-		if m.chrome.Dialog != nil || m.chrome.Header.Menu != "session" {
+		if m.chrome.DialogInfo().Kind != 0 || m.chrome.Header.Menu != "session" {
 			t.Fatal("menu frame activated a command", theme)
 		}
 		// A disabled command uses disabled styling even if stale selection points at it.
@@ -45,7 +45,7 @@ func TestMenuMouseIgnoresOutsideWheelFrameAndDisabledRows(t *testing.T) {
 				t.Fatal("disabled menu row looks selected", theme)
 			}
 			m.headerMouse(tea.MouseClickMsg{X: l.X + 3, Y: y, Button: tea.MouseLeft})
-			if m.chrome.Header.Menu == "" || m.chrome.Dialog != nil {
+			if m.chrome.Header.Menu == "" || m.chrome.DialogInfo().Kind != 0 {
 				t.Fatal("disabled menu row executed", theme)
 			}
 			break
@@ -93,11 +93,11 @@ func TestNarrowMenuOverflowReachesEveryMenu(t *testing.T) {
 func TestCompactMenuRequiresExplicitConfirmation(t *testing.T) {
 	m := settingsModel(t)
 	m.activateMenuAction("compact-session")
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.Index != 1 {
+	if m.chrome.DialogInfo().Kind == 0 || !testFormOpen(m) || testFormSnapshot(m).Index != 1 {
 		t.Fatal("compaction did not start on Cancel")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != 0 {
 		t.Fatal("compaction could not be cancelled")
 	}
 }

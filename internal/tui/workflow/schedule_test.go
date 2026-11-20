@@ -12,14 +12,15 @@ import (
 
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-func scheduleFormValues(m *model) map[string]string {
+func scheduleFormValues(t *testing.T, m *model) map[string]string {
 	v := map[string]string{}
-	for _, field := range m.chrome.Dialog.Form.Fields {
+	for _, field := range m.formSnapshot(t).Fields {
 		v[field.Key] = field.Value
 	}
 	return v
@@ -51,10 +52,10 @@ func TestAddScheduleCreatesSecondTriggerAndSelectsIt(t *testing.T) {
 	ids := []string{}
 	for i := 0; i < 2; i++ {
 		m.workflows.scheduleStart(true)
-		if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+		if m.chrome.DialogID() == (screen.DialogID{}) || m.chrome.DialogInfo().Kind != screen.FormDialog {
 			t.Fatal("missing schedule form")
 		}
-		if err := m.applyValues(scheduleFormValues(m)); err != nil {
+		if err := m.applyValues(scheduleFormValues(t, m)); err != nil {
 			t.Fatal(err)
 		}
 		applyScheduleAction(t, m)
@@ -83,16 +84,16 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	}
 	before := w.editor.Source()
 	m.workflowCommand("schedule")
-	if m.chrome.Dialog == nil || !strings.Contains(m.chrome.Dialog.Title, "input") {
+	if m.chrome.DialogID() == (screen.DialogID{}) || !strings.Contains(m.chrome.DialogInfo().Title, "input") {
 		t.Fatal("missing typed schedule inputs")
 	}
-	values := scheduleFormValues(m)
+	values := scheduleFormValues(t, m)
 	values["value:count"] = "7"
 	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	m.workflows.action(m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction))
-	values = scheduleFormValues(m)
+	values = scheduleFormValues(t, m)
 	values["timing"], values["time"], values["timezone"] = "Daily", "07:15", "Europe/Moscow"
 	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
@@ -154,7 +155,7 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 		t.Fatal("trigger position lost", w.graph.Nodes)
 	}
 	m.workflowCommand("schedule")
-	values = scheduleFormValues(m)
+	values = scheduleFormValues(t, m)
 	if values["value:count"] != "7" {
 		t.Fatal("schedule inputs were not restored", values)
 	}
@@ -163,7 +164,7 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.workflows.action(m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction))
-	values = scheduleFormValues(m)
+	values = scheduleFormValues(t, m)
 	values["enabled"] = "No"
 	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
@@ -201,14 +202,14 @@ func TestScheduleTriggerGuardsAndTimingValidation(t *testing.T) {
 	w := m.workflows
 	w.editor.Replace(workflowRecipe())
 	m.workflowCommand("schedule")
-	if m.chrome.Dialog != nil || !strings.Contains(w.notice, "Save the recipe") {
+	if m.chrome.DialogID() != (screen.DialogID{}) || !strings.Contains(w.notice, "Save the recipe") {
 		t.Fatal("unsaved recipe scheduled")
 	}
 	w.editor.Path, w.editor.Saved = "recipe.json", w.editor.Source()
 	m.workflowCommand("schedule")
-	values := scheduleFormValues(m)
+	values := scheduleFormValues(t, m)
 	for _, pair := range [][2]string{{"cron", "garbage"}, {"timezone", "not/a/zone"}, {"time", "25:60"}} {
-		bad := scheduleFormValues(m)
+		bad := scheduleFormValues(t, m)
 		bad[pair[0]] = pair[1]
 		if pair[0] == "cron" {
 			bad["timing"] = "Cron"
@@ -230,7 +231,7 @@ func TestScheduleTriggerGuardsAndTimingValidation(t *testing.T) {
 	m.closeDialog()
 	w.run = &workflow.Run{Definition: workflowRecipe()}
 	m.workflowCommand("schedule")
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		t.Fatal("frozen run offered schedule editing")
 	}
 }
@@ -286,7 +287,7 @@ func TestScheduleFreezesCalledRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.workflowCommand("schedule")
-	values := scheduleFormValues(m)
+	values := scheduleFormValues(t, m)
 	values["enabled"] = "No"
 	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)

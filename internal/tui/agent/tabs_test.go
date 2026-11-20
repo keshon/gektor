@@ -25,9 +25,9 @@ func TestHelpTabsClickWrappedRowsAndPreserveDraft(t *testing.T) {
 				x := left + max((w-popup.ModalWidth(w, 0))/2, 0) + 2
 				y := top + max((h-len(rows)-2)/2, 0) + 1
 				hit := layout.Tabs.Hits[tab]
-				m.chrome.Dialog.Offset = 2
+				m.chrome.ScrollDialog(2)
 				m.handleMouse(tea.MouseClickMsg{X: x + hit.X, Y: y + 2 + hit.Y, Button: tea.MouseLeft})
-				if m.chrome.Dialog == nil || m.chrome.Dialog.Page != tab || m.chrome.Dialog.Offset != 0 {
+				if m.chrome.DialogInfo().Kind == 0 || m.chrome.DialogInfo().Page != tab || m.chrome.DialogInfo().Offset != 0 {
 					t.Fatalf("%s/%d: Help tab %d click missed", theme, width, tab)
 				}
 				layout = m.testControls().LayoutDialog()
