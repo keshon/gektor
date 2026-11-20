@@ -1,6 +1,7 @@
 package extension
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -74,6 +75,7 @@ type MCPTool struct {
 	// Set only by the built-in browser launcher. Other MCP servers do not
 	// gain automatic filesystem access from links in their responses.
 	browserWorkspace string
+	workspace        string
 	secrets          []string
 	timeout          time.Duration
 	client           mcpCaller
@@ -100,7 +102,7 @@ func (t *MCPTool) Description() string {
 
 func (t *MCPTool) Schema() json.RawMessage {
 	if len(t.def.InputSchema) > 0 {
-		return t.def.InputSchema
+		return t.fileSchema()
 	}
 	return json.RawMessage(`{"type":"object"}`)
 }
@@ -114,6 +116,10 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (output string,
 	err := json.Unmarshal(args, &params)
 	if err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
+	}
+	err = t.expandFiles(params)
+	if err != nil {
+		return "", err
 	}
 	timeout := t.timeout
 	if timeout <= 0 {
@@ -151,6 +157,12 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (output string,
 	}
 	for _, c := range result.Content {
 		if c.Type == "text" {
+			var textJSON, structuredJSON bytes.Buffer
+			textErr := json.Compact(&textJSON, []byte(c.Text))
+			structuredErr := json.Compact(&structuredJSON, result.StructuredContent)
+			if textErr == nil && structuredErr == nil && bytes.Equal(textJSON.Bytes(), structuredJSON.Bytes()) {
+				continue
+			}
 			b.WriteString(c.Text)
 			b.WriteString("\n")
 		} else if c.Type == "image" {

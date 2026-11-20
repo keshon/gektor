@@ -137,9 +137,9 @@ func builtinPackages(d Dependencies) []packageDefinition {
 		},
 		{
 			id:           "native_images",
-			description:  "View, crop, download and inspect PNG, JPEG and other images or session attachments; compare pixel fidelity and write separate variants",
+			description:  "View, download, inspect, optimize, compress, convert and resize images; crop PNG, JPEG and other images or session attachments; compare pixel fidelity and write separate variants",
 			exposure:     toolextension.Lazy,
-			instructions: "Use image_attachments for session image IDs and image_view for pixels/crops. Load visual-investigation for identification or visual comparison. Pixelita is native. For ICC-blocked conversion/resizing, preview color_profile srgb; it transforms supported RGB profiles. Other unsupported metadata remains blocked. Preserve originals; never strip profiles automatically.",
+			instructions: "Use the native image tools for image inspection, conversion, optimization and resizing before trying shell programs. Use image_attachments for session image IDs and image_view for pixels/crops. Load visual-investigation for identification or visual comparison. For ICC-blocked conversion/resizing, preview color_profile srgb; it transforms supported RGB profiles. Other unsupported metadata remains blocked. Preserve originals; never strip profiles automatically.",
 			entries:      imageEntries(d),
 		},
 		{

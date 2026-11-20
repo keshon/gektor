@@ -32,6 +32,7 @@ type Capability struct {
 	mu          sync.Mutex // guards tools and lastError; serializes adapter load and close
 	searchNames []string
 	tools       []agent.Tool
+	workspace   string
 	lastError   string
 	unavailable bool
 }
@@ -317,19 +318,28 @@ func (t *capabilityTool) ReadOnly() bool {
 	return t.source.ReadOnly
 }
 func (t *capabilityTool) Resources(args json.RawMessage) ([]string, error) {
+	var resources []string
+	if t.source.workspace != "" {
+		remote := MCPTool{workspace: t.source.workspace}
+		remote.def.InputSchema = t.def.Parameters
+		var err error
+		resources, err = remote.Resources(args)
+		if err != nil {
+			return nil, err
+		}
+	}
 	fields := t.source.ToolPolicies[t.Name()].ResourceFields
 	if fields == nil && t.source.ResourceField != "" {
 		fields = []string{t.source.ResourceField}
 	}
 	if len(fields) == 0 {
-		return nil, nil
+		return resources, nil
 	}
 	var in map[string]json.RawMessage
 	err := json.Unmarshal(args, &in)
 	if err != nil {
 		return nil, err
 	}
-	resources := make([]string, 0, len(fields))
 	for _, field := range fields {
 		var value string
 		err = json.Unmarshal(in[field], &value)

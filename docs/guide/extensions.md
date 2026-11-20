@@ -70,6 +70,17 @@ For example:
 
 Replace the example address with your server's endpoint.
 
+MCP string arguments named `base64` or marked `contentEncoding: base64` also
+accept a local `<argument>_file` path. For example, call an upload tool with
+`{"slug":"article","name":"cover.webp","base64_file":"images/cover.webp"}`.
+Supply the file path or the original string, never both. GEKTOR reads a regular
+file of at most 8 MiB inside the workspace, encodes it, and sends the original
+argument to the server. File bytes are not added to model history. File access
+is included in permission resources; paths escaping the workspace are rejected.
+This is a client feature, so the remote server still receives standard MCP.
+Restart GEKTOR and start a fresh conversation after upgrading adapter schemas;
+saved conversations retain their previous tool catalog.
+
 Use replacement import to rotate HTTP credentials. Subprocess environment
 credentials use `env_refs`, mapping destination names to existing environment
 variable names; inline `env` import is rejected.

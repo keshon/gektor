@@ -214,6 +214,9 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 		source := &Capability{MainOnly: pack.MainOnly, ID: pack.ID, Version: pack.Version, Description: pack.Description, Instructions: pack.Instructions, Source: string(encoded), ReadOnly: pack.ReadOnly, Concurrent: pack.Concurrent, ResourceField: pack.ResourceField}
 		source.ToolPolicies = pack.ToolPolicies
 		source.Binding = pack.Binding
+		if pack.Type == "mcp" {
+			source.workspace = dir
+		}
 		if pack.Binding != nil {
 			source.Source += "\n" + pack.Binding.Target()
 		}
@@ -274,6 +277,9 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 			}
 			if err != nil {
 				return nil, err
+			}
+			for _, tool := range tools {
+				tool.(*MCPTool).workspace = dir
 			}
 			if pack.Binding != nil {
 				err = pack.Binding.Check()
