@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // menuDefinitions lists Agent-local command groups.

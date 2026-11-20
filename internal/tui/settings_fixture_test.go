@@ -14,10 +14,10 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func settingsModel(t *testing.T) *Model { return settingsModelFor(t, nil) }

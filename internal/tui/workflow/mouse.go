@@ -5,9 +5,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/graph"
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/components/graph"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
 func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {

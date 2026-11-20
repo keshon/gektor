@@ -8,7 +8,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestMenuMouseIgnoresOutsideWheelFrameAndDisabledRows(t *testing.T) {

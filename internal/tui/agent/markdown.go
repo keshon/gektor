@@ -2,7 +2,7 @@ package agent
 
 import (
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/gektor/internal/tui/components/markdown"
+	"github.com/keshon/gektor/pkg/tui/components/markdown"
 )
 
 func baseStyle(r role, st styles) lipgloss.Style {

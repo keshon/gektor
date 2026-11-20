@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // persistTheme records the choice in the application preferences, so the

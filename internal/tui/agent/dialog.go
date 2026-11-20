@@ -7,9 +7,9 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/popup"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // wsRootOf names the workspace root, empty when none (unit models

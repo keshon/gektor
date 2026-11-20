@@ -1,7 +1,7 @@
 # Examples
 
 - [Workflow recipes](workflows/README.md): inspect, edit, and run saved recipes.
-- [Reading-list workbench](workbench/README.md): run an offline app built from the
+- [Reading-list workbench](../pkg/tui/examples/workbench/README.md): run an offline app built from the
   shared terminal controls, with list, Markdown detail, and edit views.
 - [Demo launchers](demos/README.md): run complete Agent and Workflow tasks on Windows
   in fresh workspaces. Individual demos list their model and network requirements.

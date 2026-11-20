@@ -12,8 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestProcessManagerChild(t *testing.T) {

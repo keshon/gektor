@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // A form is framed to the pane, so no row of one may be wider than the pane

@@ -14,10 +14,10 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tools/extension"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/components/table"
-	"github.com/keshon/gektor/internal/tui/screen"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/table"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type toolPage uint8

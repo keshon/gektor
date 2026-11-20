@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/components/form"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/components/form"
 )
 
 // testForm connects settings policy to the real shared editor as the application

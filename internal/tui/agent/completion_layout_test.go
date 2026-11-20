@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/components/completion"
+	"github.com/keshon/gektor/pkg/tui/components/completion"
 )
 
 func TestCompletionChromeKeepsSurfaceBackground(t *testing.T) {

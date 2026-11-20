@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/keshon/gektor/internal/tui/screen"
+import "github.com/keshon/gektor/pkg/tui/screen"
 
 // Overlay frames remember the underlying pane for teardown. Message routing
 // uses activeInputOwner rather than trusting a widget's cached focus flag.

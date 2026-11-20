@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
 )
 
 func TestInvalidProfileKeepsApplyDisabledAndPreservesStagedValues(t *testing.T) {

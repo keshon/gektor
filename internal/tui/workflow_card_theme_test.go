@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/pkg/tui/components/graph"
 )
 
 func TestWorkflowCardTitleAndSelectionInAllThemes(t *testing.T) {

@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestScreenUsesCurrentSurfaceAndSharedDialogs(t *testing.T) {

@@ -2,8 +2,8 @@ package agent
 
 import (
 	tea "charm.land/bubbletea/v2"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/screen"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func testFormSnapshot(m *Model) fieldform.Snapshot {

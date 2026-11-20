@@ -9,8 +9,8 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/screen"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type settingsClient struct {

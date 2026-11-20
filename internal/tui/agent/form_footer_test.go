@@ -12,8 +12,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // Synthetic workflow frames complement interaction tests; they do not certify

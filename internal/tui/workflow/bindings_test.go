@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/credentials"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func registerHTTPConnection(t *testing.T) credentials.Store {

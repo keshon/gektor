@@ -15,7 +15,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/harness"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func queuedModel(t *testing.T) *Model {

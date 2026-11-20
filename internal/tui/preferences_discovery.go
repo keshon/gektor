@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/app"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/screen"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type settingsDiscovery struct {

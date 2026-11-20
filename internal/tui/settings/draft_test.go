@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/form"
 )
 
 func profile() config.Profile {

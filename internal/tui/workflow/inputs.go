@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/components/schemaform"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/components/schemaform"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type workflowInvocation struct {

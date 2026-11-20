@@ -80,8 +80,8 @@ Information dialogs accept owner-supplied `DialogAction` IDs, keys and labels.
 Shared controls emit the action and dialog identity; lesson review and Workflow
 proposal effects remain with their feature owners.
 
-Start at [screen.go](../../internal/tui/screen/screen.go) for shared controls,
-[fields.go](../../internal/tui/components/fields/fields.go) for form and picker interaction,
+Start at [screen.go](../../pkg/tui/screen/screen.go) for shared controls,
+[fields.go](../../pkg/tui/components/fields/fields.go) for form and picker interaction,
 [settings.go](../../internal/tui/settings/settings.go) for GEKTOR preference rules,
 and [workflow.go](../../internal/tui/workflow/workflow.go) for Workflow construction.
 Both screen entry files keep `Model`, `Config`, `New`, `Init`, and `Close` together.
@@ -507,25 +507,25 @@ does not change the stored profile format or existing slash commands.
 
 ## Implementation boundaries
 
-Build on [the existing components](../../internal/tui/components). Prefer plain Go
+Build on [the existing components](../../pkg/tui/components). Prefer plain Go
 structs, functions and explicit message handling. Keep related primitives in
 the same package. Introduce another package only when its responsibility is
 clear and it has a real consumer.
 
 | Existing home | Migration responsibility |
 |---|---|
-| [cell](../../internal/tui/components/cell/cell.go) | Terminal-cell measurement, fitting and clipping |
-| [popup](../../internal/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer, shortcut groups, attached menus and overlay geometry |
-| [pane](../../internal/tui/components/pane/pane.go) | Main-panel frames, split regions, body/footer bounds, close targets, tab strips, action toolbars and notice rows |
-| [form](../../internal/tui/components/form/form.go) | Typed controls, field groups, draft and focus behavior |
-| [selection](../../internal/tui/components/selection/selection.go) | Shared selection, paging and visible-range behavior |
-| [table](../../internal/tui/components/table/table.go) | Searchable tables or two-line list cards, direct actions and shared render/hit layout |
-| [schemaform](../../internal/tui/components/schemaform/schemaform.go) | Convert schemas to those controls; preserve unsupported values for explicit JSON editing |
-| [composer](../../internal/tui/components/composer/composer.go), [completion](../../internal/tui/components/completion/completion.go), [gate](../../internal/tui/components/gate/gate.go) | Use common styles and geometry while keeping their specific input contracts |
-| [transcript](../../internal/tui/components/transcript/transcript.go) | History rendering and viewport behavior |
-| [graph](../../internal/tui/components/graph/graph.go) | Node/canvas presentation and graph interactions, independent of workflow execution |
+| [cell](../../pkg/tui/components/cell/cell.go) | Terminal-cell measurement, fitting and clipping |
+| [popup](../../pkg/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer, shortcut groups, attached menus and overlay geometry |
+| [pane](../../pkg/tui/components/pane/pane.go) | Main-panel frames, split regions, body/footer bounds, close targets, tab strips, action toolbars and notice rows |
+| [form](../../pkg/tui/components/form/form.go) | Typed controls, field groups, draft and focus behavior |
+| [selection](../../pkg/tui/components/selection/selection.go) | Shared selection, paging and visible-range behavior |
+| [table](../../pkg/tui/components/table/table.go) | Searchable tables or two-line list cards, direct actions and shared render/hit layout |
+| [schemaform](../../pkg/tui/components/schemaform/schemaform.go) | Convert schemas to those controls; preserve unsupported values for explicit JSON editing |
+| [composer](../../pkg/tui/components/composer/composer.go), [completion](../../pkg/tui/components/completion/completion.go), [gate](../../pkg/tui/components/gate/gate.go) | Use common styles and geometry while keeping their specific input contracts |
+| [transcript](../../pkg/tui/components/transcript/transcript.go) | History rendering and viewport behavior |
+| [graph](../../pkg/tui/components/graph/graph.go) | Node/canvas presentation and graph interactions, independent of workflow execution |
 | [settings](../../internal/tui/settings/settings.go) | Settings values, discovery and intents; move reusable presentation into the components it uses |
-| [styles.go](../../internal/tui/screen/styles.go) | Semantic styles and theme mappings, supplied to components |
+| [styles.go](../../pkg/tui/screen/styles.go) | Semantic styles and theme mappings, supplied to components |
 
 The Bubble Tea loop remains the state owner. Components own their local
 selection, focus and editing state. Async services return messages; components
@@ -643,6 +643,11 @@ terminal color profile; final composition converts colors for ANSI, ANSI256 or
 color-free output. Existing global style functions serve the application's shared
 theme; reusable hosts should pass their own snapshot.
 
-Components and controls remain under `internal/`. Publishing a separate module
-requires a real second CLI consumer and an API review; the GEKTOR shell and its
-execution services are application code.
+Reusable controls live in [`pkg/tui`](../../pkg/tui/README.md), in the root Go
+module with no nested `go.mod`. Consumers import
+`github.com/keshon/gektor/pkg/tui/screen` and the packages under
+`github.com/keshon/gektor/pkg/tui/components`. Versions follow the root module;
+the current API can change. The offline
+[workbench](../../pkg/tui/examples/workbench/README.md) exercises the public
+boundary. GEKTOR screens, terminal runtime and execution services remain
+application code under `internal/`.

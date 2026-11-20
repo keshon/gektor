@@ -1,0 +1,123 @@
+package fields
+
+import (
+	"maps"
+	"slices"
+
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
+)
+
+// PickerSnapshot describes navigation without retaining a picker or text input.
+type PickerSnapshot struct {
+	ID                            RequestID
+	Items, Filtered               []string
+	Search, Err, Directory, Field string
+	Cursor, Control               int
+	Loading, NoSearch             bool
+}
+
+// Snapshot copies values and navigation without exposing mutable widgets.
+// Taking it synchronizes the focused field first.
+type Snapshot struct {
+	Index, EditorColumn, EditorHeight int
+	EditorValue                       string
+	EditorFocused, Destructive        bool
+	Hint, ApplyLabel                  string
+	Choices                           map[string][]string
+	Picker                            *PickerSnapshot
+	Fields                            []form.Field
+	Error                             string
+	FieldErrors                       map[string]string
+	PickerID                          RequestID
+	PickerOpen                        bool
+	FeedbackOpen                      bool
+}
+
+func (f *Model) Snapshot() Snapshot {
+	f.Sync()
+	s := Snapshot{
+		Fields: slices.Clone(f.Fields), Index: f.Index,
+		EditorValue: f.Editor.Value(), EditorColumn: f.Editor.Column(),
+		EditorHeight: f.Editor.Height(), EditorFocused: f.Editor.Focused(),
+		Destructive: f.Destructive, Hint: f.Hint, ApplyLabel: f.ApplyLabel,
+		Choices: maps.Clone(f.Choices), Error: f.Error,
+		FieldErrors: maps.Clone(f.FieldErrors), FeedbackOpen: f.FeedbackOpen,
+	}
+	for key, choices := range s.Choices {
+		s.Choices[key] = slices.Clone(choices)
+	}
+	if p := f.Picker; p != nil {
+		s.PickerOpen, s.PickerID = true, p.ID
+		s.Picker = &PickerSnapshot{
+			ID: p.ID, Items: slices.Clone(p.Items), Filtered: slices.Clone(p.Filtered),
+			Search: p.Search.Value(), Err: p.Err, Directory: p.Directory, Field: p.Field,
+			Cursor: p.Cursor, Control: p.Control, Loading: p.Loading, NoSearch: p.NoSearch,
+		}
+	}
+	return s
+}
+
+// Values returns a detached map of the copied edited field values.
+func (s Snapshot) Values() map[string]string {
+	values := make(map[string]string, len(s.Fields))
+	for _, field := range s.Fields {
+		values[field.Key] = field.Value
+	}
+	return values
+}
+
+// Presentation supplies domain choices, visibility and feedback. Values contains
+// explicit value corrections; applying it retains focus, cursor and picker state.
+type Presentation struct {
+	Hint, Note, Error string
+	DisablePrimary    bool
+	Values            map[string]string
+	Choices           map[string][]string
+	Labels            map[string]map[string]string
+	FieldLabels       map[string]string
+	FileFields        map[string]FilePicker
+	Hidden            map[string]bool
+	DiscoveryFields   map[string]string
+	NoSearchFields    map[string]bool
+	InlineChoices     map[string]int
+	FieldErrors       map[string]string
+	Shortcuts         []popup.Shortcut
+}
+
+// Configure copies presentation data so later owner mutations cannot change the
+// live form. Unchanged focused values do not reset the text cursor or selection.
+func (f *Model) Configure(p Presentation) {
+	f.Sync()
+	for i := range f.Fields {
+		value, ok := p.Values[f.Fields[i].Key]
+		if !ok || value == f.Fields[i].Value {
+			continue
+		}
+		f.Fields[i].Value = value
+		if i == f.Index {
+			f.Editor.SetValue(value)
+		}
+	}
+	f.Hint, f.Note, f.Error, f.DisablePrimary = p.Hint, p.Note, p.Error, p.DisablePrimary
+	f.Choices = maps.Clone(p.Choices)
+	for key, values := range f.Choices {
+		f.Choices[key] = slices.Clone(values)
+	}
+	f.Labels = maps.Clone(p.Labels)
+	for key, values := range f.Labels {
+		f.Labels[key] = maps.Clone(values)
+	}
+	f.FileFields = maps.Clone(p.FileFields)
+	for key, picker := range f.FileFields {
+		picker.Extensions = slices.Clone(picker.Extensions)
+		f.FileFields[key] = picker
+	}
+	f.FieldLabels = maps.Clone(p.FieldLabels)
+	f.Hidden = maps.Clone(p.Hidden)
+	f.DiscoveryFields = maps.Clone(p.DiscoveryFields)
+	f.NoSearchFields = maps.Clone(p.NoSearchFields)
+	f.InlineChoices = maps.Clone(p.InlineChoices)
+	f.FieldErrors = maps.Clone(p.FieldErrors)
+	f.Shortcuts = slices.Clone(p.Shortcuts)
+}

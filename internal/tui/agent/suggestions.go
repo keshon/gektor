@@ -11,8 +11,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/completion"
-	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/components/completion"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
 // The picker itself — its items, its selection and its frame — lives in

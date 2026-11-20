@@ -8,8 +8,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/keshon/gektor/internal/tui/components/cell"
-	"github.com/keshon/gektor/internal/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/components/cell"
+	"github.com/keshon/gektor/pkg/tui/components/transcript"
 )
 
 // roleLabel is the bracketed tag on a block's label row. One tag per role

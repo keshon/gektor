@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/components/transcript"
 )
 
 type transcriptState struct {

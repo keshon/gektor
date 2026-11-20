@@ -10,12 +10,12 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/executables"
 	agentui "github.com/keshon/gektor/internal/tui/agent"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
 	"github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type activeScreen int

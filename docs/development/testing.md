@@ -13,8 +13,8 @@ On Windows, `build.cmd check` runs the local suite. See the [eval runner](../../
 
 ## Terminal screen checks
 
-`go test ./internal/tui/...` covers the parent application, Agent, Workflow,
-and shared controls. Parent integration tests exercise screen switching, retained
+`go test ./internal/tui/... ./pkg/tui/...` covers the parent application, Agent,
+Workflow and reusable controls. Parent integration tests exercise screen switching, retained
 drafts, shared overlays and menus, terminal modes, run completion, and quit
 protection. Native console decoding tests live beside the terminal runtime in
 `internal/tui`; screen-local interactions remain in their feature packages.
@@ -199,13 +199,13 @@ Run from the repository root:
 go run scripts/check-tui-package.go
 ```
 
-This copies control/component sources and their tests into a temporary candidate
-module, and the workbench into a separate consumer module. Application imports
-are rejected. The command tidies, tests, vets and builds both modules, then deletes the
-temporary workspace. Add `-keep` to inspect it. The printed source hash identifies
-the input bytes before import rewriting.
+This copies the public controls and components into a temporary snapshot of the
+root module, and the workbench into a separate consumer module. Public import
+paths are unchanged. Application imports are rejected. The command tidies, tests,
+vets and builds both modules, then deletes the temporary workspace. Add `-keep`
+to inspect it. The printed source hash identifies the copied input files.
 
-The consumer uses a local replacement and a placeholder module name. This is
-package preparation, not a published-version compatibility check. It does not
-launch a terminal or contact a model server. Native terminal review for the
+The consumer replaces `github.com/keshon/gektor` with that local snapshot. It
+checks consumption through the real package paths; it does not verify a released
+version, launch a terminal or contact a model server. Native terminal review for the
 2026-11-20 audit continuation was waived by the user and remains unverified.

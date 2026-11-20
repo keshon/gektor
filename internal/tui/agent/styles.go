@@ -3,10 +3,10 @@ package agent
 import (
 	"charm.land/lipgloss/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/graph"
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/components/popup"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/graph"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 const (

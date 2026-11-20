@@ -6,7 +6,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/providers"
-	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/form"
 )
 
 // DefaultTemperature is what the backend uses when a profile sets none.

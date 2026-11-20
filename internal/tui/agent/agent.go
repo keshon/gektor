@@ -27,13 +27,13 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/retrospective"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tui/components/completion"
-	"github.com/keshon/gektor/internal/tui/components/composer"
-	"github.com/keshon/gektor/internal/tui/components/gate"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/components/completion"
+	"github.com/keshon/gektor/pkg/tui/components/composer"
+	"github.com/keshon/gektor/pkg/tui/components/gate"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type runState int

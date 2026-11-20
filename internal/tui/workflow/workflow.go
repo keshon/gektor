@@ -11,15 +11,15 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/components/graph"
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/components/popup"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/components/graph"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // Model owns one workflow screen and its background operations.

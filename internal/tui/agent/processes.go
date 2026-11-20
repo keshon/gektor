@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
-	"github.com/keshon/gektor/internal/tui/components/table"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/table"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type processListMsg struct{ view screen.TableID }

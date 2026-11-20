@@ -1,6 +1,6 @@
 package workflow
 
-import "github.com/keshon/gektor/internal/tui/screen"
+import "github.com/keshon/gektor/pkg/tui/screen"
 
 // Menus lists the workflow-specific command groups in navigation order.
 func Menus() []screen.Menu {

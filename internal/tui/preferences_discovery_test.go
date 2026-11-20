@@ -9,7 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
 )
 
 func settingsPickerRequest(t *testing.T, m *Model) fieldform.DiscoveryRequest {

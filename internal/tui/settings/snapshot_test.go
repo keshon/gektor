@@ -6,8 +6,8 @@ import (
 	"charm.land/bubbles/v2/textarea"
 
 	"github.com/keshon/gektor/internal/config"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/components/form"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/components/form"
 )
 
 func TestPolicyRetainsCopiedSnapshotValuesAndFeedback(t *testing.T) {

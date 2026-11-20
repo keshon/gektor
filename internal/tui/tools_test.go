@@ -18,9 +18,9 @@ import (
 	"github.com/keshon/gektor/internal/executables"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tools/extension"
-	"github.com/keshon/gektor/internal/tui/screen"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
 	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func toolSettingsModel(t *testing.T) *Model {

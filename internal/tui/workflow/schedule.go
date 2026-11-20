@@ -13,12 +13,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/robfig/cron/v3"
 
-	"github.com/keshon/gektor/internal/tui/components/graph"
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
+	"github.com/keshon/gektor/pkg/tui/components/graph"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 const workflowSchedulePrefix = "@schedule/"

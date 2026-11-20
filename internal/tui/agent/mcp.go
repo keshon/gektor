@@ -12,9 +12,9 @@ import (
 
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/mcpmanager"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/components/table"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/table"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type mcpActionMsg struct{ action, id string }

@@ -1,8 +1,8 @@
 package workflow
 
 import (
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // Presentation supplies local controls and overlay bounds for the active screen.

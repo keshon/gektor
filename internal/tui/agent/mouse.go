@@ -3,8 +3,8 @@ package agent
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/transcript"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {

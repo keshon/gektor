@@ -1,7 +1,7 @@
 //go:build ignore
 
 // Run from the repository root with go run scripts/check-tui-package.go.
-// This builds an unpublished package candidate and a separate workbench consumer.
+// This builds the public TUI packages and a separate workbench consumer.
 package main
 
 import (
@@ -20,10 +20,9 @@ import (
 )
 
 const sourceModule = "github.com/keshon/gektor"
-const candidateModule = "example.invalid/gektor-controls"
 
 func main() {
-	keep := flag.Bool("keep", false, "retain the temporary candidate and consumer")
+	keep := flag.Bool("keep", false, "retain the temporary module snapshot and consumer")
 	flag.Parse()
 	if err := checkPackage(*keep); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -44,17 +43,17 @@ func checkPackage(keep bool) error {
 		return err
 	}
 	if keep {
-		fmt.Println("Candidate workspace:", root)
+		fmt.Println("Consumer-check workspace:", root)
 	} else {
 		defer os.RemoveAll(root)
 	}
-	candidate := filepath.Join(root, "controls")
+	candidate := filepath.Join(root, "gektor")
 	consumer := filepath.Join(root, "consumer")
 	hash := sha256.New()
 	for _, tree := range []struct{ from, to string }{
-		{"internal/tui/screen", filepath.Join(candidate, "screen")},
-		{"internal/tui/components", filepath.Join(candidate, "components")},
-		{"examples/workbench", consumer},
+		{"pkg/tui/screen", filepath.Join(candidate, "pkg", "tui", "screen")},
+		{"pkg/tui/components", filepath.Join(candidate, "pkg", "tui", "components")},
+		{"pkg/tui/examples/workbench", consumer},
 	} {
 		err := filepath.WalkDir(tree.from, func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -72,7 +71,6 @@ func checkPackage(keep bool) error {
 			}
 			fmt.Fprintf(hash, "%s\x00%d\x00", filepath.ToSlash(path), len(data))
 			hash.Write(data)
-			data = bytes.ReplaceAll(data, []byte(sourceModule+"/internal/tui/"), []byte(candidateModule+"/"))
 			relative, err := filepath.Rel(tree.from, path)
 			if err != nil {
 				return err
@@ -83,7 +81,6 @@ func checkPackage(keep bool) error {
 			return err
 		}
 	}
-	module = bytes.Replace(module, []byte("module "+sourceModule), []byte("module "+candidateModule), 1)
 	if err := writeCandidate(filepath.Join(candidate, "go.mod"), module); err != nil {
 		return err
 	}
@@ -100,11 +97,11 @@ func checkPackage(keep bool) error {
 			version = strings.TrimSpace(strings.TrimPrefix(line, "go "))
 		}
 	}
-	consumerModule := fmt.Sprintf("module example.invalid/workbench-consumer\n\ngo %s\n\nrequire %s v0.0.0\n\nreplace %s => ../controls\n", version, candidateModule, candidateModule)
+	consumerModule := fmt.Sprintf("module example.invalid/workbench-consumer\n\ngo %s\n\nrequire %s v0.0.0\n\nreplace %s => ../gektor\n", version, sourceModule, sourceModule)
 	if err := writeCandidate(filepath.Join(consumer, "go.mod"), []byte(consumerModule)); err != nil {
 		return err
 	}
-	fmt.Printf("Candidate source SHA-256: %x\n", hash.Sum(nil))
+	fmt.Printf("Public TUI source SHA-256: %x\n", hash.Sum(nil))
 	for _, dir := range []string{candidate, consumer} {
 		for _, args := range [][]string{{"mod", "tidy"}, {"test", "-p", "1", "./..."}, {"vet", "./..."}, {"build", "./..."}} {
 			cmd := exec.Command("go", args...)
@@ -116,7 +113,7 @@ func checkPackage(keep bool) error {
 			}
 		}
 	}
-	fmt.Println("Unpublished candidate and separate local consumer passed; no released version was tested.")
+	fmt.Println("Public TUI packages and separate local consumer passed with unchanged imports; no released version was tested.")
 	return nil
 }
 
@@ -130,7 +127,7 @@ func checkImports(path string, data []byte) error {
 		if err != nil {
 			return err
 		}
-		if strings.HasPrefix(value, sourceModule+"/") && value != sourceModule+"/internal/tui/screen" && !strings.HasPrefix(value, sourceModule+"/internal/tui/components/") {
+		if strings.HasPrefix(value, sourceModule+"/") && value != sourceModule+"/pkg/tui/screen" && !strings.HasPrefix(value, sourceModule+"/pkg/tui/components/") {
 			return fmt.Errorf("%s imports application package %s", path, value)
 		}
 	}

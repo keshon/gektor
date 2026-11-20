@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/components/transcript"
 )
 
 type transcriptRenderState struct {

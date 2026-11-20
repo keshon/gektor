@@ -7,8 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/graph"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/graph"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func clickWorkflowPort(t *testing.T, m *model, id, key string, output bool) {

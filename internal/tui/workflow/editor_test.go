@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/pkg/tui/components/graph"
 )
 
 func TestConnectionsUndoAndGeometry(t *testing.T) {

@@ -3,8 +3,8 @@ package agent
 import (
 	"path/filepath"
 
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) controlProps() screen.ControlProps {

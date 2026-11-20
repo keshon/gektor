@@ -12,9 +12,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/store"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func workflowRecipe() workflow.Definition {

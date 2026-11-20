@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/gektor/internal/tui/components/popup"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // controlHints shares the whole-group shortcut renderer with modal footers.

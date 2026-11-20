@@ -13,9 +13,9 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/permission"
 	toolfiles "github.com/keshon/gektor/internal/tools/files"
-	"github.com/keshon/gektor/internal/tui/components/gate"
-	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/components/gate"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
 // gateStage is the permission overlay stage: permit, always-confirm,

@@ -13,10 +13,10 @@ import (
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/credentials"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/components/table"
-	"github.com/keshon/gektor/internal/tui/screen"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/table"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) SSH(editable bool) screen.Dialog {

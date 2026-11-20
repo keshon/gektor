@@ -6,10 +6,10 @@ import (
 	"sort"
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/credentials"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type savedConnection struct {

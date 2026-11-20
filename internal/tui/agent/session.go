@@ -18,10 +18,10 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tui/components/composer"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/components/composer"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // followUp sends a non-empty input line as a resumed turn;

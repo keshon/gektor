@@ -9,7 +9,7 @@ import (
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/credentials"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestSSHPreferencesPreserveReferencesWithoutResolvingSecrets(t *testing.T) {

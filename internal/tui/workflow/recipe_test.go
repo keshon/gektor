@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestRecipeSetupFormsPreserveDataAndUndo(t *testing.T) {

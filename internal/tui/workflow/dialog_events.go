@@ -4,8 +4,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // HandleControl receives shared-control results on the shell's update loop.

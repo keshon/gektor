@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow/service"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestWorkflowUpdatesReplaceNoticeSeverity(t *testing.T) {

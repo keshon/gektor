@@ -13,7 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/conversation"
-	"github.com/keshon/gektor/internal/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/components/transcript"
 )
 
 func compactToolText(text string) string {

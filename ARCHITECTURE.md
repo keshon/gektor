@@ -26,7 +26,8 @@ Paths below are relative to the repository root.
 | internal/httptransport, internal/process and internal/executables | Own network policy, process lifetime and executable discovery |
 | internal/workflow | Validate, execute, store and schedule workflow runs |
 | internal/tui | Own screen state and connect controls to application actions |
-| internal/tui/components | Render reusable controls and handle their local interaction |
+| pkg/tui/screen | Own shared controls, menu/overlay routing, identities and themes |
+| pkg/tui/components | Render reusable controls and handle their local interaction |
 | cmd/release and internal/release | Adapt packaging arguments and stage/verify release payloads |
 
 ## One agent turn
@@ -354,8 +355,12 @@ the terminal host routes focus, messages and effects. Workers return messages ra
 than changing the live model.
 
 Reusable geometry, popup, form, composer, selection and transcript models live
-under `internal/tui/components`. The application supplies styles and data;
-components do not own backend services. The active input owner determines
+under `pkg/tui/components`. The application supplies styles and data;
+components do not own backend services. `pkg/tui/screen` owns shared controls
+and opaque dialog/table identities. The [controls README](pkg/tui/README.md)
+describes ownership and the offline workbench consumer. These packages belong
+to the root Go module, with no nested module or separate version. Their current
+API may change. Application screens and terminal runtime stay in `internal/tui`. The active input owner determines
 keyboard, paste, mouse and caret routing. Session scans return revision-tagged
 results; stale results cannot replace the current session list.
 
@@ -364,7 +369,7 @@ contracts and migration plan for shared controls, layouts and interaction.
 
 Settled transcript blocks are cached by content and presentation settings.
 The viewport retains separate rendered parts and draws only visible lines.
-Colors live in `internal/tui/screen/styles.go`; changing the theme invalidates cached rendering.
+Colors live in `pkg/tui/screen/styles.go`; changing the theme invalidates cached rendering.
 Width calculations use terminal cells, including frames, gutters and scrollbars.
 
 Applying settings returns ModeChange with saved preferences, history, draft

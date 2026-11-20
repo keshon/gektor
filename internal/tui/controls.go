@@ -3,9 +3,9 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) settleControls() []tea.Cmd {

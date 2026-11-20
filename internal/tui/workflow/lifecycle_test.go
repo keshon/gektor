@@ -11,9 +11,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/store"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestClosedScreenReleasesWaitAndRejectsLateWork(t *testing.T) {

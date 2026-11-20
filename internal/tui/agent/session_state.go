@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/conversation"
-	"github.com/keshon/gektor/internal/tui/components/composer"
-	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/components/composer"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
 // Drafts are local UI state, separate from submitted model history.

@@ -3,8 +3,8 @@ package agent
 import (
 	"charm.land/lipgloss/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/cell"
-	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/pkg/tui/components/cell"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
 )
 
 func cellLine(s string, width int) string          { return cell.Line(s, width) }

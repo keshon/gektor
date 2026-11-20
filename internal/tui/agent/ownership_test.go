@@ -12,8 +12,8 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/internal/conversation"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestOpeningSessionRetainsContextEstimate(t *testing.T) {

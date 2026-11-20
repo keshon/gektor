@@ -142,8 +142,9 @@ Both were corrected before the successful full run.
    paired simple-task runs and one baseline ledger run passed; the ledger pair
    was interrupted when the user returned work to the TUI. Context-policy and
    recovery coverage remain incomplete. Competitor testing was dropped.
-4. Publish a versioned component API only after an external pinned-version
-   consumer builds. Extend platform release smoke coverage separately.
+4. Public packages now live under `pkg/tui` in GEKTOR's root module. Verify a
+   consumer pinned to an actual GEKTOR release before claiming released-version
+   compatibility. Extend platform release smoke coverage separately.
 5. Continue the audit's composition and observability ownership cleanup where
    concrete callers justify it; avoid a repository-wide rewrite.
 
@@ -357,3 +358,40 @@ Validation for the private-state migration:
   Input source SHA-256:
   `b848418e5fbc077d4cdda962aa2faca4d58c54b4985394ee884547d157fd5ce9`.
 - Documentation links/anchors and `git diff --check`: passed.
+
+
+### Public packages in the root module
+
+The user chose the Melodix layout: reusable code stays in this repository under
+`pkg/tui`, with one root `go.mod` and versions following GEKTOR. Controls moved
+from `internal/tui/screen` to `pkg/tui/screen`; components moved from
+`internal/tui/components` to `pkg/tui/components`; the workbench moved to
+`pkg/tui/examples/workbench`. Application screens, settings, tools, clipboard and
+terminal runtime remain under `internal/tui`. There are no compatibility wrappers
+or nested modules. Earlier notes about choosing a standalone module are superseded.
+
+The separate-consumer checker now copies only the public package sources into a
+snapshot of the real root module. The external workbench imports
+`github.com/keshon/gektor/pkg/tui/...` unchanged and uses a local replacement for
+GEKTOR. Public-package import checks include tests and examples; they reject
+application dependencies. This verifies the current source layout, not a
+published version. No tag, release or distribution artifact is published.
+
+The package README documents imports, ownership and the workbench. Both sections
+were edited with the humanizer skill; code blocks and link targets were retained.
+Native terminal review remains waived, and packed tool badges are unchanged.
+
+
+Validation after the public-package move:
+
+- `go test -p 1 ./...`: passed.
+- `go test -race -p 1 ./internal/tui/... ./pkg/tui/...`: passed.
+- `go vet ./...`, the executable build and all 45 dry eval definitions: passed.
+- The separate consumer passed tests, vet and build with unchanged public imports.
+  Public-source SHA-256:
+  `166555cf344d11d530c141a9c32c73542c9c0643c8c306734f750e49f0422b5e`.
+- Boundary-checker tests and vet, formatting and diff checks: passed.
+- Documentation checks: 74 Markdown files and 35 published articles passed.
+- The first focused run found the component-boundary test still walking the old
+  directory. It moved beside the shared screen tests and passed. A stale example
+  index link was also corrected before the passing documentation check.

@@ -10,9 +10,9 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/providers"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/components/popup"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
 type EditSession struct {

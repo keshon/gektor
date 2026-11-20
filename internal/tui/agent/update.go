@@ -14,8 +14,8 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tui/components/transcript"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // Frame pacing. Revealing a reply needs frames; a running spinner needs

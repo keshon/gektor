@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func queuedInvocation(t *testing.T, m *model) workflowInvocation {

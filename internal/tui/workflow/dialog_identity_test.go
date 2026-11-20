@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestReplacedFormRejectsLateSubmissionAndClose(t *testing.T) {

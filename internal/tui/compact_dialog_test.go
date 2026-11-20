@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/mcpmanager"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestCompactDialogsKeepChromeAndMatchMouseRows(t *testing.T) {

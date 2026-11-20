@@ -13,7 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func inspectorModel(t *testing.T, width int) *Model {

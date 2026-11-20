@@ -45,4 +45,7 @@ See [Build and contribute](docs/development/README.md), [Architecture](ARCHITECT
 and the [eval runner](eval/README.md). The [website](website/README.md) publishes
 these documentation sources alongside the landing page.
 
+Reusable Bubble Tea controls are in [pkg/tui](pkg/tui/README.md), with an offline
+workbench example. They share GEKTOR's root Go module.
+
 [MIT license](LICENSE).

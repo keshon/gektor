@@ -112,7 +112,7 @@ func checkPackagePath(root, name string) error {
 
 // Only explicit root-relative source references are checked. This excludes
 // commands, example workspace files, placeholders and paths outside the repo.
-var sourcePath = regexp.MustCompile(`^(?:internal/|cmd/)[A-Za-z0-9_./*?\[\]-]+$|^[A-Za-z0-9_./-]+\.go$`)
+var sourcePath = regexp.MustCompile(`^(?:internal/|cmd/|pkg/)[A-Za-z0-9_./*?\[\]-]+$|^[A-Za-z0-9_./-]+\.go$`)
 var inlineCode = regexp.MustCompile("`([^`\r\n]+)`")
 
 func missingDocPaths(root, text string) []string {
@@ -138,7 +138,7 @@ func maintainedDoc(path string) bool {
 		return true
 	}
 	return path == "skills/README.md" || path == "eval/README.md" || path == "scripts/README.md" ||
-		strings.HasPrefix(path, "examples/") && filepath.Base(path) == "README.md"
+		(strings.HasPrefix(path, "examples/") || strings.HasPrefix(path, "pkg/tui/")) && filepath.Base(path) == "README.md"
 }
 
 func maintainedDocs(t *testing.T, r *repo) []string {
@@ -150,7 +150,7 @@ func maintainedDocs(t *testing.T, r *repo) []string {
 		}
 		rel := r.rel(path)
 		if entry.IsDir() {
-			if rel != "." && !strings.Contains(rel, "/") && rel != "docs" && rel != "skills" && rel != "eval" && rel != "examples" && rel != "scripts" {
+			if rel != "." && !strings.Contains(rel, "/") && rel != "docs" && rel != "skills" && rel != "eval" && rel != "examples" && rel != "scripts" && rel != "pkg" {
 				return filepath.SkipDir
 			}
 			if rel == "docs/internal" || rel == "eval/results" {

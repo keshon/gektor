@@ -5,9 +5,9 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/cell"
-	"github.com/keshon/gektor/internal/tui/components/composer"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/cell"
+	"github.com/keshon/gektor/pkg/tui/components/composer"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // truncate shortens display strings with a marker. Rune-based:

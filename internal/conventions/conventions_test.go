@@ -3,11 +3,14 @@ package conventions
 import (
 	"encoding/json"
 	"fmt"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -168,13 +171,20 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		}
 	}
 	for _, f := range r.goFiles {
-		pkg := filepath.ToSlash(filepath.Dir(r.rel(f)))
-		if !strings.HasPrefix(pkg, "internal/tui/components/") || strings.HasSuffix(f, "_test.go") {
+		if !strings.HasPrefix(filepath.ToSlash(r.rel(f)), "pkg/tui/") {
 			continue
 		}
-		for _, imp := range internalImports(r.read(t, f)) {
-			if !strings.HasPrefix(imp, "tui/components/") {
-				t.Errorf("%s imports application package internal/%s%s", r.rel(f), imp, r.rule("package-layers"))
+		file, err := parser.ParseFile(token.NewFileSet(), f, r.read(t, f), parser.ImportsOnly)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, spec := range file.Imports {
+			imp, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.HasPrefix(imp, "github.com/keshon/gektor/") && !strings.HasPrefix(imp, "github.com/keshon/gektor/pkg/tui/") {
+				t.Errorf("%s imports application package %s%s", r.rel(f), imp, r.rule("package-layers"))
 			}
 		}
 	}

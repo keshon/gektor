@@ -9,8 +9,8 @@ import (
 
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) formKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

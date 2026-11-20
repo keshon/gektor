@@ -11,7 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
 // sessionText is one searchable message and its index in the source history.

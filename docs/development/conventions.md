@@ -90,7 +90,9 @@ Workflow agent adapters receive the operation registry factory from composition;
 they do not import `internal/app` or reconstruct application services themselves.
 Tool factories receive policy, gates and store dependencies at construction.
 
-Reusable TUI components may import other components, but no application packages.
+Public TUI packages under `pkg/tui` import no GEKTOR application packages.
+Components may import other components; `screen` composes them. Tests and examples
+follow the same application boundary.
 
 Workflow definitions import no internal packages. Recipe preparation imports only
 workflow definitions; the engine imports definitions and recipe preparation;

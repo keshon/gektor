@@ -2,8 +2,8 @@ package tui
 
 import (
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) editSettings(section string) {

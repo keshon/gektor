@@ -1,8 +1,8 @@
 package tui
 
 import (
- "github.com/keshon/gektor/internal/tui/screen"
 	"encoding/json"
+	"github.com/keshon/gektor/pkg/tui/screen"
 	"strings"
 	"testing"
 

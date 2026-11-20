@@ -1,7 +1,7 @@
 package tui
 
 import (
- "github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/pkg/tui/screen"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
 )
 
 // Loading a profile stages it; it does not apply. The running session

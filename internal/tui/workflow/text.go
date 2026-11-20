@@ -7,8 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/cell"
-	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/pkg/tui/components/cell"
+	"github.com/keshon/gektor/pkg/tui/components/form"
 )
 
 type formField = form.Field

@@ -6,8 +6,8 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 
-	"github.com/keshon/gektor/internal/tui/components/popup"
-	"github.com/keshon/gektor/internal/tui/components/selection"
+	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/components/selection"
 )
 
 // The session browser owns search, selection, and its rename input.
