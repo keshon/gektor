@@ -15,6 +15,7 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // Frame pacing. Revealing a reply needs frames; a running spinner needs
@@ -76,7 +77,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case processStopMsg:
 		return m, m.stopProcess(msg)
 	case processStoppedMsg:
-		if m.chrome.Dialog == msg.dialog {
+		if msg.dialog != (screen.DialogID{}) && m.chrome.DialogID() == msg.dialog {
 			if msg.err != nil {
 				m.chrome.Open("Cannot stop background process / "+msg.id, []string{msg.err.Error()})
 				m.rememberReturn(dialogReturn{processes: msg.view})

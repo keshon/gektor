@@ -91,7 +91,7 @@ func (m *Model) openTools() {
 		m.toolsTable = view.Table.Model
 	}
 	m.chrome.PresentDialog(view)
-	m.toolsDialog = m.chrome.Dialog
+	m.toolsDialog = m.chrome.DialogID()
 	m.toolsPage = toolList
 	m.syncToolActions()
 }
@@ -105,7 +105,7 @@ func (m *Model) openMediaTools() {
 		}
 	}
 	m.chrome.PresentDialog(view)
-	m.toolsDialog = m.chrome.Dialog
+	m.toolsDialog = m.chrome.DialogID()
 	m.toolsPage = toolMedia
 }
 
@@ -128,7 +128,7 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 			for _, set := range m.toolsets {
 				if set.ID == "native_media" {
 					m.chrome.PresentDialog(toolsui.Details(set))
-					m.toolsDialog = m.chrome.Dialog
+					m.toolsDialog = m.chrome.DialogID()
 					m.toolsPage = toolMediaDetails
 					break
 				}
@@ -139,12 +139,12 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 			preferences, err := m.tools.Preferences(event.Row)
 			if err != nil {
 				m.chrome.PresentDialog(screen.Dialog{Title: "Media preferences", Lines: []string{err.Error()}})
-				m.toolsDialog = m.chrome.Dialog
+				m.toolsDialog = m.chrome.DialogID()
 				m.toolsPage = toolDetails
 				return nil
 			}
 			m.openForm(preferences, func(values map[string]string) error { return m.applyExecutablePreference(event.Row, values) })
-			m.toolsDialog = m.chrome.Dialog
+			m.toolsDialog = m.chrome.DialogID()
 			m.toolsPage = toolMediaEdit
 		}
 		return nil
@@ -177,7 +177,7 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 		}
 		if event.Action == "details" {
 			m.chrome.PresentDialog(toolsui.Details(set))
-			m.toolsDialog = m.chrome.Dialog
+			m.toolsDialog = m.chrome.DialogID()
 			m.toolsPage = toolDetails
 			return nil
 		}
@@ -193,7 +193,7 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 			return nil
 		}
 		m.chrome.PresentDialog(toolsui.Details(set))
-		m.toolsDialog = m.chrome.Dialog
+		m.toolsDialog = m.chrome.DialogID()
 		m.toolsPage = toolDetails
 		return nil
 	}
@@ -201,13 +201,11 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 }
 
 func (m *Model) refreshMediaTools() {
-	if m.toolsDialog == nil || m.chrome.Dialog != m.toolsDialog || m.toolsPage != toolMedia {
+	if m.toolsDialog == (screen.DialogID{}) || m.chrome.DialogID() != m.toolsDialog || m.toolsPage != toolMedia {
 		return
 	}
 	view := m.tools.Media(m.toolsEditable())
-	m.chrome.RefreshTable(view.Table.Model.Rows)
-	m.chrome.Dialog.Table.Description = view.Table.Description
-	m.chrome.Dialog.Table.Actions = view.Table.Actions
+	m.chrome.UpdateTable(m.toolsDialog, view.Table.Description, view.Table.Model.Rows, view.Table.Actions)
 }
 
 func (m *Model) toolPreferencesRestart() (*ModeChange, error) {
@@ -252,7 +250,7 @@ func (m *Model) openSSHTools() {
 		}
 	}
 	m.chrome.PresentDialog(view)
-	m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSH
+	m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSH
 }
 
 func (m *Model) sshToolAction(event screen.Event) tea.Cmd {
@@ -260,7 +258,7 @@ func (m *Model) sshToolAction(event screen.Event) tea.Cmd {
 		for _, set := range m.toolsets {
 			if set.ID == "native_ssh" {
 				m.chrome.PresentDialog(toolsui.Details(set))
-				m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHDetails
+				m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSHDetails
 				break
 			}
 		}
@@ -285,11 +283,11 @@ func (m *Model) sshToolAction(event screen.Event) tea.Cmd {
 		preferences, err := m.tools.SSHPreferences(name)
 		if err != nil {
 			m.chrome.PresentDialog(screen.Dialog{Title: "SSH preferences", Lines: []string{err.Error()}})
-			m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHDetails
+			m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSHDetails
 			return nil
 		}
 		m.openForm(preferences, func(values map[string]string) error { return m.applySSHPreference(name, values) })
-		m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHEdit
+		m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSHEdit
 	}
 	if event.Action == "delete" {
 		confirmation := screen.Form{
@@ -301,7 +299,7 @@ func (m *Model) sshToolAction(event screen.Event) tea.Cmd {
 			Fields:        []form.Field{{Key: "confirmation", Label: "Connection: " + name}},
 		}
 		m.openForm(confirmation, func(values map[string]string) error { return m.deleteSSHPreference(name, values["confirmation"]) })
-		m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHEdit
+		m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSHEdit
 	}
 	return nil
 }
@@ -322,7 +320,7 @@ func (m *Model) applySSHPreference(name string, values map[string]string) error 
 			title = "SSH key passphrase: " + settings.Name
 		}
 		m.chrome.PresentSecret(title, "Encrypted for your Windows account. Save confirms this connection and restarts GEKTOR. Cancel leaves it unchanged.")
-		m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHSecret
+		m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSHSecret
 		return nil
 	}
 	err = m.tools.SaveSSH(settings)
@@ -350,8 +348,11 @@ func (m *Model) deleteSSHPreference(name, confirmation string) error {
 	return nil
 }
 
-func (m *Model) applySSHSecret(dialog *screen.DialogState) {
-	value := dialog.Secret.Take()
+func (m *Model) applySSHSecret(dialog screen.DialogID) {
+	value, ok := m.chrome.TakeSecret(dialog)
+	if !ok {
+		return
+	}
 	snapshot, err := m.toolPreferencesRestart()
 	if err == nil {
 		settings := m.sshSecret
@@ -359,7 +360,7 @@ func (m *Model) applySSHSecret(dialog *screen.DialogState) {
 	}
 	value = ""
 	if err != nil {
-		dialog.Secret.Error = err.Error()
+		m.chrome.SetSecretError(dialog, err)
 		return
 	}
 	m.sshSecret = nil
@@ -379,7 +380,7 @@ func (m *Model) acceptToolsetChange(msg toolsetChanged) {
 	m.toolLoadCancel, m.toolLoadDone = nil, nil
 	if msg.err != nil && !errors.Is(msg.err, context.Canceled) {
 		m.chrome.PresentDialog(screen.Dialog{Title: "Tools", Lines: []string{msg.err.Error()}})
-		m.toolsDialog = m.chrome.Dialog
+		m.toolsDialog = m.chrome.DialogID()
 		m.toolsPage = toolDetails
 		return
 	}
@@ -390,14 +391,14 @@ func (m *Model) acceptToolsetChange(msg toolsetChanged) {
 }
 
 func (m *Model) syncToolActions() {
-	if m.toolsDialog == nil || m.chrome.Dialog != m.toolsDialog || m.toolsPage != toolList || m.chrome.Dialog.Table == nil {
+	if m.toolsDialog == (screen.DialogID{}) || m.chrome.DialogID() != m.toolsDialog || m.toolsPage != toolList {
 		return
 	}
-	selected := m.chrome.Dialog.Table.Model.Selected()
-	m.chrome.Dialog.Table.Actions = []table.Action{
+	selected := m.chrome.TableSelectedID(m.toolsDialog)
+	m.chrome.SetTableActions(m.toolsDialog, []table.Action{
 		{ID: "details", Label: "Details", Key: "enter", Enabled: false},
 		{ID: "close", Label: "Close", Key: "esc", Enabled: true},
-	}
+	})
 	for _, set := range m.toolsets {
 		if set.ID != selected {
 			continue
@@ -407,12 +408,12 @@ func (m *Model) syncToolActions() {
 			action, label = "unload", "Unload"
 		}
 		settings := set.ID == "native_media" || set.ID == "native_ssh"
-		m.chrome.Dialog.Table.Actions = []table.Action{
+		m.chrome.SetTableActions(m.toolsDialog, []table.Action{
 			{ID: action, Label: label, Key: "l", Enabled: m.toolsIdle() && m.toolSessionAttached && set.Loading != "Always"},
 			{ID: "details", Label: "Details", Key: "enter", Enabled: true},
 			{ID: "settings", Label: "Settings", Key: "s", Enabled: settings && m.toolsIdle()},
 			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
-		}
+		})
 		break
 	}
 }

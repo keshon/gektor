@@ -15,6 +15,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/harness"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func queuedModel(t *testing.T) *Model {
@@ -359,8 +360,10 @@ func TestSuspendedQueueEditRetainsSubmissionSeparately(t *testing.T) {
 	m := queuedModel(t)
 	m.openInputQueue()
 	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
-	original := m.chrome.Dialog
+	original := m.chrome.DialogID()
 	m.chrome.Dialog.Form.Editor.SetValue("keep this draft")
+	m.chrome.FocusForm(len(m.chrome.Dialog.Form.Fields))
+	focus := m.chrome.Dialog.Form.Index
 	m.acceptGateEvent(harness.Event{Name: "gate", Fields: map[string]any{"kind": string(agent.SuspendPermission), "prompt": "Allow?"}})
 	m.syncControls()
 	if m.form.apply != nil || m.suspendedInputEdit == nil || m.suspendedInputEdit.form.dialog != original || m.suspendedInputEdit.form.apply == nil {
@@ -370,12 +373,58 @@ func TestSuspendedQueueEditRetainsSubmissionSeparately(t *testing.T) {
 	m.resolveGate("n")
 	m.openInputQueue()
 	m.syncControls()
-	if m.form.dialog != original || m.form.apply == nil || m.suspendedInputEdit != nil {
+	if m.form.dialog != original || m.form.apply == nil || m.suspendedInputEdit != nil || m.chrome.Dialog.Form.Index != focus || m.chrome.Dialog.Form.Values()["message"] != "keep this draft" {
 		t.Fatal("resume did not transfer the pending submission back")
 	}
 	m.chrome.Close()
 	m.syncControls()
 	if m.form.apply != nil || m.sess.PendingInputs()[0].Message.Content == "keep this draft" {
 		t.Fatal("dismissal retained or applied the suspended submission")
+	}
+}
+
+func TestQueueEditorRejectsEventsFromReplacedEditor(t *testing.T) {
+	m := queuedModel(t)
+	m.openInputQueue()
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	stale := m.chrome.DialogID()
+	before := m.sess.PendingInputs()[0].Message.Content
+	m.openInputQueue()
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	current := m.chrome.DialogID()
+	m.chrome.Dialog.Form.Editor.SetValue("current unsaved draft")
+	m.HandleControl(screen.Event{Kind: screen.Apply, ID: stale, Values: map[string]string{"message": "stale submission"}})
+	m.HandleControl(screen.Event{Kind: screen.Closed, ID: stale})
+	if m.chrome.DialogID() != current || m.form.dialog != current || m.form.apply == nil || m.chrome.Dialog.Form.Editor.Value() != "current unsaved draft" {
+		t.Fatal("stale event replaced or cleared the active editor")
+	}
+	if m.sess.PendingInputs()[0].Message.Content != before {
+		t.Fatal("stale submission changed the queue")
+	}
+	m.applyTestForm()
+	if m.sess.PendingInputs()[0].Message.Content != "current unsaved draft" {
+		t.Fatal("current editor lost its submission after stale events")
+	}
+}
+
+func TestQueueEditorDoesNotResumeConsumedDraft(t *testing.T) {
+	m := queuedModel(t)
+	m.openInputQueue()
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.suspendDialog()
+	m.syncControls()
+	edit := m.suspendedInputEdit
+	if edit == nil || !m.chrome.ResumeID(edit.dialog) {
+		t.Fatal("missing suspended editor")
+	}
+	// Another host action consumed and closed the suspension before queue return.
+	m.chrome.Close()
+	m.syncControls()
+	m.openInputQueue()
+	if m.form.apply != nil || m.chrome.Dialog.Table == nil || m.suspendedInputEdit != nil {
+		t.Fatal("consumed suspension revived its submission")
+	}
+	if _, exists := m.returnDialogs[edit.dialog]; exists {
+		t.Fatal("consumed suspension retained its return route")
 	}
 }

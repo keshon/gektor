@@ -96,7 +96,7 @@ func (m *Model) acceptProposal(p workflowProposal) {
 
 		Actions: []screen.DialogAction{{ID: "apply-proposal", Key: 's', Label: "apply to draft"}},
 	})
-	m.proposalDialog = m.dialogs.Dialog
+	m.proposalDialog = m.dialogs.DialogID()
 	m.proposalDraft = d
 	m.proposalBefore = p.before
 

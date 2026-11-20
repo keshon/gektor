@@ -32,7 +32,7 @@ type Model struct {
 	tools               *toolsui.Model
 	toolsets            []app.Toolset
 	toolsTable          *table.Model
-	toolsDialog         *screen.DialogState
+	toolsDialog         screen.DialogID
 	toolsPage           toolPage
 	mediaSelection      string
 	sshSelection        string
@@ -42,8 +42,8 @@ type Model struct {
 	sshSecret           *toolsui.SSHSettings
 	form                pendingForm
 	preferences         *settings.Model
-	preferencesDialog   *screen.DialogState
-	actionsDialog       *screen.DialogState
+	preferencesDialog   screen.DialogID
+	actionsDialog       screen.DialogID
 
 	profile           *app.PreparedProfile
 	application       *settings.Application

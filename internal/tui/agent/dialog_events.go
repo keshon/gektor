@@ -18,33 +18,36 @@ type dialogReturn struct {
 
 func (m *Model) rememberReturn(next dialogReturn) {
 	if m.returnDialogs == nil {
-		m.returnDialogs = make(map[*screen.DialogState]dialogReturn)
+		m.returnDialogs = make(map[screen.DialogID]dialogReturn)
 	}
-	m.returnDialogs[m.chrome.Dialog] = next
+	m.returnDialogs[m.chrome.DialogID()] = next
 }
 
 // HandleControl applies only events associated with dialogs opened by Agent.
 // It runs on the application's update loop, including while Agent is hidden.
 func (m *Model) HandleControl(event screen.Event) tea.Cmd {
-	dialog := event.Dialog
+	dialog := event.ID
+	if dialog == (screen.DialogID{}) {
+		return nil
+	}
 	switch event.Kind {
 	case screen.Apply:
-		if m.form.dialog != dialog || m.chrome.Dialog != dialog {
+		if m.form.apply == nil || m.form.dialog != dialog || m.chrome.DialogID() != dialog {
 			return nil
 		}
 		err := m.applySubmission(dialog, event.Values)
-		m.chrome.CompleteForm(dialog, err)
+		m.chrome.CompleteFormID(dialog, err)
 
 	case screen.DialogActionRequested:
 		proposal, ok := m.lessonDialogs[dialog]
-		if !ok || m.chrome.Dialog != dialog {
+		if !ok || m.chrome.DialogID() != dialog {
 			return nil
 		}
 		switch event.Action {
 		case "save-lesson":
 			memory := proposal.Memory[0]
 			err := m.saveLesson(proposal, memory.When, memory.Lesson)
-			m.chrome.CompleteSave(dialog, err)
+			m.chrome.CompleteSaveID(dialog, err)
 		case "edit-lesson":
 			m.editLesson(proposal)
 		case "review-lesson":
@@ -52,23 +55,24 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		}
 
 	case screen.TableChanged:
-		m.PrepareControls()
+		if m.chrome.DialogID() == dialog {
+			m.PrepareControls()
+		}
 
 	case screen.TableAction:
-		if m.chrome.Dialog != dialog {
+		if m.chrome.DialogID() != dialog {
 			return nil
 		}
-		view := dialog.Table.Model
 		switch {
 
 		case m.queueDialogs[dialog] != nil:
 			return m.inputQueueAction(m.queueDialogs[dialog], event.Action, event.Row)
 
 		case dialog == m.processDialog:
-			return m.processAction(view, event.Action, event.Row)
+			return m.processAction(m.processTable, event.Action, event.Row)
 
 		case dialog == m.permissionDialog:
-			return m.permissionAction(view, event.Action, event.Row)
+			return m.permissionAction(m.permissionTable, event.Action, event.Row)
 
 		case dialog == m.mcpDialog:
 			m.chrome.Close()
@@ -76,12 +80,12 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		}
 
 	case screen.Closed, screen.Replaced, screen.Suspended:
-		if m.evaluation != nil && m.evaluation.dialog == dialog {
+		if m.evaluation != nil && m.evaluation.dialog == event.ID {
 			m.cancelEvaluation()
 		}
 
 		next := m.returnDialogs[dialog]
-		if event.Kind == screen.Suspended && (m.chrome.Dialog == dialog || m.suspendedInputEdit != nil && m.suspendedInputEdit.dialog == dialog) {
+		if event.Kind == screen.Suspended && (m.chrome.DialogID() == dialog || m.suspendedInputEdit != nil && m.suspendedInputEdit.dialog == dialog) {
 			return nil
 		}
 		if m.form.dialog == dialog {
@@ -91,13 +95,13 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		delete(m.returnDialogs, dialog)
 		delete(m.lessonDialogs, dialog)
 		if m.processDialog == dialog {
-			m.processDialog = nil
+			m.processDialog = screen.DialogID{}
 		}
 		if m.permissionDialog == dialog {
-			m.permissionDialog = nil
+			m.permissionDialog = screen.DialogID{}
 		}
 		if m.mcpDialog == dialog {
-			m.mcpDialog = nil
+			m.mcpDialog = screen.DialogID{}
 		}
 		if event.Kind != screen.Closed {
 			return nil
@@ -123,30 +127,29 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 // PrepareControls supplies table rows and actions before input or rendering.
 // Reading shared presentation never refreshes Agent state or performs I/O.
 func (m *Model) PrepareControls() {
-	dialog := m.chrome.Dialog
-	if dialog == nil || dialog.Table == nil {
+	dialog := m.chrome.DialogID()
+	if dialog == (screen.DialogID{}) {
 		return
 	}
 
-	view := dialog.Table.Model
 	switch {
 	case m.queueDialogs[dialog] != nil:
 		m.refreshInputQueue(m.queueDialogs[dialog])
 	case dialog == m.processDialog:
-		m.refreshProcesses(view)
+		m.refreshProcesses(m.processTable)
 	case dialog == m.mcpDialog:
 		statuses := make(map[string]mcpmanager.Status)
 		for _, status := range m.mcp.List() {
 			statuses[status.ID] = status
 		}
-		dialog.Table.Actions = m.mcpActions(view, statuses)
+		m.chrome.SetTableActions(dialog, m.mcpActions(m.mcpTable, statuses))
 	}
 }
 
 func (m *Model) suspendDialog() {
-	dialog := m.chrome.Dialog
+	dialog := m.chrome.DialogID()
 	queue := m.returnDialogs[dialog].queue
-	if queue != nil && dialog.Form != nil && m.form.dialog == dialog {
+	if queue != nil && m.form.dialog == dialog && m.form.apply != nil {
 		m.suspendedInputEdit = &inputQueueEdit{
 			session: queue.session, stateFile: queue.stateFile, dialog: dialog, form: m.form,
 		}
@@ -157,18 +160,18 @@ func (m *Model) suspendDialog() {
 
 // pendingForm belongs to the feature, while shared controls own the editable draft.
 type pendingForm struct {
-	dialog *screen.DialogState
+	dialog screen.DialogID
 	apply  func(map[string]string) error
 }
 
 func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *fieldform.Model {
 	draft := m.chrome.PresentForm(form)
-	m.form = pendingForm{dialog: m.chrome.Dialog, apply: apply}
+	m.form = pendingForm{dialog: m.chrome.DialogID(), apply: apply}
 	return draft
 }
 
-func (m *Model) applySubmission(dialog *screen.DialogState, values map[string]string) error {
-	if m.form.dialog != dialog || m.chrome.Dialog != dialog {
+func (m *Model) applySubmission(dialog screen.DialogID, values map[string]string) error {
+	if m.form.apply == nil || m.form.dialog != dialog || m.chrome.DialogID() != dialog {
 		return nil
 	}
 	return m.form.apply(values)

@@ -170,6 +170,13 @@ budget. It reserves part of the existing probe timeout for a tool-free report;
 it does not extend the timeout. Metadata records this switch. Repeated-observation
 warnings are diagnostics and do not stop execution or add model turns.
 
+Use `-tool-profile baseline` (the default) or `-tool-profile lazy-web` to
+compare native web schema exposure. `lazy-web` keeps web tools discoverable through
+capability activation with the existing permission checks; other tools keep their
+normal exposure. The selected profile is recorded as `tool_profile` in `meta.json`.
+Keep the backend, model, context, generation budget, fixtures and acceptance checks
+equal across repeated runs. This flag changes only the eval runner.
+
 CLI, TUI first-run settings and this runner default to llama.cpp at
 `http://127.0.0.1:9931`. On Windows, `scripts\eval-run.cmd` forwards flags to
 `go run ./cmd/eval`; it does not read `.env`. For another endpoint, pass

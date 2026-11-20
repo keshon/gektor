@@ -22,7 +22,7 @@ func (m *Model) discoverSettings(request fieldform.DiscoveryRequest) tea.Cmd {
 		return nil
 	}
 
-	if m.preferences == nil || m.preferencesDialog != m.chrome.Dialog {
+	if m.preferences == nil || m.preferencesDialog != m.chrome.DialogID() {
 		return nil
 	}
 	provider, providerErr := m.preferences.Provider(request)

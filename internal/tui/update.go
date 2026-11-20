@@ -18,14 +18,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toolsetChanged:
 		m.acceptToolsetChange(value)
 	case toolsui.SSHCheckResult:
-		if m.tools.AcceptSSH(value) && m.toolsDialog != nil && m.toolsPage == toolSSH {
+		if m.tools.AcceptSSH(value) && m.toolsDialog != (screen.DialogID{}) && m.chrome.DialogID() == m.toolsDialog && m.toolsPage == toolSSH {
 			m.chrome.PresentDialog(value.Dialog())
-			m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHDetails
+			m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSHDetails
 		}
 	case toolsui.CheckResult:
-		if m.tools.Accept(value) && m.toolsDialog != nil && m.toolsPage == toolMedia {
+		if m.tools.Accept(value) && m.toolsDialog != (screen.DialogID{}) && m.chrome.DialogID() == m.toolsDialog && m.toolsPage == toolMedia {
 			m.chrome.PresentDialog(value.Dialog())
-			m.toolsDialog = m.chrome.Dialog
+			m.toolsDialog = m.chrome.DialogID()
 			m.toolsPage = toolMediaDetails
 		}
 	case fieldform.DiscoveryRequest:
@@ -115,7 +115,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
 			return m, m.chrome.TableInput(msg)
 		}
 		if m.chrome.Dialog.Form != nil {
-			if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog {
+			if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() {
 				intent, cmd := m.preferences.UpdateKey(msg, m.chrome.FormProps())
 				m.chrome.ResizeFormEditor()
 				return m, tea.Batch(cmd, m.chrome.HandleIntent(intent))
@@ -196,7 +196,7 @@ func (m *Model) runAction(command string) tea.Cmd {
 		m.chrome.CloseHeader()
 		m.syncPresentation()
 		m.chrome.OpenActions("actions")
-		m.actionsDialog = m.chrome.Dialog
+		m.actionsDialog = m.chrome.DialogID()
 		return nil
 	case "":
 		return nil

@@ -91,7 +91,7 @@ func TestMCPImportValidationAndExplicitReplacement(t *testing.T) {
 			defer manager.Close()
 			m.mcp, m.state = manager, stDone
 			m.handleMCPAction(mcpActionMsg{action, ""})
-			apply := func(values map[string]string) error { return m.applySubmission(m.chrome.Dialog, values) }
+			apply := func(values map[string]string) error { return m.applySubmission(m.chrome.DialogID(), values) }
 			values := map[string]string{"json": "{", "replace": "off"}
 			if action == "import" {
 				values["path"] = filepath.Join(root, "config.json")
@@ -238,7 +238,7 @@ func TestBundledMCPUsesSharedSettingsWithoutRawCommand(t *testing.T) {
 	if m.chrome.Dialog.Form == nil || len(m.chrome.Dialog.Form.Fields) != 2 {
 		t.Fatal("bundle opened generic command editor")
 	}
-	if err = m.applySubmission(m.chrome.Dialog, map[string]string{"enabled": "on", "loading": "on load"}); err != nil {
+	if err = m.applySubmission(m.chrome.DialogID(), map[string]string{"enabled": "on", "loading": "on load"}); err != nil {
 		t.Fatal(err)
 	}
 	if !source.Eager || manager.List()[0].Connected {

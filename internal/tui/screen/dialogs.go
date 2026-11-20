@@ -40,7 +40,14 @@ func (m *Controls) PresentDialog(d Dialog) {
 	m.Dialog.Shortcuts = slices.Clone(d.Shortcuts)
 	m.Dialog.Actions = slices.Clone(d.Actions)
 	if d.Table != nil {
-		m.Dialog.Table = &TableState{Model: d.Table.Model, Columns: slices.Clone(d.Table.Columns), Description: d.Table.Description, Actions: slices.Clone(d.Table.Actions)}
+		m.Dialog.Table = &TableState{
+			Model:        d.Table.Model,
+			Columns:      slices.Clone(d.Table.Columns),
+			Description:  d.Table.Description,
+			Actions:      slices.Clone(d.Table.Actions),
+			List:         d.Table.List,
+			EmptyMessage: d.Table.EmptyMessage,
+		}
 	}
 }
 
@@ -51,4 +58,60 @@ func (m *Controls) RefreshTable(rows []table.Row) {
 		snapshot[i].Cells = slices.Clone(rows[i].Cells)
 	}
 	m.Dialog.Table.Model.SetRows(snapshot)
+}
+
+// DialogID identifies one overlay lifetime without exposing its mutable state.
+// The zero value identifies no dialog; IDs remain comparable after replacement.
+type DialogID struct {
+	dialog *DialogState
+	owner  *Controls
+}
+
+// DialogID returns the identity of the currently presented overlay.
+func (m *Controls) DialogID() DialogID {
+	if m.Dialog == nil {
+		return DialogID{}
+	}
+	return DialogID{dialog: m.Dialog, owner: m}
+}
+
+// UpdateDialog replaces information content in the same overlay lifetime.
+// It preserves scroll and expansion and ignores replies to closed or replaced
+// overlays. Forms and tables have their own draft and row update operations.
+func (m *Controls) UpdateDialog(id DialogID, title string, lines []string) bool {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form != nil || m.Dialog.Table != nil || m.Dialog.Secret != nil {
+		return false
+	}
+	m.Dialog.Title = title
+	m.Dialog.Lines = append([]string(nil), lines...)
+	m.ScrollDialog(0)
+	return true
+}
+
+// TableSelectedID returns the selected row identity, or empty for a stale dialog.
+func (m *Controls) TableSelectedID(id DialogID) string {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+		return ""
+	}
+	return m.Dialog.Table.Model.Selected()
+}
+
+// SetTableActions copies action availability for the current table lifetime.
+func (m *Controls) SetTableActions(id DialogID, actions []table.Action) bool {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+		return false
+	}
+	m.Dialog.Table.Actions = slices.Clone(actions)
+	return true
+}
+
+// UpdateTable replaces supplied rows and labels while retaining search, selection
+// and scrolling. A reply for another dialog lifetime is ignored.
+func (m *Controls) UpdateTable(id DialogID, description string, rows []table.Row, actions []table.Action) bool {
+	if !m.SetTableActions(id, actions) {
+		return false
+	}
+	m.Dialog.Table.Description = description
+	m.RefreshTable(rows)
+	return true
 }

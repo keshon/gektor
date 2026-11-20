@@ -30,6 +30,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/completion"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/gate"
+	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/userdirs"
@@ -67,12 +68,13 @@ type liveFlushMsg struct{}
 // Model owns the conversation, composer, inspector, and Agent execution.
 // Shared menu and overlay models are supplied by the application shell.
 type Model struct {
-	returnDialogs                              map[*screen.DialogState]dialogReturn
-	queueDialogs                               map[*screen.DialogState]*inputQueue
-	processDialog, permissionDialog, mcpDialog *screen.DialogState
-	lessonDialogs                              map[*screen.DialogState]retrospective.Result
+	returnDialogs                              map[screen.DialogID]dialogReturn
+	queueDialogs                               map[screen.DialogID]*inputQueue
+	processDialog, permissionDialog, mcpDialog screen.DialogID
+	lessonDialogs                              map[screen.DialogID]retrospective.Result
 
-	form pendingForm
+	processTable, permissionTable *table.Model
+	form                          pendingForm
 
 	hidden           bool
 	shutdown         context.CancelFunc
@@ -129,7 +131,7 @@ type Model struct {
 	// overrides; sessionEnv layers those on per session.
 	mcp          *mcpmanager.Manager
 	mcpBusy      bool
-	mcpTable     *screen.TableState
+	mcpTable     *table.Model
 	baseEnv      roles.Env
 	started      time.Time
 	elapsed      time.Duration

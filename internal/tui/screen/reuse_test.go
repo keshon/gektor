@@ -16,7 +16,7 @@ func TestDialogActionsUseOwnerLabelsAndIdentity(t *testing.T) {
 	controls := &Controls{Props: ControlProps{Width: 120, Height: 30}}
 	actions := []DialogAction{{ID: "archive", Key: 'x', Label: "archive record"}}
 	controls.PresentDialog(Dialog{Title: "Record", Actions: actions})
-	dialog := controls.Dialog
+	dialog := controls.DialogID()
 	actions[0].ID = "caller changed"
 	controls.TakeEvents()
 	if !strings.Contains(controls.LayoutDialog().Hint, "archive record") {
@@ -24,7 +24,7 @@ func TestDialogActionsUseOwnerLabelsAndIdentity(t *testing.T) {
 	}
 	controls.InfoKey(tea.KeyPressMsg{Code: 'X', Text: "X"})
 	events := controls.TakeEvents()
-	if len(events) != 1 || events[0].Kind != DialogActionRequested || events[0].Action != "archive" || events[0].Dialog != dialog {
+	if len(events) != 1 || events[0].Kind != DialogActionRequested || events[0].Action != "archive" || events[0].ID != dialog {
 		t.Fatal("action did not retain copied intent and producing dialog", events)
 	}
 }

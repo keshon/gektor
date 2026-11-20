@@ -38,7 +38,7 @@ func (m *Model) openMCP() {
 	}
 	view := m.chrome.NewTable()
 	if m.mcpTable != nil {
-		view = m.mcpTable.Model
+		view = m.mcpTable
 	}
 	statuses := map[string]mcpmanager.Status{}
 	rows := []table.Row{}
@@ -67,22 +67,21 @@ func (m *Model) openMCP() {
 		rows = append(rows, table.Row{ID: server.ID, Cells: []string{server.ID, state, origin, fmt.Sprint(server.Tools), server.Description}})
 	}
 	view.SetRows(rows)
-	m.chrome.Open("MCP servers", nil)
-	d := &screen.TableState{Model: view,
+	m.chrome.PresentDialog(screen.Dialog{Title: "MCP servers", Table: &screen.Table{Model: view,
 		Columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Origin", Width: 10, HideNarrow: true}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
 		Description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
-	}
+		Actions:     m.mcpActions(view, statuses),
+	}})
 
-	m.chrome.Dialog.Table, m.mcpTable = d, d
-	m.mcpDialog = m.chrome.Dialog
-	m.chrome.Dialog.Table.Actions = m.mcpActions(view, statuses)
+	m.mcpTable = view
+	m.mcpDialog = m.chrome.DialogID()
 }
 
 func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	if m.mcp == nil {
 		return nil
 	}
-	if a.action == "list" && (m.chrome.Dialog != nil || m.state == stPermission || m.state == stAsk) {
+	if a.action == "list" && (m.chrome.DialogID() != (screen.DialogID{}) || m.state == stPermission || m.state == stAsk) {
 		return nil
 	}
 	if m.mcpBusy {
@@ -120,6 +119,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 					Title:      "MCP / " + s.ID,
 					Hint:       "Bundled integration. Changes apply to this launch; browser flags select its profile and channel.",
 					ApplyLabel: "Apply",
+					Choices:    map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "on load"}},
 					Fields: []form.Field{
 						{Key: "enabled", Label: "Enabled", Value: enabled},
 						{Key: "loading", Label: "Loading", Value: loading},
@@ -129,7 +129,6 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 					s.OnLoad = v["loading"] == "on load"
 					return m.mcp.Configure(s)
 				})
-				m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "on load"}}
 				m.rememberReturn(dialogReturn{mcp: true, id: s.ID})
 				return nil
 			}
@@ -145,6 +144,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		}
 		m.openForm(screen.Form{
 			Title:      "MCP / " + a.action,
+			Choices:    map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "on load"}},
 			Hint:       "Use a URL or a command array. Import JSON to add HTTP credentials.",
 			ApplyLabel: "Save",
 			Fields: []form.Field{
@@ -189,7 +189,6 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 			return nil
 		})
-		m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "on load"}}
 	case "import", "import-json":
 		title := "Import MCP file"
 		hint := "Select a JSON file containing mcpServers. Credentials are stored separately."
@@ -203,6 +202,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			Title:      title,
 			Hint:       hint,
 			ApplyLabel: "Import",
+			Choices:    map[string][]string{"replace": {"off", "on"}},
 			Fields: []form.Field{
 				field,
 				{Key: "replace", Label: "Replace existing servers", Value: "off"},
@@ -222,13 +222,14 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 			return nil
 		})
-		m.chrome.Dialog.Form.Choices = map[string][]string{"replace": {"off", "on"}}
 	case "delete":
 		m.openForm(screen.Form{
-			Title:      "Delete MCP / " + a.id,
-			Hint:       "Remove this saved server and disconnect it.",
-			ApplyLabel: "Delete",
-			Fields:     nil,
+			Title:         "Delete MCP / " + a.id,
+			Hint:          "Remove this saved server and disconnect it.",
+			ApplyLabel:    "Delete",
+			Destructive:   true,
+			StartOnCancel: true,
+			Fields:        nil,
 		}, func(_ map[string]string) error {
 			deleteErr := m.mcp.Delete(a.id)
 			if deleteErr != nil {
@@ -236,8 +237,6 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 			return nil
 		})
-		m.chrome.Dialog.Form.Destructive = true
-		m.chrome.FocusForm(1)
 	case "enable", "disable":
 		s, e := m.mcp.Get(a.id)
 		if e != nil {
@@ -318,7 +317,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	default:
 		fail(fmt.Errorf("unknown MCP action %q", a.action))
 	}
-	if a.action != "list" && m.chrome.Dialog != nil && m.chrome.Dialog.Table == nil && !m.mcpBusy {
+	if a.action != "list" && m.chrome.DialogID() != (screen.DialogID{}) && m.chrome.DialogID() != m.mcpDialog && !m.mcpBusy {
 		m.rememberReturn(dialogReturn{mcp: true, id: a.id})
 	}
 	return nil

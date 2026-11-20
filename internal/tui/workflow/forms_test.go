@@ -141,7 +141,7 @@ func TestBehaviorSectionOpensAfterChooserCloses(t *testing.T) {
 	before := w.editor.Source()
 	m.workflowCommand("behavior")
 	chooser := m.chrome.Dialog
-	w.HandleControl(screen.Event{Kind: screen.Apply, Dialog: chooser, Values: map[string]string{"section": "Retry"}})
+	w.HandleControl(screen.Event{Kind: screen.Apply, ID: m.chrome.DialogID(), Values: map[string]string{"section": "Retry"}})
 	if m.chrome.Dialog != nil || w.editor.Source() != before || len(w.commands) == 0 {
 		t.Fatal("chooser changed the recipe or retained its dialog")
 	}

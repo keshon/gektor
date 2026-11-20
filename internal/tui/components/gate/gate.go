@@ -142,8 +142,9 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 		// transcript behind, which the caller has made scrollable.
 		qrows = 0
 	case free == 1:
-		qrows, more = 0, popup.Row(styles.Normal,
-			"  … prompt is in the transcript above", inner)
+		// Keep the target visible when only one prompt row fits. A generic
+		// truncation notice cannot identify what the user is approving.
+		qrows = 1
 	default:
 		qrows = free - 1
 		more = popup.Row(styles.Normal,

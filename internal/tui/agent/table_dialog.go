@@ -20,16 +20,16 @@ func (m *Model) openPermissions() {
 }
 
 func (m *Model) openPermissionTable(view *table.Model) {
-	m.chrome.Open("Permissions", nil)
-	m.chrome.Dialog.Table = &screen.TableState{Model: view,
+	m.chrome.PresentDialog(screen.Dialog{Title: "Permissions", Table: &screen.Table{Model: view,
 		Columns:     []table.Column{{Label: "Order", Width: 5}, {Label: "Decision", Width: 8}, {Label: "Tool", Width: 18}, {Label: "Pattern"}},
 		Description: "Later matching rules take precedence. Plan uses read-only tools. Act follows rules and approval prompts. This view does not change permissions.",
 		Actions: []table.Action{
 			{ID: "details", Label: "Details", Key: "enter", Enabled: view.Selected() != ""},
 			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
 		},
-	}
-	m.permissionDialog = m.chrome.Dialog
+	}})
+	m.permissionTable = view
+	m.permissionDialog = m.chrome.DialogID()
 }
 
 type permissionTableMsg struct{ view *table.Model }

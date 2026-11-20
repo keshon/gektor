@@ -170,7 +170,7 @@ func (m *Controls) ApplyForm() {
 	if f.DisablePrimary {
 		return
 	}
-	m.events = append(m.events, Event{Kind: Apply, Dialog: m.Dialog, Values: f.Values()})
+	m.events = append(m.events, Event{Kind: Apply, ID: m.DialogID(), Values: f.Values()})
 }
 
 // FormKey interprets a key in the open form and applies any resulting intent.
@@ -189,7 +189,7 @@ func (m *Controls) HandleIntent(intent fieldform.Intent) tea.Cmd {
 		m.Close()
 	case fieldform.SaveCopy:
 		if m.Dialog.Form.SaveCopy {
-			m.events = append(m.events, Event{Kind: SaveCopy, Dialog: m.Dialog})
+			m.events = append(m.events, Event{Kind: SaveCopy, ID: m.DialogID()})
 		}
 	}
 	return nil
@@ -244,7 +244,7 @@ func (m *Controls) TableInput(msg tea.Msg) tea.Cmd {
 	model.Search.SetStyles(m.palette().TextInputStyles(model.Search.Styles()))
 	props := m.TableProps()
 	action, cmd := model.Update(msg, props)
-	m.events = append(m.events, Event{Kind: TableChanged, Dialog: m.Dialog})
+	m.events = append(m.events, Event{Kind: TableChanged, ID: m.DialogID()})
 	return tea.Batch(cmd, m.TableAction(action))
 }
 
@@ -259,7 +259,7 @@ func (m *Controls) TableAction(action string) tea.Cmd {
 	}
 	d := m.Dialog.Table
 	id := d.Model.Selected()
-	m.events = append(m.events, Event{Kind: TableAction, Dialog: m.Dialog, Action: action, Row: id})
+	m.events = append(m.events, Event{Kind: TableAction, ID: m.DialogID(), Action: action, Row: id})
 	return nil
 }
 
@@ -295,7 +295,7 @@ func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	for _, action := range m.Dialog.Actions {
 		if strings.EqualFold(msg.String(), string(action.Key)) {
-			m.events = append(m.events, Event{Kind: DialogActionRequested, Dialog: m.Dialog, Action: action.ID})
+			m.events = append(m.events, Event{Kind: DialogActionRequested, ID: m.DialogID(), Action: action.ID})
 			return nil
 		}
 	}
@@ -356,4 +356,28 @@ func (m *Controls) dialogWidth(area int) int {
 		preferred = area
 	}
 	return popup.ModalWidth(area, preferred)
+}
+
+// DialogInput routes overlay input without requiring hosts to inspect its type.
+// Application-wide shortcuts and quit policy remain the host's responsibility.
+func (m *Controls) DialogInput(msg tea.Msg) tea.Cmd {
+	if m.Dialog == nil {
+		return nil
+	}
+	if mouse, ok := msg.(tea.MouseMsg); ok {
+		return m.DialogMouse(mouse)
+	}
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch {
+		case m.Dialog.Secret != nil:
+			return m.SecretInput(key)
+		case m.Dialog.Table != nil:
+			return m.TableInput(key)
+		case m.Dialog.Form != nil:
+			return m.FormKey(key)
+		default:
+			return m.InfoKey(key)
+		}
+	}
+	return m.UpdateFormInput(msg)
 }

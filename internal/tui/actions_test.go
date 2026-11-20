@@ -16,7 +16,8 @@ func TestActionsOpenAndDispatchThroughBothScreens(t *testing.T) {
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyF12})
 		dialog := m.chrome.Dialog
-		if dialog == nil || dialog != m.actionsDialog || dialog.Table == nil {
+		dialogID := m.chrome.DialogID()
+		if dialog == nil || m.chrome.DialogID() != m.actionsDialog || dialog.Table == nil {
 			t.Fatal("Actions did not open")
 		}
 		dialog.Table.Model.Search.SetValue("Appearance")
@@ -24,7 +25,10 @@ func TestActionsOpenAndDispatchThroughBothScreens(t *testing.T) {
 		if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Title != "Appearance" {
 			t.Fatal("selected action did not open Appearance")
 		}
-		m.dispatchControl(screen.Event{Kind: screen.TableAction, Dialog: dialog, Action: "details", Row: "quit"})
+		if dialogID == m.chrome.DialogID() {
+			t.Fatal("Appearance reused the Actions dialog lifetime")
+		}
+		m.dispatchControl(screen.Event{Kind: screen.TableAction, ID: dialogID, Action: "details", Row: "quit"})
 		if m.quit || m.pendingQuit {
 			t.Fatal("stale Actions result reached the application")
 		}

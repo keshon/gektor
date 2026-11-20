@@ -11,27 +11,30 @@ import (
 
 // HandleControl receives shared-control results on the shell's update loop.
 func (m *Model) HandleControl(event screen.Event) tea.Cmd {
-	dialog := event.Dialog
+	dialog := event.ID
+	if dialog == (screen.DialogID{}) {
+		return nil
+	}
 	switch event.Kind {
 	case screen.Apply:
-		if m.form.dialog != dialog || m.dialogs.Dialog != dialog {
+		if m.form.dialog != dialog || m.dialogs.DialogID() != dialog {
 			return nil
 		}
 		err := m.applySubmission(dialog, event.Values)
-		m.dialogs.CompleteForm(dialog, err)
+		m.dialogs.CompleteFormID(dialog, err)
 
 	case screen.DialogActionRequested:
-		if dialog != m.proposalDialog || m.dialogs.Dialog != dialog || event.Action != "apply-proposal" {
+		if dialog != m.proposalDialog || m.dialogs.DialogID() != dialog || event.Action != "apply-proposal" {
 			return nil
 		}
 		err := m.applyProposal()
-		m.dialogs.CompleteSave(dialog, err)
+		m.dialogs.CompleteSaveID(dialog, err)
 
 	case screen.TableChanged:
 		m.refreshRunActions()
 
 	case screen.TableAction:
-		if dialog != m.runsDialog || m.dialogs.Dialog != dialog {
+		if dialog != m.runsDialog || m.dialogs.DialogID() != dialog {
 			return nil
 		}
 		if event.Action == "details" && event.Row != "" && m.ctx.Err() == nil && !m.busy {
@@ -45,10 +48,10 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		}
 		m.denyPermission(dialog)
 		if m.runsDialog == dialog {
-			m.runsDialog = nil
+			m.runsDialog = screen.DialogID{}
 		}
 		if dialog == m.proposalDialog {
-			m.proposalDialog = nil
+			m.proposalDialog = screen.DialogID{}
 			m.proposalBefore = ""
 			m.proposalDraft = workflow.Definition{}
 		}
@@ -56,7 +59,7 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 	return nil
 }
 
-func (m *Model) denyPermission(dialog *screen.DialogState) {
+func (m *Model) denyPermission(dialog screen.DialogID) {
 	reply := m.permissionRequests[dialog]
 	if reply != nil {
 		select {
@@ -66,12 +69,12 @@ func (m *Model) denyPermission(dialog *screen.DialogState) {
 	}
 	delete(m.permissionRequests, dialog)
 	if m.permissionDialog == dialog {
-		m.permissionDialog = nil
+		m.permissionDialog = screen.DialogID{}
 	}
 }
 
 func (m *Model) finishPermission() {
-	if m.permissionDialog != nil && m.dialogs.Dialog == m.permissionDialog {
+	if m.permissionDialog != (screen.DialogID{}) && m.dialogs.DialogID() == m.permissionDialog {
 		m.dialogs.Close()
 	}
 	m.denyPermission(m.permissionDialog)
@@ -79,18 +82,18 @@ func (m *Model) finishPermission() {
 
 // pendingForm belongs to the feature, while shared controls own the editable draft.
 type pendingForm struct {
-	dialog *screen.DialogState
+	dialog screen.DialogID
 	apply  func(map[string]string) error
 }
 
 func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *fieldform.Model {
 	draft := m.dialogs.PresentForm(form)
-	m.form = pendingForm{dialog: m.dialogs.Dialog, apply: apply}
+	m.form = pendingForm{dialog: m.dialogs.DialogID(), apply: apply}
 	return draft
 }
 
-func (m *Model) applySubmission(dialog *screen.DialogState, values map[string]string) error {
-	if m.form.dialog != dialog || m.dialogs.Dialog != dialog {
+func (m *Model) applySubmission(dialog screen.DialogID, values map[string]string) error {
+	if dialog == (screen.DialogID{}) || m.form.dialog != dialog || m.dialogs.DialogID() != dialog {
 		return nil
 	}
 	return m.form.apply(values)

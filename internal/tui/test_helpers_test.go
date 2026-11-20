@@ -206,11 +206,11 @@ func finishAgentTurn(t *testing.T, m *Model) {
 }
 
 func (m *Model) applyValues(values map[string]string) error {
-	if m.form.dialog == m.chrome.Dialog && m.form.apply != nil {
-		return m.applySubmission(m.chrome.Dialog, values)
+	if m.form.dialog == m.chrome.DialogID() && m.form.apply != nil {
+		return m.applySubmission(m.chrome.DialogID(), values)
 	}
 	dialog := m.chrome.Dialog
-	m.workflows.HandleControl(screen.Event{Kind: screen.Apply, Dialog: dialog, Values: values})
+	m.workflows.HandleControl(screen.Event{Kind: screen.Apply, ID: m.chrome.DialogID(), Values: values})
 	if dialog.Form.Error != "" {
 		return fmt.Errorf("%s", dialog.Form.Error)
 	}

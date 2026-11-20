@@ -25,7 +25,7 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	m := settingsModel(t)
 	m.steps, m.tokens = 7, 1234
 	m.testControls().Open("Session evaluation", nil)
-	job := &evaluationJob{dialog: m.chrome.Dialog, cancel: func() {}, started: time.Now().Add(-3 * time.Second)}
+	job := &evaluationJob{dialog: m.chrome.DialogID(), cancel: func() {}, started: time.Now().Add(-3 * time.Second)}
 	m.evaluation = job
 	var worker sync.WaitGroup
 	worker.Go(func() {
@@ -319,5 +319,25 @@ func TestEvaluationKeepsItsOwnDialogLifetime(t *testing.T) {
 		if m.evaluation != nil {
 			t.Fatal("closing or replacing its dialog retained the evaluation")
 		}
+	}
+}
+
+func TestEvaluationReplyBeforeReplacementEventsDoesNotReplaceNewDialog(t *testing.T) {
+	m := settingsModel(t)
+	m.testControls().Open("Session evaluation", nil)
+	cancelled := false
+	job := &evaluationJob{dialog: m.chrome.DialogID(), cancel: func() { cancelled = true }, started: time.Now()}
+	m.evaluation = job
+	m.chrome.Open("Replacement", []string{"keep this content"})
+	replacement := m.chrome.DialogID()
+	job.update(retrospective.Progress{Stage: "stale progress"})
+	m.refreshEvaluation()
+	m.acceptEvaluation(evaluationDoneMsg{job: job, err: errors.New("stale completion")})
+	if m.chrome.DialogID() != replacement || m.chrome.Dialog.Title != "Replacement" || strings.Join(m.chrome.Dialog.Lines, "") != "keep this content" {
+		t.Fatal("late evaluation reply mutated replacement before lifecycle events drained")
+	}
+	m.syncControls()
+	if !cancelled || m.evaluation != nil {
+		t.Fatal("replacement did not cancel evaluation owner")
 	}
 }

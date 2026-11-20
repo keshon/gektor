@@ -106,15 +106,15 @@ func TestReplacedSharedFormCannotApplyPendingValues(t *testing.T) {
 		target = "outlined"
 	}
 	m.openAppearance()
-	first := m.chrome.Dialog
+	first := m.chrome.DialogID()
 	m.chrome.Dialog.Form.Fields[1].Value = target
 	m.chrome.FocusForm(1)
 	m.chrome.Dialog.Form.Editor.SetValue(target)
 	m.chrome.ApplyForm()
 	m.openTheme()
-	replacement := m.chrome.Dialog
+	replacement := m.chrome.DialogID()
 	m.Update(nil)
-	if m.chrome.Dialog != replacement || m.agent.Appearance().Frame != before {
+	if m.chrome.DialogID() != replacement || m.agent.Appearance().Frame != before {
 		t.Fatal("a replaced form applied its pending submission")
 	}
 	if m.form.dialog == first {
@@ -128,7 +128,7 @@ func TestPendingFormKeepsReplacementAndReleasesOnClose(t *testing.T) {
 	m.openForm(screen.Form{Title: "First"}, func(map[string]string) error { firstCalls++; return nil })
 	m.chrome.ApplyForm()
 	m.openForm(screen.Form{Title: "Second"}, func(map[string]string) error { secondCalls++; return nil })
-	replacement := m.chrome.Dialog
+	replacement := m.chrome.DialogID()
 	m.Update(nil)
 	if firstCalls != 0 || secondCalls != 0 || m.form.dialog != replacement || m.form.apply == nil {
 		t.Fatal("late events lost or submitted the replacement")
@@ -136,7 +136,25 @@ func TestPendingFormKeepsReplacementAndReleasesOnClose(t *testing.T) {
 
 	m.chrome.ApplyForm()
 	m.Update(nil)
-	if firstCalls != 0 || secondCalls != 1 || m.chrome.Dialog != nil || m.form.dialog != nil || m.form.apply != nil {
+	if firstCalls != 0 || secondCalls != 1 || m.chrome.Dialog != nil || m.form.dialog != (screen.DialogID{}) || m.form.apply != nil {
 		t.Fatal("current submission did not apply exactly once and release its callback")
+	}
+}
+
+func TestToolsIntentCannotActAfterReplacementBeforeEventsDrain(t *testing.T) {
+	m := settingsModel(t)
+	m.chrome.Open("Tools", nil)
+	m.toolsDialog = m.chrome.DialogID()
+	m.toolsPage = toolMedia
+	old := m.toolsDialog
+	m.chrome.Open("Replacement", []string{"keep"})
+	current := m.chrome.DialogID()
+	m.dispatchControl(screen.Event{Kind: screen.TableAction, ID: old, Action: "check", Row: "stale"})
+	if m.mediaSelection != "" || m.chrome.DialogID() != current {
+		t.Fatal("stale tool action reached replacement")
+	}
+	m.applySSHSecret(old)
+	if m.chrome.DialogID() != current {
+		t.Fatal("stale secret submission changed replacement")
 	}
 }

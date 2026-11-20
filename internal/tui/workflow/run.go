@@ -193,7 +193,7 @@ func (m *Model) openRuns(runs []store.RunSummary) {
 		},
 	})
 
-	m.runsDialog = m.dialogs.Dialog
+	m.runsDialog = m.dialogs.DialogID()
 	m.refreshRunActions()
 }
 func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
@@ -218,15 +218,15 @@ func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
 		case p.reply <- eff:
 		default:
 		}
-		delete(m.permissionRequests, m.dialogs.Dialog)
+		delete(m.permissionRequests, m.dialogs.DialogID())
 		return nil
 	})
 
-	m.permissionDialog = m.dialogs.Dialog
+	m.permissionDialog = m.dialogs.DialogID()
 	if m.permissionRequests == nil {
-		m.permissionRequests = make(map[*screen.DialogState]chan permission.Effect)
+		m.permissionRequests = make(map[screen.DialogID]chan permission.Effect)
 	}
-	m.permissionRequests[m.dialogs.Dialog] = p.reply
+	m.permissionRequests[m.dialogs.DialogID()] = p.reply
 	return m.wait()
 }
 func (m *Model) acceptResult(r workflowResult) tea.Cmd {
@@ -437,13 +437,13 @@ func (m *Model) service(gate permission.Gate) (service.Service, error) {
 }
 
 func (m *Model) refreshRunActions() {
-	dialog := m.dialogs.Dialog
-	if dialog != m.runsDialog || dialog == nil {
+	dialog := m.runsDialog
+	if dialog == (screen.DialogID{}) || m.dialogs.DialogID() != dialog {
 		return
 	}
-	selected := dialog.Table.Model.Selected()
-	dialog.Table.Actions = []table.Action{
+	selected := m.dialogs.TableSelectedID(dialog)
+	m.dialogs.SetTableActions(dialog, []table.Action{
 		{ID: "details", Label: "Open run", Key: "enter", Enabled: selected != "" && m.ctx.Err() == nil && !m.busy},
 		{ID: "close", Label: "Close", Key: "esc", Enabled: true},
-	}
+	})
 }

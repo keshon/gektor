@@ -24,7 +24,7 @@ func (m *Model) settleControls() []tea.Cmd {
 		}
 	}
 
-	if m.preferences != nil && m.chrome.Dialog == m.preferencesDialog {
+	if m.preferences != nil && m.chrome.DialogID() == m.preferencesDialog {
 		m.preferences.Prepare()
 	}
 	m.agent.PrepareControls()
@@ -42,7 +42,7 @@ func (m *Model) settingsCommands() []tea.Cmd {
 		return nil
 	}
 	var cmd tea.Cmd
-	if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog {
+	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() {
 		cmd = m.preferences.DetailCommand()
 	} else {
 		cmd = m.chrome.Dialog.Form.DetailCommand()
@@ -91,11 +91,11 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 	var commands []tea.Cmd
 
-	if event.Dialog == m.toolsDialog && m.toolsDialog != nil {
-		if event.Kind == screen.SecretApply && m.chrome.Dialog == event.Dialog && m.sshSecret != nil {
-			m.applySSHSecret(event.Dialog)
+	if event.ID == m.toolsDialog && m.toolsDialog != (screen.DialogID{}) {
+		if event.Kind == screen.SecretApply && m.chrome.DialogID() == event.ID && m.sshSecret != nil {
+			m.applySSHSecret(event.ID)
 		}
-		if event.Kind == screen.TableAction {
+		if event.Kind == screen.TableAction && m.chrome.DialogID() == event.ID {
 			commands = append(commands, m.toolAction(event))
 		}
 		if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
@@ -104,7 +104,7 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 				m.sshSecret = nil
 			}
 			m.tools.Close()
-			m.toolsDialog = nil
+			m.toolsDialog = screen.DialogID{}
 			if event.Kind == screen.Closed && m.modeChange == nil {
 				if page == toolSSHEdit || page == toolSSHDetails || page == toolSSHSecret {
 					m.openSSHTools()
@@ -118,7 +118,7 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 	}
 	switch event.Kind {
 	case screen.TableAction:
-		if m.actionsDialog == event.Dialog && m.chrome.Dialog == event.Dialog && event.Action == "details" {
+		if m.actionsDialog == event.ID && m.chrome.DialogID() == event.ID && event.Action == "details" {
 			command := event.Row
 			m.chrome.Close()
 			m.syncPresentation()
@@ -145,13 +145,13 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 		}
 
 	case screen.Apply:
-		if m.form.dialog == event.Dialog && m.chrome.Dialog == event.Dialog {
-			err := m.applySubmission(event.Dialog, event.Values)
-			m.chrome.CompleteForm(event.Dialog, err)
+		if m.form.dialog == event.ID && m.chrome.DialogID() == event.ID {
+			err := m.applySubmission(event.ID, event.Values)
+			m.chrome.CompleteFormID(event.ID, err)
 		}
 
 	case screen.SaveCopy:
-		if m.form.dialog == event.Dialog && m.chrome.Dialog == event.Dialog {
+		if m.form.dialog == event.ID && m.chrome.DialogID() == event.ID {
 			m.saveSettingsCopy()
 		}
 	}
@@ -160,14 +160,14 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 		commands = append(commands, m.workflows.HandleControl(event))
 	}
 	if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
-		if m.actionsDialog == event.Dialog {
-			m.actionsDialog = nil
+		if m.actionsDialog == event.ID {
+			m.actionsDialog = screen.DialogID{}
 		}
-		if m.preferencesDialog == event.Dialog {
+		if m.preferencesDialog == event.ID {
 			m.preferences = nil
-			m.preferencesDialog = nil
+			m.preferencesDialog = screen.DialogID{}
 		}
-		if m.form.dialog == event.Dialog {
+		if m.form.dialog == event.ID {
 			m.form = pendingForm{}
 		}
 	}
@@ -176,18 +176,18 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 
 // pendingForm belongs to the feature, while shared controls own the editable draft.
 type pendingForm struct {
-	dialog *screen.DialogState
+	dialog screen.DialogID
 	apply  func(map[string]string) error
 }
 
 func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *fieldform.Model {
 	draft := m.chrome.PresentForm(form)
-	m.form = pendingForm{dialog: m.chrome.Dialog, apply: apply}
+	m.form = pendingForm{dialog: m.chrome.DialogID(), apply: apply}
 	return draft
 }
 
-func (m *Model) applySubmission(dialog *screen.DialogState, values map[string]string) error {
-	if m.form.dialog != dialog || m.chrome.Dialog != dialog {
+func (m *Model) applySubmission(dialog screen.DialogID, values map[string]string) error {
+	if dialog == (screen.DialogID{}) || m.form.apply == nil || m.form.dialog != dialog || m.chrome.DialogID() != dialog {
 		return nil
 	}
 	return m.form.apply(values)

@@ -35,7 +35,7 @@ type model struct {
 	selected     string
 	page         page
 	controls     screen.Controls
-	dialog       *screen.DialogState
+	dialog       screen.DialogID
 	rows         *table.Model
 	palette      *screen.Palette
 	status       string
@@ -95,7 +95,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.controls.Props.Width, m.controls.Props.Height = msg.Width, msg.Height
 		m.prepare()
 		if m.page == details {
-			m.openDetails()
+			m.refreshDetails()
 		}
 	case tea.ColorProfileMsg:
 		m.controls.Props.ColorProfile = msg.Profile
@@ -121,21 +121,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.palette = screen.NewPalette(name)
 			m.prepare()
 			if m.page == details {
-				m.openDetails()
+				m.refreshDetails()
 			}
 		case "ctrl+r":
 			if m.page == library {
 				cmd = m.startRefresh()
 			}
 		default:
-			switch m.page {
-			case library:
-				cmd = m.controls.TableInput(msg)
-			case details:
-				cmd = m.controls.InfoKey(msg)
-			case edit:
-				cmd = m.controls.FormKey(msg)
-			}
+			cmd = m.controls.DialogInput(msg)
 		}
 	case tea.MouseMsg:
 		mouse := msg.Mouse()
@@ -145,9 +138,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m.Update(key)
 			}
 		}
-		cmd = m.controls.DialogMouse(msg)
+		cmd = m.controls.DialogInput(msg)
 	default:
-		cmd = m.controls.UpdateFormInput(msg)
+		cmd = m.controls.DialogInput(msg)
 	}
 
 	m.drainEvents()
@@ -181,7 +174,7 @@ func (m *model) openLibrary() {
 			},
 		},
 	})
-	m.dialog = m.controls.Dialog
+	m.dialog = m.controls.DialogID()
 	m.refreshRows()
 }
 
@@ -205,6 +198,12 @@ func (m *model) selectedBook() book {
 func (m *model) openDetails() {
 	m.cancelRefresh()
 	m.page = details
+	m.controls.PresentDialog(screen.Dialog{Title: m.selectedBook().Title, Actions: []screen.DialogAction{{ID: "edit", Key: 'e', Label: "edit notes"}}})
+	m.dialog = m.controls.DialogID()
+	m.refreshDetails()
+}
+
+func (m *model) refreshDetails() {
 	book := m.selectedBook()
 	styles := m.palette.Styles()
 	text := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Color(screen.ColorPopupText)))
@@ -215,12 +214,7 @@ func (m *model) openDetails() {
 		Number: styles.Gate, Comment: styles.Dim, Added: styles.Add, Deleted: styles.Del,
 	})
 
-	m.controls.PresentDialog(screen.Dialog{
-		Title:   book.Title,
-		Lines:   lines,
-		Actions: []screen.DialogAction{{ID: "edit", Key: 'e', Label: "edit notes"}},
-	})
-	m.dialog = m.controls.Dialog
+	m.controls.UpdateDialog(m.dialog, book.Title, lines)
 }
 
 func (m *model) openEdit() {
@@ -234,7 +228,7 @@ func (m *model) openEdit() {
 			{Key: "notes", Label: "Notes", Value: book.Notes, Multiline: true},
 		},
 	})
-	m.dialog = m.controls.Dialog
+	m.dialog = m.controls.DialogID()
 }
 
 func (m *model) drainEvents() {
@@ -250,7 +244,7 @@ func (m *model) drainEvents() {
 }
 
 func (m *model) handleEvent(event screen.Event) {
-	if event.Dialog != m.dialog {
+	if event.ID != m.dialog {
 		return
 	}
 	switch event.Kind {
@@ -264,7 +258,7 @@ func (m *model) handleEvent(event screen.Event) {
 	case screen.Apply:
 		title := strings.TrimSpace(event.Values["title"])
 		if title == "" {
-			m.controls.CompleteForm(event.Dialog, fmt.Errorf("enter a title"))
+			m.controls.CompleteFormID(event.ID, fmt.Errorf("enter a title"))
 			return
 		}
 		for i := range m.books {
@@ -272,7 +266,7 @@ func (m *model) handleEvent(event screen.Event) {
 				m.books[i].Title, m.books[i].Notes = title, event.Values["notes"]
 			}
 		}
-		m.controls.CompleteForm(event.Dialog, nil)
+		m.controls.CompleteFormID(event.ID, nil)
 	case screen.Closed:
 		switch m.page {
 		case library:

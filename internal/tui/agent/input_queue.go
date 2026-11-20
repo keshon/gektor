@@ -39,7 +39,7 @@ type inputQueueReturn struct{ queue *inputQueue }
 type inputQueueEdit struct {
 	session   *harness.Session
 	stateFile string
-	dialog    *screen.DialogState
+	dialog    screen.DialogID
 	form      pendingForm
 }
 
@@ -74,9 +74,8 @@ func (m *Model) queueSummary() string {
 func (m *Model) openInputQueue() {
 	if edit := m.suspendedInputEdit; edit != nil {
 		m.suspendedInputEdit = nil
-		if edit.session == m.sess && edit.stateFile == m.stateFile {
+		if edit.session == m.sess && edit.stateFile == m.stateFile && m.chrome.ResumeID(edit.dialog) {
 			m.form = edit.form
-			m.chrome.Resume(edit.dialog)
 			m.fitBottom()
 			return
 		}
@@ -86,19 +85,17 @@ func (m *Model) openInputQueue() {
 	m.showInputQueue(q)
 }
 func (m *Model) showInputQueue(q *inputQueue) {
-	m.chrome.Open("Message queue", nil)
-	d := &screen.TableState{
+	m.chrome.PresentDialog(screen.Dialog{Title: "Message queue", Table: &screen.Table{
 		Model:        q.view,
 		List:         true,
 		EmptyMessage: "No messages waiting",
 		Columns:      []table.Column{{Label: "Message"}},
-	}
+	}})
 
 	if m.queueDialogs == nil {
-		m.queueDialogs = make(map[*screen.DialogState]*inputQueue)
+		m.queueDialogs = make(map[screen.DialogID]*inputQueue)
 	}
-	m.chrome.Dialog.Table = d
-	m.queueDialogs[m.chrome.Dialog] = q
+	m.queueDialogs[m.chrome.DialogID()] = q
 	m.refreshInputQueue(q)
 	m.fitBottom()
 }
@@ -140,7 +137,10 @@ func (m *Model) returnToInputQueue(q *inputQueue) {
 }
 
 func (m *Model) refreshInputQueue(q *inputQueue) {
-	d := m.chrome.Dialog.Table
+	dialog := m.chrome.DialogID()
+	if m.queueDialogs[dialog] != q {
+		return
+	}
 
 	active := map[string]queueEntry{}
 	ids := []string{}
@@ -198,16 +198,16 @@ func (m *Model) refreshInputQueue(q *inputQueue) {
 		}
 		rows = append(rows, table.Row{ID: id, Cells: []string{fmt.Sprintf("%d  %s", n+1, text)}, Detail: status})
 	}
-	d.Description = fmt.Sprintf("%d queued · oldest first", queued)
+	description := fmt.Sprintf("%d queued · oldest first", queued)
 	if queued == 0 && received+missing > 0 {
-		d.Description = "No messages waiting. These rows are read only."
+		description = "No messages waiting. These rows are read only."
 	}
 	if received > 0 && queued > 0 {
-		d.Description += fmt.Sprintf(" · %d received", received)
+		description += fmt.Sprintf(" · %d received", received)
 	}
-	m.chrome.RefreshTable(rows)
-
-	d.Actions = m.inputQueueActions(q)
+	if m.chrome.UpdateTable(dialog, description, rows, nil) {
+		m.chrome.SetTableActions(dialog, m.inputQueueActions(q))
+	}
 }
 
 func (m *Model) inputQueueActions(q *inputQueue) []table.Action {
@@ -234,12 +234,13 @@ func (m *Model) inputQueueAction(q *inputQueue, action, id string) tea.Cmd {
 				lines = append(lines, filepath.Base(image))
 			}
 		}
-		m.chrome.Open("Queued message", lines)
+		title := "Queued message"
 		if input.Received {
-			m.chrome.Dialog.Title = "Received message"
+			title = "Received message"
 		} else if input.missing {
-			m.chrome.Dialog.Title = "Message no longer queued"
+			title = "Message no longer queued"
 		}
+		m.chrome.Open(title, lines)
 		m.returnToInputQueue(q)
 	case "edit":
 		if input.readOnly() {

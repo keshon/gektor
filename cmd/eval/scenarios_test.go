@@ -147,7 +147,7 @@ func TestTextBackendSkipsVisualProbeWithoutModelCalls(t *testing.T) {
 	}))
 	defer server.Close()
 	p := Probe{Generated: "visual_attachment", Attachments: []string{"picture.jpg"}}
-	result := runOnce(t.Context(), p, 1, t.TempDir(), "llama", server.URL, "local", 8192, 1024, false, "", "", false)
+	result := runOnce(t.Context(), p, 1, t.TempDir(), "llama", server.URL, "local", 8192, 1024, false, "", "", false, "baseline")
 	stats := aggregateRuns([]Result{result})
 	if !result.Skipped || result.Errored || result.ModelCalls != 0 || stats.Skipped != 1 || stats.Errors != 0 {
 		t.Fatal(result, stats)

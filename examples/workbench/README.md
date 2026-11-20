@@ -42,10 +42,12 @@ editing through key and paste messages, replaced dialogs and jobs, shutdown,
 selection after sorting, terminal dimensions, and the Bubble Tea input driver.
 
 This is a second consumer inside the repository, not a published Go module:
-`internal` imports prevent use from unrelated modules. The host still routes
-input to the active control and reads `Controls.Dialog` as an identity token.
-It does not modify dialog internals. Markdown notes are rendered before opening
-the detail dialog; changing the terminal size or theme reopens that dialog and
-resets its scroll position. The example has no persistence, add/remove actions,
-or background service. It demonstrates the current reusable boundary without
-declaring that boundary a stable public API.
+`internal` imports prevent use from unrelated modules. The host routes application
+shortcuts and passes remaining input to `DialogInput`; controls select the active
+widget. The host retains an opaque `DialogID` and matches intent events by ID.
+Markdown detail content is refreshed in the same overlay lifetime on resize and
+theme changes, preserving scroll and expansion. Forms retain their drafts and
+focus. The example has no persistence, add/remove actions, or background service.
+GEKTOR still has callers using mutable dialog/form/table state; migrating those
+callers and proving a pinned external consumer remain prerequisites for a stable
+public API.

@@ -29,6 +29,28 @@ func (s *SecretState) Take() string {
 	return value
 }
 
+// TakeSecret consumes the value only from the current secret dialog. Callers
+// must not retain the returned value after handing it to their credential store.
+func (m *Controls) TakeSecret(id DialogID) (string, bool) {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Secret == nil {
+		return "", false
+	}
+	return m.Dialog.Secret.Take(), true
+}
+
+// SetSecretError updates validation feedback only for its originating dialog.
+func (m *Controls) SetSecretError(id DialogID, err error) bool {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Secret == nil {
+		return false
+	}
+	m.Dialog.Secret.Error = ""
+	if err != nil {
+		m.Dialog.Secret.Error = err.Error()
+	}
+	m.refreshSecret()
+	return true
+}
+
 func (m *Controls) PresentSecret(title, hint string) {
 	m.Open(title, nil)
 	editor := textinput.New()
@@ -54,7 +76,7 @@ func (m *Controls) SecretInput(msg tea.Msg) tea.Cmd {
 			m.Close()
 			return nil
 		case "ctrl+s":
-			m.events = append(m.events, Event{Kind: SecretApply, Dialog: m.Dialog})
+			m.events = append(m.events, Event{Kind: SecretApply, ID: m.DialogID()})
 			return nil
 		case "enter":
 			return nil

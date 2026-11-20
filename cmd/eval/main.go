@@ -394,6 +394,7 @@ func runEvaluation() int {
 	maxFailures := flag.Int("max-failures", -1, "maximum scored failures before exit 1; -1 disables the gate; enabled gates exit 2 for errors or no scored runs")
 	outDir := flag.String("out", "eval/results", "directory for results.jsonl and per-run traces")
 	maxTokens := flag.Int("max-tokens", 8192, "generation budget per response")
+	toolProfile := flag.String("tool-profile", "baseline", "native tool exposure for comparison: baseline or lazy-web")
 	deadlineAware := flag.Bool("deadline-aware", false, "reserve part of each probe timeout for a tool-free incomplete-work report")
 	delegateSteps := flag.Int("delegate-steps", 0, "default model steps per delegate (default 12)")
 	delegateMaxSteps := flag.Int("delegate-max-steps", 0, "maximum requested delegate steps (default equals delegate-steps)")
@@ -413,6 +414,9 @@ func runEvaluation() int {
 	apiKeyEnv := flag.String("api-key-env", "", "env var holding the bearer token")
 	contextLimitFlag := flag.Int("context-limit", 0, "context window override; remote backends default to a per-model estimate")
 	flag.Parse()
+	if _, err := nativeToolExposure(*toolProfile); err != nil {
+		log.Fatal(err)
+	}
 	if *maxFailures < -1 {
 		log.Fatal("-max-failures must be -1 or nonnegative")
 	}
@@ -528,6 +532,7 @@ func runEvaluation() int {
 	fmt.Printf("backend %s (%s)\nmodel   %s\ncontext %d\n%d probes x %d runs\n\n",
 		*backend, probe.Backend(), backendModel, contextLimit, len(probes), *runs)
 	if err := writeMeta(runDir, evalMetadata{
+		ToolProfile:      *toolProfile,
 		BackendKind:      probe.Backend(),
 		Backend:          *backend,
 		Model:            backendModel,
@@ -574,7 +579,7 @@ func runEvaluation() int {
 		fmt.Printf("  ....  %-22s run %d  started\n", j.probe.Name, j.run)
 		mu.Unlock()
 		record(runOnce(ctx, j.probe, j.run, runDir, *backendKind, *backend, *model,
-			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware, delegateBudget))
+			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware, *toolProfile, delegateBudget))
 	}
 
 	runProbeJobs(probes, *runs, *jobsN, run1)
@@ -657,7 +662,7 @@ func osSkipReason(oses []string) (bool, string) {
 }
 
 func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend, model string,
-	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool, budgets ...config.Harness) (res Result) {
+	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool, toolProfile string, budgets ...config.Harness) (res Result) {
 
 	res = Result{
 		Probe:   p.Name,
@@ -789,6 +794,11 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
 		res.Nudges = append(res.Nudges, kind)
 	})
+	env.NativeExposure, err = nativeToolExposure(toolProfile)
+	if err != nil {
+		res.RunError = err.Error()
+		return res
+	}
 	env.WorkflowDir = workflowStoreDir(ws)
 	if len(budgets) > 0 {
 		env.DelegateSteps, env.DelegateMaxSteps = budgets[0].DelegateSteps, budgets[0].DelegateMaxSteps

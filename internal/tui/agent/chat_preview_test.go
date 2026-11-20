@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
@@ -80,6 +81,25 @@ func TestChatPresentationFixtures(t *testing.T) {
 						}
 						if !packed || len(m.transcript.render.inlineTools) != 2 {
 							t.Fatal("packed tool row or independent inspect targets lost")
+						}
+					}
+					if scene == "badges" {
+						hits := append([]inlineToolHit(nil), m.transcript.render.inlineTools...)
+						if len(hits) != 2 {
+							t.Fatalf("got %d badge targets, want 2", len(hits))
+						}
+						for i, id := range []string{"info", "discover"} {
+							hit := hits[i]
+							y := paneTop + m.transcript.PartOffset(hit.part) + hit.row - m.transcript.Viewport.YOffset()
+							m.handleMouse(tea.MouseClickMsg{X: m.promptOffset() + hit.start, Y: y, Button: tea.MouseLeft})
+							if m.inspector.callID != id {
+								t.Fatalf("badge %s inspected %s", id, m.inspector.callID)
+							}
+							m.closeInspector()
+							m.transcript.Viewport.GotoTop()
+							m.refreshContent()
+							// Opening the inspector can change the split geometry.
+							hits = append(hits[:0], m.transcript.render.inlineTools...)
 						}
 					}
 					dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")

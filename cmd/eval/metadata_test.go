@@ -84,7 +84,7 @@ func TestSourceDigestTracksUncommittedSources(t *testing.T) {
 
 func TestMetadataRecordsArtifactAndExperimentSettings(t *testing.T) {
 	dir := t.TempDir()
-	meta := evalMetadata{BackendKind: "llama", Backend: "http://localhost:8080", Model: "test", ContextLimit: 8192, Jobs: 1, MaxTokens: 2048, Runs: 3, DrySampler: true}
+	meta := evalMetadata{ToolProfile: "lazy-web", BackendKind: "llama", Backend: "http://localhost:8080", Model: "test", ContextLimit: 8192, Jobs: 1, MaxTokens: 2048, Runs: 3, DrySampler: true}
 	if err := writeMeta(dir, meta, []Probe{{Name: "test", Task: "task"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestMetadataRecordsArtifactAndExperimentSettings(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.MaxTokens != 2048 || got.Runs != 3 || !got.DrySampler || got.Model != "test" || got.Jobs != 1 {
+	if got.ToolProfile != "lazy-web" || got.MaxTokens != 2048 || got.Runs != 3 || !got.DrySampler || got.Model != "test" || got.Jobs != 1 {
 		t.Fatalf("experiment settings lost: %+v", got)
 	}
 	for _, digest := range []string{got.BinarySHA256, got.PromptsSHA256, got.InputsSHA256} {

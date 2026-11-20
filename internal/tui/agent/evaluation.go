@@ -21,7 +21,7 @@ import (
 // A review owns only its dialog and context. It cannot replace the task's
 // session, retry closure, history, token meter, or step counter.
 type evaluationJob struct {
-	dialog   *screen.DialogState
+	dialog   screen.DialogID
 	learn    bool
 	cancel   context.CancelFunc
 	started  time.Time
@@ -37,13 +37,13 @@ func (j *evaluationJob) update(progress retrospective.Progress) {
 
 func (m *Model) refreshEvaluation() {
 	j := m.evaluation
-	if j == nil || m.chrome.Dialog != j.dialog {
+	if j == nil || m.chrome.DialogID() != j.dialog {
 		return
 	}
 	j.mu.Lock()
 	p := j.progress
 	j.mu.Unlock()
-	m.chrome.Dialog.Lines = []string{
+	m.chrome.UpdateDialog(j.dialog, "Session evaluation", []string{
 		"Scope: " + p.Scope,
 		p.Request,
 		p.Stage,
@@ -51,7 +51,7 @@ func (m *Model) refreshEvaluation() {
 		fmt.Sprintf("Archive: inspected %d of %d messages (excerpts may be partial)", p.Read, p.Total),
 		"", "Keep this window open until the evaluation finishes.",
 		"Closing it cancels the evaluation. The original task remains unchanged.",
-	}
+	})
 }
 
 type evaluationDoneMsg struct {
@@ -78,9 +78,8 @@ func (m *Model) evaluate(arg string) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(base)
 	job := &evaluationJob{cancel: cancel, started: time.Now(), progress: retrospective.Progress{Stage: "Loading saved archive", Steps: 12}}
 	config := retrospective.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
-	m.chrome.Open("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
-	m.chrome.Dialog.Shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "cancel evaluation"}}
-	job.dialog = m.chrome.Dialog
+	m.chrome.PresentDialog(screen.Dialog{Title: "Session evaluation", Lines: []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."}, Shortcuts: []popup.Shortcut{{Key: "Esc/Enter", Action: "cancel evaluation"}}})
+	job.dialog = m.chrome.DialogID()
 	m.evaluation = job
 	config.OnProgress = job.update
 	m.refreshEvaluation()
@@ -99,7 +98,7 @@ func (m *Model) cancelEvaluation() {
 }
 
 func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
-	if m.evaluation != msg.job {
+	if m.evaluation != msg.job || m.chrome.DialogID() != msg.job.dialog {
 		return
 	}
 	m.cancelEvaluation()
@@ -138,13 +137,16 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 	if r.Warning != "" {
 		rows = append(rows, "", r.Warning)
 	}
-	m.chrome.Open("Session evaluation", rows)
+	dialog := screen.Dialog{Title: "Session evaluation", Lines: rows}
 	if len(r.Memory) == 1 {
-		m.chrome.Dialog.Actions = []screen.DialogAction{{ID: "review-lesson", Key: 'r', Label: "review lesson"}}
+		dialog.Actions = []screen.DialogAction{{ID: "review-lesson", Key: 'r', Label: "review lesson"}}
+	}
+	m.chrome.PresentDialog(dialog)
+	if len(r.Memory) == 1 {
 		if m.lessonDialogs == nil {
-			m.lessonDialogs = make(map[*screen.DialogState]retrospective.Result)
+			m.lessonDialogs = make(map[screen.DialogID]retrospective.Result)
 		}
-		m.lessonDialogs[m.chrome.Dialog] = r
+		m.lessonDialogs[m.chrome.DialogID()] = r
 	}
 }
 
@@ -210,7 +212,7 @@ func (m *Model) learn(arg string) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) reviewLesson(r retrospective.Result) {
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		m.chrome.Close()
 	}
 	memory := r.Memory[0]
@@ -219,17 +221,19 @@ func (m *Model) reviewLesson(r retrospective.Result) {
 	if r.Partial > 0 {
 		rows = append(rows, "Some archive messages were only partially read.")
 	}
-	m.chrome.Open("Remember a repository lesson", rows)
-	m.chrome.Dialog.Actions = []screen.DialogAction{{ID: "save-lesson", Key: 's', Label: "save lesson"}, {ID: "edit-lesson", Key: 'e', Label: "edit"}}
-	m.chrome.Dialog.Shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "S", Action: "save lesson"}, {Key: "E", Action: "edit"}}
+	m.chrome.PresentDialog(screen.Dialog{
+		Title: "Remember a repository lesson", Lines: rows,
+		Actions:   []screen.DialogAction{{ID: "save-lesson", Key: 's', Label: "save lesson"}, {ID: "edit-lesson", Key: 'e', Label: "edit"}},
+		Shortcuts: []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "S", Action: "save lesson"}, {Key: "E", Action: "edit"}},
+	})
 	if m.lessonDialogs == nil {
-		m.lessonDialogs = make(map[*screen.DialogState]retrospective.Result)
+		m.lessonDialogs = make(map[screen.DialogID]retrospective.Result)
 	}
-	m.lessonDialogs[m.chrome.Dialog] = r
+	m.lessonDialogs[m.chrome.DialogID()] = r
 }
 
 func (m *Model) editLesson(r retrospective.Result) {
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogID() != (screen.DialogID{}) {
 		m.chrome.Close()
 	}
 	memory := r.Memory[0]

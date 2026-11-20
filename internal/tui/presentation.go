@@ -10,7 +10,7 @@ import (
 )
 
 func (m *Model) syncPresentation() {
-	if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog {
+	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() {
 		m.preferences.Prepare()
 	}
 	if m.workflows != nil {
@@ -30,7 +30,7 @@ func (m *Model) syncPresentation() {
 		props = m.agent.Presentation()
 	}
 	const compactDialogHeight = 18
-	if m.chrome.Dialog != nil && (m.chrome.Dialog == m.toolsDialog || props.Area.Height < compactDialogHeight) {
+	if m.chrome.Dialog != nil && (m.chrome.DialogID() == m.toolsDialog || props.Area.Height < compactDialogHeight) {
 		// Short screens lend the composer and pane chrome to the modal. Keep the
 		// application menu and active action hints outside its paint and hit area.
 		props.Area = pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-2, 1)}
@@ -42,7 +42,7 @@ func (m *Model) syncPresentation() {
 	m.chrome.Props = props
 	if m.chrome.Dialog != nil && (m.chrome.Dialog.Form != nil || m.chrome.Dialog.Table != nil || m.chrome.Dialog.Secret != nil) {
 		m.chrome.Props.Actions = m.chrome.DialogActions()
-		if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog && m.chrome.Dialog.Form.Picker == nil && !m.chrome.Dialog.Form.FeedbackOpen {
+		if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() && m.chrome.Dialog.Form.Picker == nil && !m.chrome.Dialog.Form.FeedbackOpen {
 			ws := m.preferences.EditSession
 			if ws.Section == "model" {
 				m.chrome.Props.Actions = append(m.chrome.Props.Actions, screen.Action{Key: tea.KeyF4, Name: "F4", Label: "Advanced", Short: "Advanced", Enabled: true})

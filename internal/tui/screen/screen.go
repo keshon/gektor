@@ -14,6 +14,7 @@ import (
 // Controls holds application-owned menu and overlay state. A shell supplies the
 // same controls to its screens; each screen retains its own execution state.
 // The shell drains events after input and coordinates focus with their owners.
+// Controls must not be copied after first use; dialog IDs belong to this owner.
 type Controls struct {
 	Props  ControlProps
 	events []Event
@@ -29,10 +30,10 @@ func (m *Controls) Open(title string, lines []string) {
 		if m.Dialog.Secret != nil {
 			m.Dialog.Secret.Clear()
 		}
-		m.events = append(m.events, Event{Kind: Replaced, Dialog: m.Dialog})
+		m.events = append(m.events, Event{Kind: Replaced, ID: m.DialogID()})
 	}
 	m.Dialog = &DialogState{Title: title, Lines: append([]string(nil), lines...)}
-	m.events = append(m.events, Event{Kind: Opened, Dialog: m.Dialog, First: first})
+	m.events = append(m.events, Event{Kind: Opened, ID: m.DialogID(), First: first})
 }
 
 func (m *Controls) Close() {
@@ -40,11 +41,12 @@ func (m *Controls) Close() {
 		return
 	}
 	dialog := m.Dialog
+	id := m.DialogID()
 	if dialog.Secret != nil {
 		dialog.Secret.Clear()
 	}
 	m.Dialog = nil
-	m.events = append(m.events, Event{Kind: Closed, Dialog: dialog})
+	m.events = append(m.events, Event{Kind: Closed, ID: id})
 }
 
 // MenuState tracks focus and selection in the application menu or a badge popup.
@@ -65,6 +67,7 @@ type Drag struct {
 // DialogState holds controls-owned presentation state. Its identity is retained
 // in events so owners can discard results from replaced overlays.
 type DialogState struct {
+	suspended bool
 	Table     *TableState
 	Secret    *SecretState
 	Shortcuts []popup.Shortcut

@@ -1,12 +1,36 @@
 package screen
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 )
+
+func TestSecretResultsCannotReadOrChangeReplacement(t *testing.T) {
+	var controls, other Controls
+	controls.Props.Width, controls.Props.Height = 80, 24
+	controls.PresentSecret("first", "")
+	old := controls.DialogID()
+	controls.SecretInput(tea.PasteMsg{Content: "discarded"})
+	controls.PresentSecret("replacement", "")
+	current := controls.DialogID()
+	controls.SecretInput(tea.PasteMsg{Content: "retained"})
+	if value, ok := controls.TakeSecret(old); ok || value != "" {
+		t.Fatal("stale event read the replacement secret")
+	}
+	if controls.SetSecretError(old, errors.New("stale")) || other.SetSecretError(current, errors.New("foreign")) {
+		t.Fatal("stale or foreign result accepted")
+	}
+	if !controls.SetSecretError(current, errors.New("store failed")) || !strings.Contains(controls.DialogView(), "store failed") {
+		t.Fatal("current validation feedback missing")
+	}
+	if value, ok := controls.TakeSecret(current); !ok || value != "retained" {
+		t.Fatal("current secret was consumed by a stale event")
+	}
+}
 
 func TestSecretInputIsMaskedAndConsumedOutsideOrdinaryForms(t *testing.T) {
 	controls := &Controls{}

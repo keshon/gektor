@@ -68,7 +68,7 @@ func TestCancelAndStaleDialogCannotSave(t *testing.T) {
 	m.Update(key('g', tea.ModCtrl))
 	m.Update(tea.PasteMsg{Content: "Unsaved title"})
 	m.Update(key(tea.KeyEscape, 0))
-	m.handleEvent(screen.Event{Kind: screen.Apply, Dialog: oldDialog, Values: map[string]string{"title": "Stale title"}})
+	m.handleEvent(screen.Event{Kind: screen.Apply, ID: oldDialog, Values: map[string]string{"title": "Stale title"}})
 	if m.page != details || m.books[0].Title != "Invisible Cities" {
 		t.Fatal("cancelled or replaced draft mutated the book")
 	}
@@ -183,4 +183,33 @@ func TestToolbarMouseUsesControlLayout(t *testing.T) {
 		return
 	}
 	t.Fatal("theme shortcut is missing")
+}
+
+func TestDetailResizeAndThemePreserveLifetimeAndScroll(t *testing.T) {
+	m := newModel()
+	defer m.Close()
+	var notes strings.Builder
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&notes, "paragraph %03d\n\n", i)
+	}
+	m.books[0].Notes = notes.String()
+	m.Update(key(tea.KeyEnter, 0))
+	id := m.dialog
+	for i := 0; i < 12; i++ {
+		m.Update(key(tea.KeyDown, 0))
+	}
+	before := ansi.Strip(m.View().Content)
+	if !strings.Contains(before, "paragraph 006") {
+		t.Fatalf("detail did not scroll: %s", before)
+	}
+	m.Update(key('t', tea.ModCtrl))
+	after := ansi.Strip(m.View().Content)
+	if m.dialog != id || !strings.Contains(after, "paragraph 006") || strings.Contains(after, "paragraph 000") {
+		t.Fatal("theme reset detail scroll or lifetime")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
+	after = ansi.Strip(m.View().Content)
+	if m.dialog != id || !strings.Contains(after, "paragraph 006") || strings.Contains(after, "paragraph 000") {
+		t.Fatal("resize reset detail scroll or lifetime")
+	}
 }

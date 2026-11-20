@@ -4,7 +4,7 @@ package screen
 // The application drains events on its update loop; controls never invoke owners.
 type Event struct {
 	Kind        EventKind
-	Dialog      *DialogState
+	ID          DialogID
 	First       bool
 	Action, Row string
 	Values      map[string]string
@@ -31,8 +31,7 @@ func (m *Controls) TakeEvents() []Event {
 	return events
 }
 
-// CompleteForm ignores replies for a dialog that has since been replaced.
-func (m *Controls) CompleteForm(dialog *DialogState, err error) {
+func (m *Controls) completeForm(dialog *DialogState, err error) {
 	if m.Dialog != dialog {
 		return
 	}
@@ -48,17 +47,19 @@ func (m *Controls) Suspend() {
 		return
 	}
 	dialog := m.Dialog
+	id := m.DialogID()
 	if dialog.Secret != nil {
 		dialog.Secret.Clear()
 	}
 	if dialog.Form != nil {
 		dialog.Form.Sync()
 	}
+	dialog.suspended = true
 	m.Dialog = nil
-	m.events = append(m.events, Event{Kind: Suspended, Dialog: dialog})
+	m.events = append(m.events, Event{Kind: Suspended, ID: id})
 }
 
-func (m *Controls) CompleteSave(dialog *DialogState, err error) {
+func (m *Controls) completeSave(dialog *DialogState, err error) {
 	if m.Dialog != dialog {
 		return
 	}
@@ -70,21 +71,21 @@ func (m *Controls) CompleteSave(dialog *DialogState, err error) {
 	m.Close()
 }
 
-// Resume takes back the draft retained during a permission prompt.
-func (m *Controls) Resume(dialog *DialogState) {
+func (m *Controls) resume(dialog *DialogState) {
+	dialog.suspended = false
 	first := m.Dialog == nil
 	if m.Dialog != nil {
 		if m.Dialog.Secret != nil {
 			m.Dialog.Secret.Clear()
 		}
-		m.events = append(m.events, Event{Kind: Replaced, Dialog: m.Dialog})
+		m.events = append(m.events, Event{Kind: Replaced, ID: m.DialogID()})
 	}
 	m.Dialog = dialog
 	// A suspended secret always resumes empty.
 	if dialog.Secret != nil {
 		_ = dialog.Secret.editor.Focus()
 	}
-	m.events = append(m.events, Event{Kind: Opened, Dialog: dialog, First: first})
+	m.events = append(m.events, Event{Kind: Opened, ID: m.DialogID(), First: first})
 	m.ResizeFormEditor()
 }
 
@@ -98,4 +99,30 @@ func (m *Controls) Prepare() {
 		search := &m.Dialog.Table.Model.Search
 		search.SetStyles(m.palette().TextInputStyles(search.Styles()))
 	}
+}
+
+// CompleteFormID applies a validation result only to its originating form.
+func (m *Controls) CompleteFormID(id DialogID, err error) {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+		return
+	}
+	m.completeForm(id.dialog, err)
+}
+
+// CompleteSaveID applies a save result only to its originating information dialog.
+func (m *Controls) CompleteSaveID(id DialogID, err error) {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form != nil || m.Dialog.Table != nil || m.Dialog.Secret != nil {
+		return
+	}
+	m.completeSave(id.dialog, err)
+}
+
+// ResumeID restores a suspended draft owned by these controls. Closed and
+// replaced dialogs cannot be revived, and a draft can only resume once.
+func (m *Controls) ResumeID(id DialogID) bool {
+	if id.owner != m || id.dialog == nil || !id.dialog.suspended {
+		return false
+	}
+	m.resume(id.dialog)
+	return true
 }

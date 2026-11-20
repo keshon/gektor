@@ -1,0 +1,419 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-11-20T16:19:46.7181322Z",
+  "status": "prepared_only",
+  "backend_health": {
+    "url": "http://127.0.0.1:9931/health",
+    "available": false,
+    "error": "No connection could be made because the target machine actively refused it. (127.0.0.1:9931)"
+  },
+  "checkouts": {
+    "gektor": {
+      "root": "D:\\Projects\\dev\\keshon\\gektor",
+      "revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+      "dirty": true
+    },
+    "pi": {
+      "root": "D:\\Projects\\dev\\_incubator\\pi",
+      "revision": "9fba660cf1caca0ade5bea72269352416e595a19",
+      "dirty": false
+    },
+    "opencode": {
+      "root": "D:\\Projects\\dev\\_incubator\\opencode",
+      "revision": "c42ae0d56b6f86f8df39d451d6d2cfe6414b3928",
+      "dirty": false
+    }
+  },
+  "required_settings": {
+    "model_weights_sha256": null,
+    "quantization": null,
+    "server_arguments": null,
+    "context_limit": null,
+    "max_output_tokens": 8192,
+    "sampler_settings": null,
+    "reasoning_settings": null,
+    "cache_policy": null,
+    "concurrency": 1
+  },
+  "cases": [
+    {
+      "name": "05-patch-unique",
+      "task": "in sample.go change Version from v1 to v2",
+      "seed": "eval/fixtures",
+      "verify": [
+        {
+          "type": "content_contains",
+          "path": "sample.go",
+          "contains": "const Version = \"v2\""
+        },
+        {
+          "type": "content_contains",
+          "path": "sample.go",
+          "contains": "func Greet() string"
+        }
+      ],
+      "input_hashes": [
+        {
+          "path": "eval/fixtures/big.txt",
+          "sha256": "2b2a7e284e0e8f1692f84f2f0bba305bfa7527244b39e70c13aac806cb26b2a2"
+        },
+        {
+          "path": "eval/fixtures/dup.txt",
+          "sha256": "d023cdc0e78e50491a9d7eb205baf35f0aadd98330c4a5cb5c02b94c475cab25"
+        },
+        {
+          "path": "eval/fixtures/hello.txt",
+          "sha256": "cd714efb6ee82ea7f372b9333084da67661f40bbb8fc455d052a2776d81fc143"
+        },
+        {
+          "path": "eval/fixtures/README.md",
+          "sha256": "388b3ca27e422e7acc2d5c0a55fd658696fccd1ffce80111724757765ae17ad9"
+        },
+        {
+          "path": "eval/fixtures/sample.go",
+          "sha256": "c4768868d4ffc89d58e4406bd9cd9132a909184e9b087e87819d0f3728cff65b"
+        },
+        {
+          "path": "eval/probes/05-patch-unique.json",
+          "sha256": "b6169e83baac836216161abb2aa0e8adeb21316704c237963c570223d208cd98"
+        }
+      ]
+    },
+    {
+      "name": "06-patch-ambiguous",
+      "task": "in dup.txt replace UNIQUE_MARKER_12345 with REPLACED",
+      "seed": "eval/fixtures",
+      "verify": [
+        {
+          "type": "content_contains",
+          "path": "dup.txt",
+          "contains": "REPLACED"
+        },
+        {
+          "type": "content_contains",
+          "path": "dup.txt",
+          "contains": "alpha line"
+        },
+        {
+          "type": "content_contains",
+          "path": "dup.txt",
+          "contains": "gamma line"
+        }
+      ],
+      "input_hashes": [
+        {
+          "path": "eval/fixtures/big.txt",
+          "sha256": "2b2a7e284e0e8f1692f84f2f0bba305bfa7527244b39e70c13aac806cb26b2a2"
+        },
+        {
+          "path": "eval/fixtures/dup.txt",
+          "sha256": "d023cdc0e78e50491a9d7eb205baf35f0aadd98330c4a5cb5c02b94c475cab25"
+        },
+        {
+          "path": "eval/fixtures/hello.txt",
+          "sha256": "cd714efb6ee82ea7f372b9333084da67661f40bbb8fc455d052a2776d81fc143"
+        },
+        {
+          "path": "eval/fixtures/README.md",
+          "sha256": "388b3ca27e422e7acc2d5c0a55fd658696fccd1ffce80111724757765ae17ad9"
+        },
+        {
+          "path": "eval/fixtures/sample.go",
+          "sha256": "c4768868d4ffc89d58e4406bd9cd9132a909184e9b087e87819d0f3728cff65b"
+        },
+        {
+          "path": "eval/probes/06-patch-ambiguous.json",
+          "sha256": "d8c4fa2fc107ae2b41067fd9b14d4740e99ddb61e4c90af40a66edcf20d73509"
+        }
+      ]
+    },
+    {
+      "name": "24-nested-skills",
+      "task": "Prepare a patch release to version 1.0.1. Follow the project's release process, record the release in RELEASE.txt, and verify the actual files.",
+      "seed": "eval/fixtures-skills-nested",
+      "verify": [
+        {
+          "type": "content_contains",
+          "path": "VERSION",
+          "contains": "1.0.1"
+        },
+        {
+          "type": "content_contains",
+          "path": "RELEASE.txt",
+          "contains": "approved: 1.0.1"
+        }
+      ],
+      "input_hashes": [
+        {
+          "path": "eval/fixtures-skills-nested/skills/library/engineering/release/SKILL.md",
+          "sha256": "21083ed8902b5d789b0abe24515fef747fc8310e311ebf9dd482a78d5a846d28"
+        },
+        {
+          "path": "eval/fixtures-skills-nested/VERSION",
+          "sha256": "4ca8bbd3c595ee306226c6996b32b8d47a900217c55a7ed0cfc868ee444f34f1"
+        },
+        {
+          "path": "eval/probes/24-nested-skills.json",
+          "sha256": "e2ef3e88f41639c1592524b2bca002797955059ebb21e76b6e20e1d582f449e8"
+        }
+      ]
+    },
+    {
+      "name": "25-ledger-repair",
+      "task": "Fix this Go ledger library and CLI. TotalCents must add decimal amounts exactly in integer cents: 1 means 100, 1.2 means 120, 1.23 means 123; signed refunds and surrounding whitespace are allowed. Reject empty amounts, nonnumeric input, exponent notation and more than two fractional digits. The CLI accepts amounts from arguments, prints only the total cents to stdout, and reports invalid input with a nonzero exit. Keep the existing API. Add useful tests and verify the real project before finishing.",
+      "seed": "eval/fixtures-ledger",
+      "verify": [
+        {
+          "type": "go_acceptance",
+          "path": "eval/verifiers/ledger.gotest"
+        }
+      ],
+      "input_hashes": [
+        {
+          "path": "eval/fixtures-ledger/cmd/ledger/main.go",
+          "sha256": "5218901fcf2d021754eaa82ef57071c93e971034e270926722108ea3b82e8429"
+        },
+        {
+          "path": "eval/fixtures-ledger/go.mod",
+          "sha256": "eda03c1ab8595d7929b6ebf2fa17234216b6e2b75227416c62812d4bf6232eb8"
+        },
+        {
+          "path": "eval/fixtures-ledger/ledger.go",
+          "sha256": "905ea4ac3a87f801503ddfabef826263856a000d64dbd324590e71848468383e"
+        },
+        {
+          "path": "eval/probes/25-ledger-repair.json",
+          "sha256": "5a05c0f1e9cec75625533b4a776c5a4e2a2c2868e081286fe8b2a2164589e957"
+        },
+        {
+          "path": "eval/verifiers/ledger.gotest",
+          "sha256": "c749cfe3ca26ced2cb240581e1c96bf9a594dcacd2aba5955e7e9a5dd9188b04"
+        }
+      ]
+    }
+  ],
+  "run_order": [
+    {
+      "case": "05-patch-unique",
+      "repeat": 1,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 1,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 1,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 2,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 2,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 2,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 3,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 3,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "05-patch-unique",
+      "repeat": 3,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 1,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 1,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 1,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 2,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 2,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 2,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 3,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 3,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "06-patch-ambiguous",
+      "repeat": 3,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 1,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 1,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 1,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 2,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 2,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 2,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 3,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 3,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "24-nested-skills",
+      "repeat": 3,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 1,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 1,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 1,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 2,
+      "product": "pi",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 2,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 2,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 3,
+      "product": "opencode",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 3,
+      "product": "gektor",
+      "status": "not_run"
+    },
+    {
+      "case": "25-ledger-repair",
+      "repeat": 3,
+      "product": "pi",
+      "status": "not_run"
+    }
+  ],
+  "blockers": [
+    "Pin and verify model/server/sampler/context/cache settings before any scored run.",
+    "Build and identify each checkout binary; validate request settings and acceptance adapters.",
+    "GEKTOR-specific tool-name trace criteria cannot score competitors without reviewed semantic mapping.",
+    "Smaller tool/context profiles, cancellation/resume, unavailable-tool and long-context cases remain separate uncompleted gates."
+  ]
+}

@@ -1,0 +1,5880 @@
+{
+  "status": "interrupted_user_switched_to_tui",
+  "scope": "GEKTOR baseline versus lazy-web only; competitor testing dropped at user direction",
+  "completed_runs": 19,
+  "planned_runs": 24,
+  "active_run": "25-ledger-repair-r1-lazy-web interrupted, not scored",
+  "remaining_runs": "four ledger invocations not started",
+  "server_identity": {
+    "captured_at_utc": "2026-11-20T16:36:47.8387029Z",
+    "process_id": 9500,
+    "command_line": "\"F:\\Projects\\ai\\llamacpp\\llama\\llama-server.exe\"    --model \"F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf\"   --mmproj \"F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\mmproj-Ornith-1.5-35B-BF16.gguf\"   --image-min-tokens 1024   --image-max-tokens -1   --host 127.0.0.1   --port 9931   --ctx-size 131072   --parallel 1   --threads 6   --threads-batch 12   --batch-size 1024   --ubatch-size 512   --flash-attn on   --cache-type-k q8_0   --cache-type-v q8_0   --load-mode none   --fit on   --fit-target 1536   --n-gpu-layers auto   --n-cpu-moe 40   --override-tensor \"token_embd[.]weight=CPU\"   --temp 0.6   --top-p 0.95   --top-k 20   --min-p 0   --jinja  ",
+    "server_binary": "F:\\Projects\\ai\\llamacpp\\llama\\llama-server.exe",
+    "server_sha256": "70F9446FC3B54BF47B7659F0CC93120BCC6AF60E7F5AD71022398BD658E340C8",
+    "model_path": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+    "model_sha256": "91DF97DE5845100E850B4B5EC5FF35695382020B880FAD6F7F51787B3A953BD0",
+    "build": "b12477-054a1babf"
+  },
+  "timing_limitations": "Cache carried across alternating arms; no speed or general reliability improvement established",
+  "runs": [
+    {
+      "invocation": "05-patch-unique-r1-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:38:30+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "9192b8ae7d01f81e91dd07b675782ef41a832add0c4eceb97952b010c228aed8"
+      },
+      "result": {
+        "probe": "05-patch-unique",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 21.3409338,
+        "model_calls": 4,
+        "prompt_tokens": 22615,
+        "cached_tokens": 16539,
+        "completion_tokens": 193,
+        "first_tool_seconds": 12.8211717,
+        "run_seconds": 21.3237169,
+        "check_seconds": 0.0005529,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "const Version = \"v2\""
+            },
+            "passed": true,
+            "output": "file sample.go contains \"const Version = \\\"v2\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "func Greet() string"
+            },
+            "passed": true,
+            "output": "file sample.go contains \"func Greet() string\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 12.6900352,
+            "prompt_tokens": 5426,
+            "completion_tokens": 48,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3972998,
+            "prompt_tokens": 5610,
+            "completion_tokens": 39,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.6375422,
+            "prompt_tokens": 5713,
+            "completion_tokens": 73,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3915954,
+            "prompt_tokens": 5866,
+            "completion_tokens": 33,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5012,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 170,
+              "estimated_tokens": 51
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 7
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5426
+        },
+        "tool_seconds": 0.0569517,
+        "peak_prompt_tokens": 5866,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5426,
+        "tools": {
+          "grep_files": 1,
+          "patch_file": 1,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\exact-pairs\\05-patch-unique-r1-baseline\\20261120-193830\\05-patch-unique-run1.log"
+      }
+    },
+    {
+      "invocation": "05-patch-unique-r1-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:38:52+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "9192b8ae7d01f81e91dd07b675782ef41a832add0c4eceb97952b010c228aed8"
+      },
+      "result": {
+        "probe": "05-patch-unique",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 20.5769669,
+        "model_calls": 4,
+        "prompt_tokens": 21007,
+        "cached_tokens": 15333,
+        "completion_tokens": 214,
+        "first_tool_seconds": 11.7225051,
+        "run_seconds": 20.5584263,
+        "check_seconds": 0,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "const Version = \"v2\""
+            },
+            "passed": true,
+            "output": "file sample.go contains \"const Version = \\\"v2\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "func Greet() string"
+            },
+            "passed": true,
+            "output": "file sample.go contains \"func Greet() string\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 11.5805982,
+            "prompt_tokens": 5024,
+            "completion_tokens": 57,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.336783,
+            "prompt_tokens": 5208,
+            "completion_tokens": 36,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.3864787,
+            "prompt_tokens": 5311,
+            "completion_tokens": 73,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.0465621,
+            "prompt_tokens": 5464,
+            "completion_tokens": 48,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4675,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3812,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 170,
+              "estimated_tokens": 51
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 5
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5024
+        },
+        "tool_seconds": 0.067676,
+        "peak_prompt_tokens": 5464,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5024,
+        "tools": {
+          "grep_files": 1,
+          "patch_file": 1,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\exact-pairs\\05-patch-unique-r1-lazy-web\\20261120-193852\\05-patch-unique-run1.log"
+      }
+    },
+    {
+      "invocation": "05-patch-unique-r2-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:39:25+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "9192b8ae7d01f81e91dd07b675782ef41a832add0c4eceb97952b010c228aed8"
+      },
+      "result": {
+        "probe": "05-patch-unique",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 11.3611258,
+        "model_calls": 4,
+        "prompt_tokens": 22606,
+        "cached_tokens": 21443,
+        "completion_tokens": 208,
+        "first_tool_seconds": 3.1677697,
+        "run_seconds": 11.3451616,
+        "check_seconds": 0,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "const Version = \"v2\""
+            },
+            "passed": true,
+            "output": "file sample.go contains \"const Version = \\\"v2\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "func Greet() string"
+            },
+            "passed": true,
+            "output": "file sample.go contains \"func Greet() string\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 3.0363808,
+            "prompt_tokens": 5426,
+            "completion_tokens": 60,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.2901848,
+            "prompt_tokens": 5607,
+            "completion_tokens": 40,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.5070416,
+            "prompt_tokens": 5710,
+            "completion_tokens": 76,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3044004,
+            "prompt_tokens": 5863,
+            "completion_tokens": 32,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5012,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 170,
+              "estimated_tokens": 51
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 7
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5426,
+          "cached_tokens": 4910
+        },
+        "tool_seconds": 0.056045000000000005,
+        "peak_prompt_tokens": 5863,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5426,
+        "tools": {
+          "grep_files": 1,
+          "patch_file": 1,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\exact-pairs\\05-patch-unique-r2-baseline\\20261120-193925\\05-patch-unique-run1.log"
+      }
+    },
+    {
+      "invocation": "05-patch-unique-r2-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:39:13+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "9192b8ae7d01f81e91dd07b675782ef41a832add0c4eceb97952b010c228aed8"
+      },
+      "result": {
+        "probe": "05-patch-unique",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 11.0682851,
+        "model_calls": 4,
+        "prompt_tokens": 20969,
+        "cached_tokens": 19816,
+        "completion_tokens": 209,
+        "first_tool_seconds": 3.122408,
+        "run_seconds": 11.0524274,
+        "check_seconds": 0.0005161,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "const Version = \"v2\""
+            },
+            "passed": true,
+            "output": "file sample.go contains \"const Version = \\\"v2\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "func Greet() string"
+            },
+            "passed": true,
+            "output": "file sample.go contains \"func Greet() string\"",
+            "seconds": 0.0005161
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.9847962,
+            "prompt_tokens": 5025,
+            "completion_tokens": 61,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.2513046,
+            "prompt_tokens": 5195,
+            "completion_tokens": 40,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.3189953,
+            "prompt_tokens": 5298,
+            "completion_tokens": 76,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.2908976,
+            "prompt_tokens": 5451,
+            "completion_tokens": 32,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4675,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 170,
+              "estimated_tokens": 51
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 5
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5025,
+          "cached_tokens": 4508
+        },
+        "tool_seconds": 0.0580858,
+        "peak_prompt_tokens": 5451,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5025,
+        "tools": {
+          "grep_files": 1,
+          "patch_file": 1,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\exact-pairs\\05-patch-unique-r2-lazy-web\\20261120-193913\\05-patch-unique-run1.log"
+      }
+    },
+    {
+      "invocation": "05-patch-unique-r3-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:39:37+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "9192b8ae7d01f81e91dd07b675782ef41a832add0c4eceb97952b010c228aed8"
+      },
+      "result": {
+        "probe": "05-patch-unique",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 11.1904664,
+        "model_calls": 4,
+        "prompt_tokens": 22645,
+        "cached_tokens": 21469,
+        "completion_tokens": 202,
+        "first_tool_seconds": 2.9858528,
+        "run_seconds": 11.1737641,
+        "check_seconds": 0.000518,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "const Version = \"v2\""
+            },
+            "passed": true,
+            "output": "file sample.go contains \"const Version = \\\"v2\"",
+            "seconds": 0.000518
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "func Greet() string"
+            },
+            "passed": true,
+            "output": "file sample.go contains \"func Greet() string\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.8468986,
+            "prompt_tokens": 5426,
+            "completion_tokens": 58,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.2643453,
+            "prompt_tokens": 5620,
+            "completion_tokens": 36,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.388893,
+            "prompt_tokens": 5723,
+            "completion_tokens": 73,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.46705,
+            "prompt_tokens": 5876,
+            "completion_tokens": 35,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5012,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 170,
+              "estimated_tokens": 51
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 7
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5426,
+          "cached_tokens": 4910
+        },
+        "tool_seconds": 0.056566200000000004,
+        "peak_prompt_tokens": 5876,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5426,
+        "tools": {
+          "grep_files": 1,
+          "patch_file": 1,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\exact-pairs\\05-patch-unique-r3-baseline\\20261120-193937\\05-patch-unique-run1.log"
+      }
+    },
+    {
+      "invocation": "05-patch-unique-r3-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:39:49+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "9192b8ae7d01f81e91dd07b675782ef41a832add0c4eceb97952b010c228aed8"
+      },
+      "result": {
+        "probe": "05-patch-unique",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 11.2632956,
+        "model_calls": 4,
+        "prompt_tokens": 20969,
+        "cached_tokens": 19817,
+        "completion_tokens": 210,
+        "first_tool_seconds": 3.1837931,
+        "run_seconds": 11.2492068,
+        "check_seconds": 0,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "const Version = \"v2\""
+            },
+            "passed": true,
+            "output": "file sample.go contains \"const Version = \\\"v2\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "sample.go",
+              "contains": "func Greet() string"
+            },
+            "passed": true,
+            "output": "file sample.go contains \"func Greet() string\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 3.0470668,
+            "prompt_tokens": 5025,
+            "completion_tokens": 61,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3375799,
+            "prompt_tokens": 5195,
+            "completion_tokens": 40,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.3369892,
+            "prompt_tokens": 5298,
+            "completion_tokens": 76,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3168511,
+            "prompt_tokens": 5451,
+            "completion_tokens": 33,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4675,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 170,
+              "estimated_tokens": 51
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 5
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5025,
+          "cached_tokens": 4509
+        },
+        "tool_seconds": 0.0582296,
+        "peak_prompt_tokens": 5451,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5025,
+        "tools": {
+          "grep_files": 1,
+          "patch_file": 1,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\exact-pairs\\05-patch-unique-r3-lazy-web\\20261120-193949\\05-patch-unique-run1.log"
+      }
+    },
+    {
+      "invocation": "06-patch-ambiguous-r1-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:40:06+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "013eac9f42acd27b73d2d7dfdabc64414133811ab541d3391f15ddd2b780b512"
+      },
+      "result": {
+        "probe": "06-patch-ambiguous",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 15.2552064,
+        "model_calls": 4,
+        "prompt_tokens": 22762,
+        "cached_tokens": 21523,
+        "completion_tokens": 339,
+        "first_tool_seconds": 2.7650653,
+        "run_seconds": 15.241353,
+        "check_seconds": 0.0005209,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "REPLACED"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"REPLACED\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "alpha line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"alpha line\"",
+            "seconds": 0
+          },
+          {
+            "index": 2,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "gamma line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"gamma line\"",
+            "seconds": 0.0005209
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.6880767,
+            "prompt_tokens": 5431,
+            "completion_tokens": 37,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.447589,
+            "prompt_tokens": 5629,
+            "completion_tokens": 81,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.001024,
+            "prompt_tokens": 5773,
+            "completion_tokens": 128,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.9518075,
+            "prompt_tokens": 5929,
+            "completion_tokens": 93,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5014,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 181,
+              "estimated_tokens": 54
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 6
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5431,
+          "cached_tokens": 4910
+        },
+        "tool_seconds": 0.0036502,
+        "peak_prompt_tokens": 5929,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5431,
+        "tools": {
+          "patch_file": 2,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\06-patch-ambiguous-r1-baseline\\20261120-194006\\06-patch-ambiguous-run1.log"
+      }
+    },
+    {
+      "invocation": "06-patch-ambiguous-r1-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:40:21+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "013eac9f42acd27b73d2d7dfdabc64414133811ab541d3391f15ddd2b780b512"
+      },
+      "result": {
+        "probe": "06-patch-ambiguous",
+        "run": 1,
+        "passed": true,
+        "steps": 6,
+        "seconds": 19.0264436,
+        "model_calls": 6,
+        "prompt_tokens": 32030,
+        "cached_tokens": 30503,
+        "completion_tokens": 385,
+        "first_tool_seconds": 3.029624,
+        "run_seconds": 19.0130961,
+        "check_seconds": 0,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "REPLACED"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"REPLACED\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "alpha line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"alpha line\"",
+            "seconds": 0
+          },
+          {
+            "index": 2,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "gamma line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"gamma line\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.9588972,
+            "prompt_tokens": 5030,
+            "completion_tokens": 58,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.1376011,
+            "prompt_tokens": 5189,
+            "completion_tokens": 36,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.6460141,
+            "prompt_tokens": 5284,
+            "completion_tokens": 88,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.104257,
+            "prompt_tokens": 5412,
+            "completion_tokens": 99,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3696488,
+            "prompt_tokens": 5515,
+            "completion_tokens": 35,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.169539,
+            "prompt_tokens": 5600,
+            "completion_tokens": 69,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4678,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 181,
+              "estimated_tokens": 54
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 5
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5030,
+          "cached_tokens": 4509
+        },
+        "tool_seconds": 0.4603896,
+        "tool_failures": {
+          "execution_error": 1
+        },
+        "peak_prompt_tokens": 5600,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5030,
+        "tools": {
+          "list_files": 1,
+          "patch_file": 1,
+          "read_file": 2,
+          "run_shell": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\06-patch-ambiguous-r1-lazy-web\\20261120-194021\\06-patch-ambiguous-run1.log"
+      }
+    },
+    {
+      "invocation": "06-patch-ambiguous-r2-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:40:56+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "013eac9f42acd27b73d2d7dfdabc64414133811ab541d3391f15ddd2b780b512"
+      },
+      "result": {
+        "probe": "06-patch-ambiguous",
+        "run": 1,
+        "passed": true,
+        "steps": 5,
+        "seconds": 16.1324478,
+        "model_calls": 5,
+        "prompt_tokens": 28770,
+        "cached_tokens": 27346,
+        "completion_tokens": 326,
+        "first_tool_seconds": 2.6011295,
+        "run_seconds": 16.1158598,
+        "check_seconds": 0.000513,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "REPLACED"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"REPLACED\"",
+            "seconds": 0.000513
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "alpha line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"alpha line\"",
+            "seconds": 0
+          },
+          {
+            "index": 2,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "gamma line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"gamma line\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.5208707,
+            "prompt_tokens": 5431,
+            "completion_tokens": 37,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.3048045,
+            "prompt_tokens": 5629,
+            "completion_tokens": 72,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.490833,
+            "prompt_tokens": 5773,
+            "completion_tokens": 113,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.4737914,
+            "prompt_tokens": 5926,
+            "completion_tokens": 36,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.1677493,
+            "prompt_tokens": 6011,
+            "completion_tokens": 68,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5014,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 181,
+              "estimated_tokens": 54
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 6
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5431,
+          "cached_tokens": 4915
+        },
+        "tool_seconds": 0.0025903000000000002,
+        "peak_prompt_tokens": 6011,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5431,
+        "tools": {
+          "patch_file": 2,
+          "read_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\06-patch-ambiguous-r2-baseline\\20261120-194056\\06-patch-ambiguous-run1.log"
+      }
+    },
+    {
+      "invocation": "06-patch-ambiguous-r2-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:40:41+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "013eac9f42acd27b73d2d7dfdabc64414133811ab541d3391f15ddd2b780b512"
+      },
+      "result": {
+        "probe": "06-patch-ambiguous",
+        "run": 1,
+        "passed": true,
+        "steps": 4,
+        "seconds": 14.6670526,
+        "model_calls": 4,
+        "prompt_tokens": 21159,
+        "cached_tokens": 19924,
+        "completion_tokens": 335,
+        "first_tool_seconds": 2.3986446,
+        "run_seconds": 14.6483783,
+        "check_seconds": 0.0005136,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "REPLACED"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"REPLACED\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "alpha line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"alpha line\"",
+            "seconds": 0.0005136
+          },
+          {
+            "index": 2,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "gamma line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"gamma line\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.3219265,
+            "prompt_tokens": 5030,
+            "completion_tokens": 37,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.4884621,
+            "prompt_tokens": 5228,
+            "completion_tokens": 116,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.5898567,
+            "prompt_tokens": 5372,
+            "completion_tokens": 121,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.1039919,
+            "prompt_tokens": 5529,
+            "completion_tokens": 61,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4678,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 181,
+              "estimated_tokens": 54
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 5
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5030,
+          "cached_tokens": 4514
+        },
+        "tool_seconds": 0.0031285999999999996,
+        "peak_prompt_tokens": 5529,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5030,
+        "tools": {
+          "patch_file": 2,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\06-patch-ambiguous-r2-lazy-web\\20261120-194041\\06-patch-ambiguous-run1.log"
+      }
+    },
+    {
+      "invocation": "06-patch-ambiguous-r3-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:41:13+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "013eac9f42acd27b73d2d7dfdabc64414133811ab541d3391f15ddd2b780b512"
+      },
+      "result": {
+        "probe": "06-patch-ambiguous",
+        "run": 1,
+        "passed": true,
+        "steps": 5,
+        "seconds": 16.3704003,
+        "model_calls": 5,
+        "prompt_tokens": 28517,
+        "cached_tokens": 27122,
+        "completion_tokens": 346,
+        "first_tool_seconds": 2.9208188,
+        "run_seconds": 16.3543346,
+        "check_seconds": 0.000506,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "REPLACED"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"REPLACED\"",
+            "seconds": 0.000506
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "alpha line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"alpha line\"",
+            "seconds": 0
+          },
+          {
+            "index": 2,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "gamma line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"gamma line\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.8420586,
+            "prompt_tokens": 5431,
+            "completion_tokens": 57,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.1185807,
+            "prompt_tokens": 5590,
+            "completion_tokens": 36,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.2996545,
+            "prompt_tokens": 5685,
+            "completion_tokens": 72,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.592631,
+            "prompt_tokens": 5829,
+            "completion_tokens": 120,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.2955651,
+            "prompt_tokens": 5982,
+            "completion_tokens": 61,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5014,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 181,
+              "estimated_tokens": 54
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 6
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5431,
+          "cached_tokens": 4915
+        },
+        "tool_seconds": 0.0036769999999999997,
+        "peak_prompt_tokens": 5982,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5431,
+        "tools": {
+          "list_files": 1,
+          "patch_file": 2,
+          "read_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\06-patch-ambiguous-r3-baseline\\20261120-194113\\06-patch-ambiguous-run1.log"
+      }
+    },
+    {
+      "invocation": "06-patch-ambiguous-r3-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:41:30+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "013eac9f42acd27b73d2d7dfdabc64414133811ab541d3391f15ddd2b780b512"
+      },
+      "result": {
+        "probe": "06-patch-ambiguous",
+        "run": 1,
+        "passed": true,
+        "steps": 5,
+        "seconds": 15.8879049,
+        "model_calls": 5,
+        "prompt_tokens": 26648,
+        "cached_tokens": 25286,
+        "completion_tokens": 330,
+        "first_tool_seconds": 2.7963253,
+        "run_seconds": 15.8717487,
+        "check_seconds": 0.000502,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "REPLACED"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"REPLACED\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "alpha line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"alpha line\"",
+            "seconds": 0
+          },
+          {
+            "index": 2,
+            "check": {
+              "type": "content_contains",
+              "path": "dup.txt",
+              "contains": "gamma line"
+            },
+            "passed": true,
+            "output": "file dup.txt contains \"gamma line\"",
+            "seconds": 0.000502
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 2.7205553,
+            "prompt_tokens": 5029,
+            "completion_tokens": 50,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.607481,
+            "prompt_tokens": 5240,
+            "completion_tokens": 85,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.8435930000000003,
+            "prompt_tokens": 5368,
+            "completion_tokens": 89,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3591179,
+            "prompt_tokens": 5463,
+            "completion_tokens": 35,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.1889914,
+            "prompt_tokens": 5548,
+            "completion_tokens": 71,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4678,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3812,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 181,
+              "estimated_tokens": 54
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 5
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5029,
+          "cached_tokens": 4514
+        },
+        "tool_seconds": 0.0025862,
+        "tool_failures": {
+          "execution_error": 1
+        },
+        "peak_prompt_tokens": 5548,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5029,
+        "tools": {
+          "patch_file": 1,
+          "read_file": 2,
+          "write_file": 1
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\06-patch-ambiguous-r3-lazy-web\\20261120-194130\\06-patch-ambiguous-run1.log"
+      }
+    },
+    {
+      "invocation": "24-nested-skills-r1-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:41:47+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "b9767bf547b3df5166a2b3068a6442981cd51a3e356f0d913937bd953a19d28d"
+      },
+      "result": {
+        "probe": "24-nested-skills",
+        "run": 1,
+        "passed": true,
+        "steps": 6,
+        "seconds": 35.7914684,
+        "model_calls": 6,
+        "prompt_tokens": 36932,
+        "cached_tokens": 34710,
+        "completion_tokens": 1002,
+        "first_tool_seconds": 5.1797688,
+        "run_seconds": 35.7689087,
+        "check_seconds": 0,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "VERSION",
+              "contains": "1.0.1"
+            },
+            "passed": true,
+            "output": "file VERSION contains \"1.0.1\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "RELEASE.txt",
+              "contains": "approved: 1.0.1"
+            },
+            "passed": true,
+            "output": "file RELEASE.txt contains \"approved: 1.0.1\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 5.0966287,
+            "prompt_tokens": 5471,
+            "completion_tokens": 126,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.6854781,
+            "prompt_tokens": 5893,
+            "completion_tokens": 156,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.2302146,
+            "prompt_tokens": 6115,
+            "completion_tokens": 141,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.8701576,
+            "prompt_tokens": 6333,
+            "completion_tokens": 167,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.3816886999999998,
+            "prompt_tokens": 6487,
+            "completion_tokens": 74,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 10.280622900000001,
+            "prompt_tokens": 6633,
+            "completion_tokens": 338,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5066,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 491,
+              "estimated_tokens": 122
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 272,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 7
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5471,
+          "cached_tokens": 4915
+        },
+        "tool_seconds": 0.058894300000000004,
+        "tool_failures": {
+          "execution_error": 2
+        },
+        "peak_prompt_tokens": 6633,
+        "peak_context_pct": 5,
+        "floor_prompt_tokens": 5471,
+        "tools": {
+          "check_url": 1,
+          "grep_files": 1,
+          "list_files": 2,
+          "load_skill": 1,
+          "read_file": 4,
+          "write_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\24-nested-skills-r1-baseline\\20261120-194147\\24-nested-skills-run1.log"
+      }
+    },
+    {
+      "invocation": "24-nested-skills-r1-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:42:23+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "b9767bf547b3df5166a2b3068a6442981cd51a3e356f0d913937bd953a19d28d"
+      },
+      "result": {
+        "probe": "24-nested-skills",
+        "run": 1,
+        "passed": true,
+        "steps": 6,
+        "seconds": 34.0929597,
+        "model_calls": 6,
+        "prompt_tokens": 34082,
+        "cached_tokens": 31740,
+        "completion_tokens": 887,
+        "first_tool_seconds": 5.1879079,
+        "run_seconds": 34.0781169,
+        "check_seconds": 0,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "VERSION",
+              "contains": "1.0.1"
+            },
+            "passed": true,
+            "output": "file VERSION contains \"1.0.1\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "RELEASE.txt",
+              "contains": "approved: 1.0.1"
+            },
+            "passed": true,
+            "output": "file RELEASE.txt contains \"approved: 1.0.1\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 5.1063476,
+            "prompt_tokens": 5070,
+            "completion_tokens": 129,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.6539555999999997,
+            "prompt_tokens": 5496,
+            "completion_tokens": 76,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.3901246,
+            "prompt_tokens": 5609,
+            "completion_tokens": 73,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.4562635,
+            "prompt_tokens": 5701,
+            "completion_tokens": 159,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.9285154,
+            "prompt_tokens": 5854,
+            "completion_tokens": 132,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 10.4977184,
+            "prompt_tokens": 6352,
+            "completion_tokens": 318,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4730,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 491,
+              "estimated_tokens": 122
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 272,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 6
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5070,
+          "cached_tokens": 4514
+        },
+        "tool_seconds": 0.8643575000000001,
+        "peak_prompt_tokens": 6352,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5070,
+        "tools": {
+          "list_files": 3,
+          "load_skill": 1,
+          "read_file": 3,
+          "run_shell": 2,
+          "write_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\24-nested-skills-r1-lazy-web\\20261120-194223\\24-nested-skills-run1.log"
+      }
+    },
+    {
+      "invocation": "24-nested-skills-r2-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:43:27+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "b9767bf547b3df5166a2b3068a6442981cd51a3e356f0d913937bd953a19d28d"
+      },
+      "result": {
+        "probe": "24-nested-skills",
+        "run": 1,
+        "passed": true,
+        "steps": 5,
+        "seconds": 21.1877871,
+        "model_calls": 5,
+        "prompt_tokens": 29871,
+        "cached_tokens": 28135,
+        "completion_tokens": 504,
+        "first_tool_seconds": 4.3455159,
+        "run_seconds": 21.168125,
+        "check_seconds": 0.000521,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "VERSION",
+              "contains": "1.0.1"
+            },
+            "passed": true,
+            "output": "file VERSION contains \"1.0.1\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "RELEASE.txt",
+              "contains": "approved: 1.0.1"
+            },
+            "passed": true,
+            "output": "file RELEASE.txt contains \"approved: 1.0.1\"",
+            "seconds": 0.000521
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 4.2579814,
+            "prompt_tokens": 5471,
+            "completion_tokens": 107,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.7702295,
+            "prompt_tokens": 5887,
+            "completion_tokens": 80,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.6291603,
+            "prompt_tokens": 6031,
+            "completion_tokens": 120,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.2860723,
+            "prompt_tokens": 6170,
+            "completion_tokens": 69,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.033562,
+            "prompt_tokens": 6312,
+            "completion_tokens": 128,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5066,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 491,
+              "estimated_tokens": 122
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 272,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 7
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5471,
+          "cached_tokens": 4955
+        },
+        "tool_seconds": 0.0051815,
+        "tool_failures": {
+          "execution_error": 1
+        },
+        "peak_prompt_tokens": 6312,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5471,
+        "tools": {
+          "list_files": 1,
+          "load_skill": 1,
+          "read_file": 4,
+          "write_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\24-nested-skills-r2-baseline\\20261120-194327\\24-nested-skills-run1.log"
+      }
+    },
+    {
+      "invocation": "24-nested-skills-r2-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:42:58+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "b9767bf547b3df5166a2b3068a6442981cd51a3e356f0d913937bd953a19d28d"
+      },
+      "result": {
+        "probe": "24-nested-skills",
+        "run": 1,
+        "passed": true,
+        "steps": 6,
+        "seconds": 28.4580787,
+        "model_calls": 6,
+        "prompt_tokens": 33693,
+        "cached_tokens": 31738,
+        "completion_tokens": 703,
+        "first_tool_seconds": 4.518749,
+        "run_seconds": 28.442408,
+        "check_seconds": 0.0005198,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "VERSION",
+              "contains": "1.0.1"
+            },
+            "passed": true,
+            "output": "file VERSION contains \"1.0.1\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "RELEASE.txt",
+              "contains": "approved: 1.0.1"
+            },
+            "passed": true,
+            "output": "file RELEASE.txt contains \"approved: 1.0.1\"",
+            "seconds": 0.0005198
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 4.4345061,
+            "prompt_tokens": 5069,
+            "completion_tokens": 113,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.6093897,
+            "prompt_tokens": 5485,
+            "completion_tokens": 75,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.455937,
+            "prompt_tokens": 5598,
+            "completion_tokens": 78,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.2242546,
+            "prompt_tokens": 5691,
+            "completion_tokens": 142,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.4704426999999995,
+            "prompt_tokens": 5845,
+            "completion_tokens": 113,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 6.1944335,
+            "prompt_tokens": 6005,
+            "completion_tokens": 182,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4730,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3812,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 491,
+              "estimated_tokens": 122
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 272,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 6
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5069,
+          "cached_tokens": 4554
+        },
+        "tool_seconds": 0.8583710999999999,
+        "peak_prompt_tokens": 6005,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5069,
+        "tools": {
+          "list_files": 2,
+          "load_skill": 1,
+          "read_file": 1,
+          "run_shell": 2,
+          "write_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\24-nested-skills-r2-lazy-web\\20261120-194258\\24-nested-skills-run1.log"
+      }
+    },
+    {
+      "invocation": "24-nested-skills-r3-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:43:49+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "b9767bf547b3df5166a2b3068a6442981cd51a3e356f0d913937bd953a19d28d"
+      },
+      "result": {
+        "probe": "24-nested-skills",
+        "run": 1,
+        "passed": true,
+        "steps": 5,
+        "seconds": 51.5692519,
+        "model_calls": 5,
+        "prompt_tokens": 29892,
+        "cached_tokens": 28144,
+        "completion_tokens": 509,
+        "first_tool_seconds": 4.3438256,
+        "run_seconds": 51.5520742,
+        "check_seconds": 0,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "VERSION",
+              "contains": "1.0.1"
+            },
+            "passed": true,
+            "output": "file VERSION contains \"1.0.1\"",
+            "seconds": 0
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "RELEASE.txt",
+              "contains": "approved: 1.0.1"
+            },
+            "passed": true,
+            "output": "file RELEASE.txt contains \"approved: 1.0.1\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 4.2612154,
+            "prompt_tokens": 5471,
+            "completion_tokens": 108,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.8940717,
+            "prompt_tokens": 5887,
+            "completion_tokens": 81,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 34.8593736,
+            "prompt_tokens": 6031,
+            "completion_tokens": 129,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.6441065999999998,
+            "prompt_tokens": 6179,
+            "completion_tokens": 72,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 4.7032807,
+            "prompt_tokens": 6324,
+            "completion_tokens": 119,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5066,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 491,
+              "estimated_tokens": 122
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 272,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 7
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5471,
+          "cached_tokens": 4955
+        },
+        "tool_seconds": 0.0052549,
+        "tool_failures": {
+          "execution_error": 1
+        },
+        "peak_prompt_tokens": 6324,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5471,
+        "tools": {
+          "list_files": 1,
+          "load_skill": 1,
+          "read_file": 4,
+          "write_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\24-nested-skills-r3-baseline\\20261120-194348\\24-nested-skills-run1.log"
+      }
+    },
+    {
+      "invocation": "24-nested-skills-r3-lazy-web",
+      "profile": "lazy-web",
+      "metadata": {
+        "tool_profile": "lazy-web",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:44:41+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "b9767bf547b3df5166a2b3068a6442981cd51a3e356f0d913937bd953a19d28d"
+      },
+      "result": {
+        "probe": "24-nested-skills",
+        "run": 1,
+        "passed": true,
+        "steps": 5,
+        "seconds": 31.2914205,
+        "model_calls": 5,
+        "prompt_tokens": 28174,
+        "cached_tokens": 26092,
+        "completion_tokens": 791,
+        "first_tool_seconds": 4.5236104,
+        "run_seconds": 31.264214,
+        "check_seconds": 0.0005141,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "content_contains",
+              "path": "VERSION",
+              "contains": "1.0.1"
+            },
+            "passed": true,
+            "output": "file VERSION contains \"1.0.1\"",
+            "seconds": 0.0005141
+          },
+          {
+            "index": 1,
+            "check": {
+              "type": "content_contains",
+              "path": "RELEASE.txt",
+              "contains": "approved: 1.0.1"
+            },
+            "passed": true,
+            "output": "file RELEASE.txt contains \"approved: 1.0.1\"",
+            "seconds": 0
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 4.4258694,
+            "prompt_tokens": 5070,
+            "completion_tokens": 108,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.6682301,
+            "prompt_tokens": 5486,
+            "completion_tokens": 76,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 6.6723107,
+            "prompt_tokens": 5599,
+            "completion_tokens": 160,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 5.1260828,
+            "prompt_tokens": 5762,
+            "completion_tokens": 130,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 10.7279961,
+            "prompt_tokens": 6257,
+            "completion_tokens": 317,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 4730,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 491,
+              "estimated_tokens": 122
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 493,
+              "estimated_tokens": 123
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 272,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 13804,
+              "estimated_tokens": 3450
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 6
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5070,
+          "cached_tokens": 4554
+        },
+        "tool_seconds": 0.4687641,
+        "peak_prompt_tokens": 6257,
+        "peak_context_pct": 4,
+        "floor_prompt_tokens": 5070,
+        "tools": {
+          "list_files": 2,
+          "load_skill": 1,
+          "read_file": 3,
+          "run_shell": 1,
+          "write_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\24-nested-skills-r3-lazy-web\\20261120-194441\\24-nested-skills-run1.log"
+      }
+    },
+    {
+      "invocation": "25-ledger-repair-r1-baseline",
+      "profile": "baseline",
+      "metadata": {
+        "tool_profile": "baseline",
+        "max_failures": 0,
+        "delegate_steps": 12,
+        "delegate_max_steps": 12,
+        "deadline_aware": false,
+        "backend_kind": "llama-server",
+        "backend": "http://127.0.0.1:9931",
+        "model": "F:\\Projects\\ai\\llamacpp\\..\\models\\ornith-ai\\Ornith-1.5-35B-A3B-GGUF\\Ornith-1.5-35B-Q5_K_M.gguf",
+        "context_limit": 131072,
+        "jobs": 1,
+        "max_tokens": 8192,
+        "runs": 1,
+        "dry_sampler": false,
+        "started": "2026-11-20T19:45:13+03:00",
+        "go_version": "go1.26.11",
+        "os": "windows",
+        "arch": "amd64",
+        "source_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "source_modified": true,
+        "source_sha256": "ab96ed311d693ce4f1dca88ef666ded8cb22cd2830d3c0efbabe8aef6f41a446",
+        "build_revision": "57a7108405070f2659f3acb4bc5b073891371ed8",
+        "build_modified": true,
+        "binary_sha256": "8cbc8a4cbaf5f8093e2b9c132c5c71472937ce71c2e9cfb1e5025cef57006065",
+        "prompts_sha256": "15e56df2e9cfd06e6b623a17f7b052b37b19228ff91af38529771acf005903d5",
+        "inputs_sha256": "4db29d5bfa69ec8da6f1677bf36516be3b3a00f014c3559dbd8397faec330842"
+      },
+      "result": {
+        "probe": "25-ledger-repair",
+        "run": 1,
+        "passed": true,
+        "steps": 11,
+        "seconds": 322.8908634,
+        "model_calls": 11,
+        "prompt_tokens": 78516,
+        "cached_tokens": 72057,
+        "completion_tokens": 10868,
+        "first_tool_seconds": 3.4220287,
+        "run_seconds": 320.2125117,
+        "check_seconds": 2.6641686,
+        "artifact_passed": true,
+        "checks": [
+          {
+            "index": 0,
+            "check": {
+              "type": "go_acceptance",
+              "path": "eval/verifiers/ledger.gotest"
+            },
+            "passed": true,
+            "output": "ok  \texample.com/ledger\t1.449s\n?   \texample.com/ledger/cmd/ledger\t[no test files]\n",
+            "exit_code": 0,
+            "seconds": 2.6641686
+          }
+        ],
+        "requests": [
+          {
+            "seconds": 3.3466065,
+            "prompt_tokens": 5529,
+            "completion_tokens": 55,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 3.7678401,
+            "prompt_tokens": 5794,
+            "completion_tokens": 87,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.7739427,
+            "prompt_tokens": 6073,
+            "completion_tokens": 39,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 2.3971116,
+            "prompt_tokens": 6119,
+            "completion_tokens": 40,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 115.776183,
+            "prompt_tokens": 6269,
+            "completion_tokens": 4409,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 104.9655725,
+            "prompt_tokens": 6494,
+            "completion_tokens": 3844,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 6.5031945,
+            "prompt_tokens": 7377,
+            "completion_tokens": 122,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 31.7379967,
+            "prompt_tokens": 7589,
+            "completion_tokens": 1136,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 9.1695144,
+            "prompt_tokens": 8730,
+            "completion_tokens": 205,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 12.5419354,
+            "prompt_tokens": 8986,
+            "completion_tokens": 416,
+            "finish_reason": "tool_calls"
+          },
+          {
+            "seconds": 16.4419197,
+            "prompt_tokens": 9556,
+            "completion_tokens": 515,
+            "finish_reason": "stop"
+          }
+        ],
+        "startup_context": {
+          "request": 1,
+          "estimated_tokens": 5127,
+          "method": "characters/4 plus message and image estimates; backend template/tokenization excluded",
+          "sections": [
+            {
+              "name": "core_instructions",
+              "bytes": 3813,
+              "estimated_tokens": 953
+            },
+            {
+              "name": "project_instructions",
+              "bytes": 0,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "skill_metadata",
+              "bytes": 374,
+              "estimated_tokens": 93
+            },
+            {
+              "name": "identity",
+              "bytes": 2,
+              "estimated_tokens": 0
+            },
+            {
+              "name": "other_system",
+              "bytes": 451,
+              "estimated_tokens": 112
+            },
+            {
+              "name": "history_and_task",
+              "bytes": 632,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "tool_schemas",
+              "bytes": 15191,
+              "estimated_tokens": 3796
+            },
+            {
+              "name": "framing_and_rounding",
+              "bytes": 0,
+              "estimated_tokens": 7
+            }
+          ],
+          "tools": [
+            {
+              "name": "grep_files",
+              "bytes": 965,
+              "estimated_tokens": 241
+            },
+            {
+              "name": "read_file",
+              "bytes": 900,
+              "estimated_tokens": 225
+            },
+            {
+              "name": "git",
+              "bytes": 828,
+              "estimated_tokens": 207
+            },
+            {
+              "name": "start_program",
+              "bytes": 820,
+              "estimated_tokens": 205
+            },
+            {
+              "name": "run_program",
+              "bytes": 763,
+              "estimated_tokens": 190
+            },
+            {
+              "name": "start_background",
+              "bytes": 744,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "system_info",
+              "bytes": 745,
+              "estimated_tokens": 186
+            },
+            {
+              "name": "run_shell",
+              "bytes": 665,
+              "estimated_tokens": 166
+            },
+            {
+              "name": "read_history",
+              "bytes": 605,
+              "estimated_tokens": 151
+            },
+            {
+              "name": "discover_capabilities",
+              "bytes": 594,
+              "estimated_tokens": 148
+            },
+            {
+              "name": "todo",
+              "bytes": 517,
+              "estimated_tokens": 129
+            },
+            {
+              "name": "load_skill",
+              "bytes": 506,
+              "estimated_tokens": 126
+            },
+            {
+              "name": "delegate_task",
+              "bytes": 486,
+              "estimated_tokens": 121
+            },
+            {
+              "name": "patch_file",
+              "bytes": 480,
+              "estimated_tokens": 120
+            },
+            {
+              "name": "read_output",
+              "bytes": 456,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "wait_background",
+              "bytes": 458,
+              "estimated_tokens": 114
+            },
+            {
+              "name": "git_commit",
+              "bytes": 445,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "inspect_context",
+              "bytes": 444,
+              "estimated_tokens": 111
+            },
+            {
+              "name": "webfetch",
+              "bytes": 385,
+              "estimated_tokens": 96
+            },
+            {
+              "name": "check_background",
+              "bytes": 380,
+              "estimated_tokens": 95
+            },
+            {
+              "name": "write_file",
+              "bytes": 370,
+              "estimated_tokens": 91
+            },
+            {
+              "name": "fetch_raw",
+              "bytes": 354,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "search_web",
+              "bytes": 353,
+              "estimated_tokens": 88
+            },
+            {
+              "name": "move_file",
+              "bytes": 312,
+              "estimated_tokens": 78
+            },
+            {
+              "name": "enable_capability",
+              "bytes": 308,
+              "estimated_tokens": 77
+            },
+            {
+              "name": "git_add",
+              "bytes": 307,
+              "estimated_tokens": 76
+            },
+            {
+              "name": "ask_user",
+              "bytes": 301,
+              "estimated_tokens": 75
+            },
+            {
+              "name": "check_url",
+              "bytes": 291,
+              "estimated_tokens": 72
+            },
+            {
+              "name": "stop_background",
+              "bytes": 192,
+              "estimated_tokens": 48
+            },
+            {
+              "name": "list_files",
+              "bytes": 186,
+              "estimated_tokens": 46
+            }
+          ],
+          "backend_prompt_tokens": 5529,
+          "cached_tokens": 4955
+        },
+        "tool_seconds": 10.5635634,
+        "peak_prompt_tokens": 9556,
+        "peak_context_pct": 7,
+        "floor_prompt_tokens": 5529,
+        "tools": {
+          "list_files": 3,
+          "patch_file": 1,
+          "read_file": 3,
+          "run_program": 3,
+          "run_shell": 1,
+          "write_file": 2
+        },
+        "trace_log": "D:\\Projects\\dev\\keshon\\gektor\\eval\\results\\remediation-live-20261120\\remaining-pairs\\25-ledger-repair-r1-baseline\\20261120-194513\\25-ledger-repair-run1.log"
+      }
+    }
+  ]
+}

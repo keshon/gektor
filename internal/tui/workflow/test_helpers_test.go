@@ -118,5 +118,5 @@ func sizeModelTo(t *testing.T, m *model, width, height int) *model {
 }
 
 func (m *model) applyValues(values map[string]string) error {
-	return m.workflows.applySubmission(m.chrome.Dialog, values)
+	return m.workflows.applySubmission(m.chrome.DialogID(), values)
 }

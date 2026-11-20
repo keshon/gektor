@@ -2,8 +2,9 @@
 
 Implementation following the [2026-11-20 audit](project-audit-2026-11-20.md),
 against the working tree based on `3802e3dac24079ce9bb3ea9855de684b54aefb27`.
-This record covers the first implementation pass. It does not mark the full
-product roadmap or public TUI extraction complete.
+The first implementation pass was committed and pushed as `57a7108` on `main`.
+The continuation below starts from that clean checkout. This record does not
+mark the full product roadmap or public TUI extraction complete.
 
 ## Correctness and ownership
 
@@ -68,10 +69,27 @@ independent palettes, validation and cancellable asynchronous refresh. It import
 no GEKTOR agent, role, session, settings or workflow packages. Tests cover input,
 small terminals, cancellation, stale results and shutdown through Bubble Tea.
 
-This remains an internal example. The current controls still expose dialog
-identity through mutable state, and hosts still route input themselves. Detail
-resize/theme changes reopen the view and reset scroll. These are documented
-constraints to resolve before a stable public package is promised.
+This remains an internal example. The continuation adds opaque identity and
+control-owned input routing for the workbench, with detail refresh preserving
+scroll across resize/theme changes. GEKTOR's evaluation dialog also uses opaque
+identity and rejects stale progress/completion before lifecycle events drain.
+Other GEKTOR callers still use mutable dialog/form/table state. Removing that
+legacy surface remains a gate before a stable public package is promised.
+
+The subsequent TUI pass migrated retained dialog identity throughout GEKTOR's parent
+shell, Agent and Workflow screens. Queue/return maps, process replies, settings,
+tool inspectors, proposal forms and permission requests use opaque IDs. Events
+no longer expose `DialogState`; pointer-based completion/resume helpers are
+private. Guarded table updates copy rows/actions and retain selection/filter;
+secret submission consumes only the matching current overlay. Suspended drafts
+can resume only once in their owning controls and retain focus/text. Tests cover
+late events arriving before replacement lifecycle events drain.
+
+`identity.go` was removed: dialog identity and refresh belong to `dialogs.go`,
+completion and resumption to `events.go`, input routing to
+`dialog_controls.go`, and secret access to `secret.go`. Settings still accesses
+its editable draft and layout state, and features retain table models for
+navigation between overlays. The entire control state is not yet private.
 
 ## Evaluation evidence
 
@@ -113,13 +131,16 @@ Both were corrected before the successful full run.
 
 ## Remaining gates
 
-1. Run controlled, repeated smaller-tool/context-profile experiments on the same
-   model and fixtures before changing defaults. The failed live calibration is
-   not evidence for such a change.
-2. Complete native terminal review and the full visual acceptance matrix,
-   including workflow, permission and queue interactions across platforms.
-3. Make control identity opaque and reduce mutable host access; preserve focus,
-   scroll and async ownership in both consumers before extracting a module.
+1. Complete native terminal review of chat, streaming, tools, permissions, queues
+   and workflows in both theme families at 40×20, 80×24 and 120×40. The automated
+   96-frame matrix passes; native input, fonts and cross-platform parity remain open.
+2. Reduce remaining mutable host access to settings drafts/layout and retained
+   table models. Opaque identity, guarded results and suspended draft ownership
+   are implemented in both consumers; full control-state encapsulation is not.
+3. Resume GEKTOR-only tool/context experiments if changing defaults. Eighteen
+   paired simple-task runs and one baseline ledger run passed; the ledger pair
+   was interrupted when the user returned work to the TUI. Context-policy and
+   recovery coverage remain incomplete. Competitor testing was dropped.
 4. Publish a versioned component API only after an external pinned-version
    consumer builds. Extend platform release smoke coverage separately.
 5. Continue the audit's composition and observability ownership cleanup where
@@ -127,3 +148,102 @@ Both were corrected before the successful full run.
 
 No controlled Pi/OpenCode solve-rate comparison has been completed. The packed
 tool layout is preserved as a GEKTOR design preference; uniqueness is not claimed.
+
+## Continuation acceptance record
+
+The workbench now uses `DialogID`, `DialogInput`, identity-checked information
+refresh and form completion without reading `DialogState`. Tests cover retained
+detail lifetime/scroll and form focus/drafts, cancellation and replaced jobs.
+The GEKTOR evaluation consumer supplies a second identity-sensitive caller;
+late results cannot replace a different dialog. This is an internal migration
+step, not complete encapsulation of every GEKTOR control consumer.
+
+The automated acceptance matrix adds inspection, permission, rejection note,
+queue/editor and workflow graph/inspector/failure/review/permission views at all
+three sizes in dark/light themes. Chat fixtures click each packed badge's
+independent target. These tests exposed a 40×20 long permission prompt losing
+its first context line; the compact gate now retains that line instead of
+substituting a generic truncation notice.
+
+The matrix contains 96 deterministic frames: 36 chat, 30 agent interaction and
+30 workflow frames. It checks cell geometry, visible context and model-level
+hit routing; it does not check delivery by a native terminal. Set
+`GEKTOR_TUI_PREVIEW_DIR` when running the presentation tests to export ANSI.
+
+The [controlled comparison protocol](controlled-comparison-2026-11-20.md) and
+preflight script freeze fixture hashes and plan 36 unexecuted runs across the
+three pinned checkouts. The backend refused connections; no solver ran and no
+profile or performance improvement is established. Settings verification,
+client adapters and the remaining fixture categories are still required.
+
+The server was subsequently restored. A GEKTOR-only comparison used the same
+built runner, Ornith 1.5 35B Q5_K_M weights, server and fixtures, with alternating
+baseline/lazy-web order, context 131072 and response limit 8192. All 18 completed
+exact-edit, ambiguous-edit and nested-skill runs passed (three repeats per arm
+and case). One baseline ledger repair also passed the hidden acceptance check
+in 322.9 seconds and 11 steps. The user then switched work back to the TUI:
+the active lazy-web ledger run was interrupted and four later ledger runs were
+not started. The ledger comparison is incomplete. The retained
+[results and invocation metadata](remediation-2026-11-20/profile-results.json)
+include model/server hashes and settings. Full traces remain under
+`eval/results/remediation-live-20261120/` in this checkout.
+
+`-tool-profile lazy-web` is an opt-in eval input that makes the four native web
+tools discoverable instead of initially eager; it changes no shipping default
+or permission rule. Cache state carried across alternating arms. Smaller initial
+prompts alone establish neither a speed nor a reliability improvement. Smaller
+context, long-context retrieval, cancellation/resume and unavailable-tool profile
+experiments remain unproved. At the user's direction, further Pi/OpenCode testing
+is outside the continuation scope; no three-product ranking is claimed.
+
+Native terminal review remains pending. Automated screen messages and ANSI
+fixtures do not establish terminal font fallback, real mouse behavior or Linux
+parity. The available Windows computer-use workflow prohibits terminal-app
+automation, so no native review is claimed for this continuation.
+
+For native acceptance, record the OS, terminal/version, font, exact commit and
+theme with each result. Repeat the following at 40×20, 80×24 and 120×40 in both
+dark and light theme families. Record failures and retained evidence before
+marking a cell complete; resizing one inspected view does not accept the others.
+
+| Surface | Native acceptance action | Status |
+|---|---|---|
+| Chat | Read prose, literal globs, code, diff, table and long history; resize while scrolled | Pending |
+| Streaming | Observe partial Markdown, stop a response, then continue; retain all received text | Pending |
+| Tools | Keep packed badges; inspect each adjacent badge with keyboard and mouse; close and restore transcript position | Pending |
+| Permissions | Inspect requested action/resource; allow and deny separate harmless fixture requests; cancel and quit while pending | Pending |
+| Queue | Add two messages during a run; edit one, cancel its edit, remove the other; confirm draft and ordering | Pending |
+| Workflow | Open canvas and inspector, edit a draft, run a harmless fixture, deny a permission and cancel; inspect persisted status | Pending |
+| Workbench | Scroll detail, resize and switch palette; edit and cancel; replace a refresh and quit while it is pending | Pending |
+
+The isolated [session recovery smoke check](../development/testing.md#session-recovery-smoke-check)
+provides a fake model and temporary home for session checks. Its immediate text
+reply does not exercise delayed streaming, tool calls or permission requests;
+those require a suitable deterministic fixture or a separately recorded local
+model session. Do not count the smoke helper alone as this matrix passing.
+
+Public package extraction and distribution remain deferred until native review,
+both consumers' ownership checks and controlled comparisons pass. There is no
+new public module, version promise or pinned external-consumer build in this
+continuation.
+
+Continuation validation on Windows amd64:
+
+- `go test -p 1 ./...`: passed; affected TUI/workbench packages reran after the final edits.
+- `go test -race -p 1 ./internal/tui/... ./examples/workbench`: passed.
+- `go test -race -p 1 ./...`: passed; no race detector reports.
+- `go vet ./...`: passed.
+- `go run ./cmd/eval -dry`: all 45 definitions valid.
+- `node website/scripts/check-docs.mjs`: passed, 72 files and 35 articles.
+- `go build -o bin/gektor.exe ./cmd/gektor`: passed.
+- Comparison preflight: fixture hashes and 36 planned runs validated; reused output directories rejected. No solver executed.
+
+After the subsequent TUI identity migration and eval-profile addition:
+
+- `go test -p 1 ./...`: passed.
+- `go test -race -p 1 ./internal/tui/... ./examples/workbench ./cmd/eval`: passed.
+- `go vet ./...` and the native executable build: passed.
+- Dry eval validation, documentation path/anchor checks and `git diff --check`: passed.
+- The first integrated identity-event check found two remaining pointer-based
+  test references; both were converted before the passing runs. Native terminal
+  acceptance remains pending, and public extraction is still deferred.

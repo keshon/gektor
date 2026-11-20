@@ -32,10 +32,12 @@ type Dialog struct {
 // Table transfers its model to controls while the overlay is open. The feature
 // may retain it for later navigation but must not update it during presentation.
 type Table struct {
-	Model       *table.Model
-	Columns     []table.Column
-	Description string
-	Actions     []table.Action
+	Model        *table.Model
+	Columns      []table.Column
+	Description  string
+	Actions      []table.Action
+	List         bool
+	EmptyMessage string
 }
 
 // Action describes a screen shortcut rendered and dispatched by the shell.

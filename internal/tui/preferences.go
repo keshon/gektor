@@ -15,7 +15,7 @@ func (m *Model) editSettings(section string) {
 		return
 	}
 	var ws *settings.EditSession
-	if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog && m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
+	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() && m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
 		ws = m.preferences.EditSession
 		if ws != nil {
 			m.preferences.Prepare()
@@ -65,7 +65,7 @@ func (m *Model) editSettings(section string) {
 	})
 	m.chrome.Dialog.Form.SaveCopy = true
 	m.preferences = &settings.Model{Model: &m.chrome.Dialog.Form.Model, EditSession: ws}
-	m.preferencesDialog = m.chrome.Dialog
+	m.preferencesDialog = m.chrome.DialogID()
 	m.preferences.Prepare()
 	saved := ws.Draft.Visit(section, fields)
 	m.chrome.Dialog.Form.Fields = saved
