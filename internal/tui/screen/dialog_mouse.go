@@ -29,7 +29,7 @@ func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
 		default:
 			return nil
 		}
-		return m.TableAction(m.Dialog.Table.Model.Mouse(local, m.TableProps()))
+		return m.TableAction(m.Dialog.Table.model.Mouse(local, m.TableProps()))
 	}
 	if m.Dialog.Form != nil {
 		return m.FormMouse(msg)

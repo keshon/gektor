@@ -2,13 +2,11 @@
 package settings
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
-
-	"charm.land/bubbles/v2/textarea"
-	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/providers"
@@ -24,25 +22,22 @@ type EditSession struct {
 	AccountLabel             string
 }
 
-// Model adapts a controls-owned form to GEKTOR preferences on the update loop.
+// Model owns staged preference policy and copied page values. Controls own the
+// editor, focus, picker and scrolling; no widget pointer crosses this boundary.
 type Model struct {
-	*fieldform.Model
+	fieldform.Presentation
+	Fields                        []form.Field
 	EditSession                   *EditSession
 	previousKind, selectedProfile string
 	loadError                     error
 }
 
-func NewModel(initial []form.Field, editor textarea.Model) Model {
-	draft := fieldform.NewModel(initial, editor)
-	m := Model{Model: &draft}
-	m.Prepare()
-	return m
-}
-
 // Prepare supplies application choices and visibility without retaining effects
 // in the shared controls. The application calls it after input and before drawing.
-func (f *Model) Prepare() {
-	f.Sync()
+func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
+	f.Fields = slices.Clone(snapshot.Fields)
+	f.Error, f.FieldErrors = snapshot.Error, maps.Clone(snapshot.FieldErrors)
+	f.Values = map[string]string{}
 	f.FieldLabels = map[string]string{"kind": "Protocol", "endpoint": "Server address"}
 	if f.Choices == nil {
 		f.Choices = map[string][]string{}
@@ -100,62 +95,32 @@ func (f *Model) Prepare() {
 		f.DisablePrimary = !f.Dirty() || f.loadError != nil
 		f.Shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Ctrl+S", Action: "apply"}, {Key: "Tab", Action: "controls"}}
 	}
-}
-
-func (f *Model) UpdateKey(msg tea.KeyPressMsg, props fieldform.Props) (fieldform.Intent, tea.Cmd) {
-	f.Prepare()
-	if f.FeedbackOpen {
-		return f.Model.UpdateKey(msg, props)
-	}
-	if f.EditSession != nil {
-		switch msg.String() {
-		case "f4":
-			f.EditSession.Advanced = !f.EditSession.Advanced
-			f.Prepare()
-			f.Focus(f.FirstVisibleField(), f.FieldVisible)
-			return fieldform.Intent{}, nil
-		case "ctrl+d":
-			if f.EditSession.Section == "profiles" {
-				return fieldform.Intent{Action: fieldform.SaveCopy}, nil
-			}
+	for i, field := range f.Fields {
+		if field.Value != snapshot.Fields[i].Value {
+			f.Values[field.Key] = field.Value
 		}
 	}
-	intent, cmd := f.Model.UpdateKey(msg, props)
-	f.Prepare()
-	return intent, cmd
+	return f.Presentation
 }
 
-func (f *Model) Mouse(msg tea.MouseMsg, props fieldform.Props) (fieldform.Intent, tea.Cmd) {
-	intent, cmd := f.Model.Mouse(msg, props)
-	f.Prepare()
-	return intent, cmd
+// Shortcut handles preference-specific actions; generic editing stays in controls.
+func (f *Model) Shortcut(key string) (fieldform.Intent, bool) {
+	if f.EditSession == nil {
+		return fieldform.Intent{}, false
+	}
+	switch key {
+	case "f4":
+		f.EditSession.Advanced = !f.EditSession.Advanced
+		return fieldform.Intent{}, true
+	case "ctrl+d":
+		if f.EditSession.Section == "profiles" {
+			return fieldform.Intent{Action: fieldform.SaveCopy}, true
+		}
+	}
+	return fieldform.Intent{}, false
 }
 
-func (f *Model) CycleChoice() {
-	f.Model.CycleChoice()
-	f.Prepare()
-}
-
-func (f *Model) Focus(index int, visible func(int) bool) {
-	f.Prepare()
-	f.Model.Focus(index, visible)
-}
 func (f *Model) FieldVisible(index int) bool {
-	if index >= 0 && index < len(f.Fields) {
-		for _, condition := range f.ShowWhen[f.Fields[index].Key] {
-			matches := false
-			for _, field := range f.Fields {
-				if field.Key == condition.Key && field.Value == condition.Value {
-					matches = true
-					break
-				}
-			}
-			if !matches {
-				return false
-			}
-		}
-	}
-
 	if index >= 0 && index < len(f.Fields) && f.EditSession != nil {
 		descriptor, lookupErr := providers.Lookup(f.providerKind())
 		if lookupErr == nil {
@@ -218,7 +183,6 @@ func (f *Model) providerKind() string {
 }
 
 func (f *Model) StorePage() {
-	f.Sync()
 	f.EditSession.Draft.Store(f.EditSession.Section, f.Fields)
 }
 
@@ -227,12 +191,7 @@ func (f *Model) Dirty() bool {
 		return true
 	}
 
-	fields := slices.Clone(f.Fields)
-	if f.Index >= 0 && f.Index < len(fields) {
-		fields[f.Index].Value = f.Editor.Value()
-	}
-
-	return f.EditSession.PersistCurrent || f.EditSession.Draft.Dirty(f.EditSession.Section, fields)
+	return f.EditSession.PersistCurrent || f.EditSession.Draft.Dirty(f.EditSession.Section, f.Fields)
 }
 func (f *Model) note() string {
 	descriptor, lookupErr := providers.Lookup(f.providerKind())

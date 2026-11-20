@@ -25,8 +25,9 @@ func (m *Model) settleControls() []tea.Cmd {
 	}
 
 	if m.preferences != nil && m.chrome.DialogID() == m.preferencesDialog {
-		m.preferences.Prepare()
+		m.preparePreferences()
 	}
+	m.syncSettingsDiscovery()
 	m.agent.PrepareControls()
 	m.chrome.Prepare()
 	if changed && m.active == agentScreen {
@@ -38,30 +39,26 @@ func (m *Model) settleControls() []tea.Cmd {
 }
 
 func (m *Model) settingsCommands() []tea.Cmd {
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
+	request, ok := m.chrome.FormDetailRequest(m.chrome.DialogID())
+	if !ok {
 		return nil
 	}
-	var cmd tea.Cmd
-	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() {
-		cmd = m.preferences.DetailCommand()
-	} else {
-		cmd = m.chrome.Dialog.Form.DetailCommand()
+	command := request.Command()
+	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() && request.Field == "load-profile" {
+		command = settings.ProfileDetail(request)
 	}
-	if cmd != nil {
-		return []tea.Cmd{cmd}
-	}
-	return nil
+	return []tea.Cmd{command}
 }
 
 func (m *Model) acceptSettings(msg tea.Msg) {
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
-		return
-	}
 	switch msg := msg.(type) {
 	case fieldform.DetailMsg:
-		m.chrome.Dialog.Form.AcceptDetail(msg)
+		m.chrome.AcceptFormDetail(msg)
 	case fieldform.ScanMsg:
-		m.chrome.Dialog.Form.AcceptScan(msg)
+		if job := m.settingsDiscovery; job != nil && job.picker == msg.ID {
+			m.cancelSettingsDiscovery()
+		}
+		m.chrome.AcceptFormScan(msg)
 	}
 }
 
@@ -180,10 +177,9 @@ type pendingForm struct {
 	apply  func(map[string]string) error
 }
 
-func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *fieldform.Model {
-	draft := m.chrome.PresentForm(form)
+func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) {
+	m.chrome.PresentForm(form)
 	m.form = pendingForm{dialog: m.chrome.DialogID(), apply: apply}
-	return draft
 }
 
 func (m *Model) applySubmission(dialog screen.DialogID, values map[string]string) error {

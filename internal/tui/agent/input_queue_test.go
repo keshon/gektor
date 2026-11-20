@@ -41,7 +41,7 @@ func TestQueueEditKeepsDraftAttachmentsAndOrder(t *testing.T) {
 		t.Fatal("queue did not open")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.chrome.Dialog.Table.Model.Selected() != fmt.Sprint(before[1].ID) {
+	if m.chrome.TableSelectedID(m.chrome.DialogID()) != fmt.Sprint(before[1].ID) {
 		t.Fatal("wrong selected message")
 	}
 	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
@@ -72,13 +72,13 @@ func TestQueueRefreshKeepsIdentityAndDoesNotInventReceipt(t *testing.T) {
 	m := queuedModel(t)
 	m.openInputQueue()
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnd})
-	selected := m.chrome.Dialog.Table.Model.Selected()
+	selected := m.chrome.TableSelectedID(m.chrome.DialogID())
 	m.sess.RecallInput() // Recall removes it without delivering it to the agent.
 	props := m.testControls().TableProps()
-	if m.chrome.Dialog.Table.Model.Selected() != selected {
+	if m.chrome.TableSelectedID(m.chrome.DialogID()) != selected {
 		t.Fatal("refresh moved selection to a different message")
 	}
-	if !strings.Contains(m.chrome.Dialog.Table.Model.Rows[2].Detail, "No longer queued") || strings.Contains(m.chrome.Dialog.Table.Description, "received") {
+	if !strings.Contains(m.chrome.TableSnapshot(m.chrome.DialogID()).Rows[2].Detail, "No longer queued") || strings.Contains(m.chrome.Dialog.Table.Description, "received") {
 		t.Fatal("removal was mislabeled as receipt")
 	}
 	if !props.Actions[0].Enabled || props.Actions[1].Enabled || props.Actions[2].Enabled {
@@ -170,8 +170,7 @@ func TestComposerQueueLayoutAndMouse(t *testing.T) {
 		if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
 			t.Fatal("summary count did not open queue")
 		}
-		props := m.testControls().TableProps()
-		l := m.chrome.Dialog.Table.Model.Layout(props)
+		l := m.chrome.TableSnapshot(m.chrome.DialogID()).Layout
 		contents := ansi.Strip(strings.Join(l.Rows, "\n"))
 		for _, key := range []string{"ENTER Read", "CTRL+E Edit", "DEL Remove", "ESC Close"} {
 			if !strings.Contains(contents, key) {
@@ -333,7 +332,7 @@ func TestQueueRetainsKnownReceiptWithoutAllowingEdits(t *testing.T) {
 	q := &inputQueue{session: m.sess, stateFile: m.stateFile, view: m.testControls().NewTable(), entries: map[string]queueEntry{"1": {QueuedInput: agent.QueuedInput{ID: 1, Received: true}}}, order: []string{"1"}}
 	m.showInputQueue(q)
 	p := m.testControls().TableProps()
-	if p.Actions[1].Enabled || p.Actions[2].Enabled || !strings.Contains(q.view.Rows[0].Detail, "Received by agent") {
+	if p.Actions[1].Enabled || p.Actions[2].Enabled || !strings.Contains(m.chrome.TableSnapshot(m.chrome.DialogID()).Rows[0].Detail, "Received by agent") {
 		t.Fatal("known receipt was lost or became editable")
 	}
 }
@@ -426,5 +425,40 @@ func TestQueueEditorDoesNotResumeConsumedDraft(t *testing.T) {
 	}
 	if _, exists := m.returnDialogs[edit.dialog]; exists {
 		t.Fatal("consumed suspension retained its return route")
+	}
+}
+
+func TestQueueNavigationSurvivesCancelledEditor(t *testing.T) {
+	m := queuedModel(t)
+	for i := 0; i < 40; i++ {
+		if err := m.sess.Submit(fmt.Sprintf("Queued message %02d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m.openInputQueue()
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	before := m.chrome.TableSnapshot(m.chrome.DialogID())
+	if before.Offset == 0 {
+		t.Fatal("queue did not establish scroll context")
+	}
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if m.chrome.Dialog.Form == nil {
+		t.Fatal("queue editor did not open")
+	}
+	m.chrome.Dialog.Form.Editor.SetValue("cancel this edit")
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if len(m.pendingCommands) == 0 {
+		t.Fatal("closing editor lost queue return")
+	}
+	m.testUpdate(m.pendingCommands[len(m.pendingCommands)-1]())
+	after := m.chrome.TableSnapshot(m.chrome.DialogID())
+	if after.Selected != before.Selected || after.Offset != before.Offset || after.Focus != before.Focus {
+		t.Fatal("return from cancelled edit reset queue navigation", before, after)
+	}
+	for _, input := range m.sess.PendingInputs() {
+		if input.Message.Content == "cancel this edit" {
+			t.Fatal("cancel changed queued input")
+		}
 	}
 }

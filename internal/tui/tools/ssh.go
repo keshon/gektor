@@ -52,7 +52,7 @@ func (m *Model) SSH(editable bool) screen.Dialog {
 	}
 	enabled := editable && err == nil && m.checking == ""
 	return screen.Dialog{Title: "SSH connections", Table: &screen.Table{
-		Model: newTable(rows), Columns: []table.Column{{Label: "Name", Width: 16}, {Label: "Endpoint"}, {Label: "Authentication", Width: 21, HideNarrow: true}}, Description: description,
+		Rows: rows, Columns: []table.Column{{Label: "Name", Width: 16}, {Label: "Endpoint"}, {Label: "Authentication", Width: 21, HideNarrow: true}}, Description: description,
 		Actions: []table.Action{
 			{ID: "add", Label: "Add", Key: "a", Enabled: enabled},
 			{ID: "edit", Label: "Edit", Key: "enter", Enabled: enabled && len(rows) > 0},

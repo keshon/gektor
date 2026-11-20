@@ -45,9 +45,12 @@ This is a second consumer inside the repository, not a published Go module:
 `internal` imports prevent use from unrelated modules. The host routes application
 shortcuts and passes remaining input to `DialogInput`; controls select the active
 widget. The host retains an opaque `DialogID` and matches intent events by ID.
+An opaque `TableID` retains list selection, filtering, focus and scrolling across
+detail/edit overlays; the host supplies copied row snapshots and never retains a
+mutable table widget.
 Markdown detail content is refreshed in the same overlay lifetime on resize and
 theme changes, preserving scroll and expansion. Forms retain their drafts and
 focus. The example has no persistence, add/remove actions, or background service.
-GEKTOR still has callers using mutable dialog/form/table state; migrating those
-callers and proving a pinned external consumer remain prerequisites for a stable
-public API.
+Controls still expose some dialog and form presentation state. Closing those
+remaining ownership gaps and proving a pinned external consumer remain
+prerequisites for a stable public API.

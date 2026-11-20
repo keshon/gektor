@@ -11,7 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
-func modelPicker(t *testing.T) *Model {
+func modelPicker(t *testing.T) *testForm {
 	t.Helper()
 	fields := []form.Field{
 		{Key: "kind", Value: "openai"},
@@ -19,7 +19,7 @@ func modelPicker(t *testing.T) *Model {
 		{Key: "key-env", Value: "TEST_API_KEY"},
 		{Key: "model", Value: "original"},
 	}
-	model := NewModel(fields, textarea.New())
+	model := newTestForm(fields, textarea.New())
 	model.Focus(3, model.FieldVisible)
 	return &model
 }
@@ -54,7 +54,7 @@ func TestResultsCannotCrossPickerOrFormLifetimes(t *testing.T) {
 
 	second := modelPicker(t)
 	second.OpenPicker(fieldform.Props{Width: 80, Height: 24})
-	for _, current := range []*Model{first, second} {
+	for _, current := range []*testForm{first, second} {
 		current.AcceptScan(fieldform.ScanMsg{ID: oldID, Items: []string{"stale-model"}})
 		if len(current.Picker.Items) != 0 || !current.Picker.Loading {
 			t.Fatal("stale result replaced another picker")
@@ -74,7 +74,7 @@ func TestReasoningDiscoveryUsesStagedModel(t *testing.T) {
 	fields := []form.Field{{Key: "kind", Value: "chatgpt"}, {Key: "model", Value: "staged"}}
 	draft.Visit("model", fields)
 	draft.Store("model", fields)
-	model := NewModel([]form.Field{{Key: "reasoning-effort", Value: "default"}}, textarea.New())
+	model := newTestForm([]form.Field{{Key: "reasoning-effort", Value: "default"}}, textarea.New())
 	model.EditSession = &EditSession{Draft: draft, Section: "generation"}
 	model.Focus(0, model.FieldVisible)
 

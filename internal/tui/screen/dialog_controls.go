@@ -38,7 +38,7 @@ func (m *Controls) OverlayDialog(background string) string {
 func (m *Controls) DialogRows() ([]string, int, int) {
 	if m.Dialog.Table != nil {
 		p := m.TableProps()
-		return m.Dialog.Table.Model.Layout(p).Rows, p.Width, p.Height
+		return m.Dialog.Table.model.Layout(p).Rows, p.Width, p.Height
 	}
 	layout := m.LayoutDialog()
 	offset := min(max(m.Dialog.Offset, 0), max(len(layout.Lines)-layout.Capacity, 0))
@@ -240,7 +240,7 @@ func (m *Controls) TableInput(msg tea.Msg) tea.Cmd {
 		m.Dialog.Maximized = !m.Dialog.Maximized
 		return nil
 	}
-	model := m.Dialog.Table.Model
+	model := m.Dialog.Table.model
 	model.Search.SetStyles(m.palette().TextInputStyles(model.Search.Styles()))
 	props := m.TableProps()
 	action, cmd := model.Update(msg, props)
@@ -258,14 +258,15 @@ func (m *Controls) TableAction(action string) tea.Cmd {
 		return nil
 	}
 	d := m.Dialog.Table
-	id := d.Model.Selected()
+	id := d.model.Selected()
 	m.events = append(m.events, Event{Kind: TableAction, ID: m.DialogID(), Action: action, Row: id})
 	return nil
 }
 
-// NewTable creates a table with the shared search editor styles.
-func (m *Controls) NewTable() *table.Model {
-	return table.New(m.palette().TextInputStyles(textinput.New().Styles()))
+// NewTable creates reusable navigation state owned by these controls. The handle
+// retains filtering, selection, focus and scrolling across detail/edit overlays.
+func (m *Controls) NewTable() TableID {
+	return TableID{owner: m, model: table.New(m.palette().TextInputStyles(textinput.New().Styles()))}
 }
 
 // DialogScrollbarMouse retains thumb ownership until release, including outside the scrollbar.

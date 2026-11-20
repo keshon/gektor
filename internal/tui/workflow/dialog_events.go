@@ -4,7 +4,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/permission"
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
@@ -86,10 +85,9 @@ type pendingForm struct {
 	apply  func(map[string]string) error
 }
 
-func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *fieldform.Model {
-	draft := m.dialogs.PresentForm(form)
+func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) {
+	m.dialogs.PresentForm(form)
 	m.form = pendingForm{dialog: m.dialogs.DialogID(), apply: apply}
-	return draft
 }
 
 func (m *Model) applySubmission(dialog screen.DialogID, values map[string]string) error {

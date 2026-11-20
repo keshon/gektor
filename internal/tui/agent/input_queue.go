@@ -21,7 +21,7 @@ import (
 type inputQueue struct {
 	session        *harness.Session
 	nextRunVersion uint64
-	view           *table.Model
+	view           screen.TableID
 	stateFile      string
 	entries        map[string]queueEntry
 	order          []string
@@ -86,7 +86,7 @@ func (m *Model) openInputQueue() {
 }
 func (m *Model) showInputQueue(q *inputQueue) {
 	m.chrome.PresentDialog(screen.Dialog{Title: "Message queue", Table: &screen.Table{
-		Model:        q.view,
+		State:        q.view,
 		List:         true,
 		EmptyMessage: "No messages waiting",
 		Columns:      []table.Column{{Label: "Message"}},
@@ -211,7 +211,7 @@ func (m *Model) refreshInputQueue(q *inputQueue) {
 }
 
 func (m *Model) inputQueueActions(q *inputQueue) []table.Action {
-	input, ok := q.entries[q.view.Selected()]
+	input, ok := q.entries[m.chrome.TableSelection(q.view)]
 	return []table.Action{
 		{ID: "details", Label: "Read", Key: "enter", Enabled: ok},
 		{ID: "edit", Label: "Edit", Key: "ctrl+e", Enabled: ok && !input.readOnly()},

@@ -64,15 +64,16 @@ func TestTableScrollbarMotionAndReleaseReachOffsetDialog(t *testing.T) {
 		if workflow {
 			m.openWorkflows()
 		}
-		model := m.chrome.NewTable()
+		state := m.chrome.NewTable()
+		var tableRows []table.Row
 		for i := range 80 {
-			model.Rows = append(model.Rows, table.Row{ID: fmt.Sprint(i), Cells: []string{fmt.Sprintf("row %02d", i)}})
+			tableRows = append(tableRows, table.Row{ID: fmt.Sprint(i), Cells: []string{fmt.Sprintf("row %02d", i)}})
 		}
-		m.chrome.PresentDialog(screen.Dialog{Title: "Rows", Table: &screen.Table{Model: model, Columns: []table.Column{{Label: "Name"}}}})
+		m.chrome.PresentDialog(screen.Dialog{Title: "Rows", Table: &screen.Table{State: state, Rows: tableRows, Columns: []table.Column{{Label: "Name"}}}})
 		m.settleControls()
 		dialog := m.chrome.Dialog
 		p := m.chrome.TableProps()
-		l := model.Layout(p)
+		l := m.chrome.TableSnapshot(m.chrome.DialogID()).Layout
 		x := m.chrome.Props.Area.X + max((p.Width-l.Width)/2, 0) + 2 + l.Scroll.X
 		y := m.chrome.Props.Area.Y + max((p.Height-len(l.Rows)-2)/2, 0) + 1 + l.Scroll.Y
 		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
@@ -82,8 +83,8 @@ func TestTableScrollbarMotionAndReleaseReachOffsetDialog(t *testing.T) {
 		m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 		m.Update(tea.MouseMotionMsg{X: 0, Y: m.termH + 10, Button: tea.MouseLeft})
 		m.Update(tea.MouseReleaseMsg{X: 0, Y: m.termH - 1})
-		if m.chrome.Dialog != dialog || model.Offset != len(model.Rows)-l.Capacity {
-			t.Fatal("shared modal discarded motion/release or activated footer", workflow, model.Offset)
+		if m.chrome.Dialog != dialog || m.chrome.TableSnapshot(m.chrome.DialogID()).Offset != len(tableRows)-l.Capacity {
+			t.Fatal("shared modal discarded motion/release or activated footer", workflow, m.chrome.TableSnapshot(m.chrome.DialogID()).Offset)
 		}
 		m.chrome.Close()
 		m.settleControls()

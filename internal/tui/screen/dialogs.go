@@ -9,14 +9,25 @@ import (
 )
 
 // PresentForm copies its fields and choices into the controls-owned draft.
-func (m *Controls) PresentForm(f Form) *fieldform.Model {
+func (m *Controls) PresentForm(f Form) {
 	m.OpenForm(f.Title, f.Hint, f.ApplyLabel, f.Fields)
 	draft := m.Dialog.Form
+	draft.Title = f.Title
+	if f.DialogTitle != "" {
+		m.Dialog.Title = f.DialogTitle
+	}
+	draft.SaveCopy = f.SaveCopy
 	draft.Destructive = f.Destructive
 	draft.Choices = maps.Clone(f.Choices)
 	for key, options := range draft.Choices {
 		draft.Choices[key] = slices.Clone(options)
 	}
+	draft.Labels = maps.Clone(f.Labels)
+	for key, labels := range draft.Labels {
+		draft.Labels[key] = maps.Clone(labels)
+	}
+	draft.InlineChoices = maps.Clone(f.InlineChoices)
+	draft.NoSearchFields = maps.Clone(f.NoSearchFields)
 
 	draft.ShowWhen = maps.Clone(f.ShowWhen)
 	for key, conditions := range draft.ShowWhen {
@@ -31,7 +42,54 @@ func (m *Controls) PresentForm(f Form) *fieldform.Model {
 	if f.StartOnCancel {
 		m.FocusForm(len(f.Fields) + 1)
 	}
-	return &draft.Model
+}
+
+// FormSnapshot returns edited values and feedback only for the current form.
+func (m *Controls) FormSnapshot(id DialogID) (fieldform.Snapshot, bool) {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+		return fieldform.Snapshot{}, false
+	}
+	return m.Dialog.Form.Snapshot(), true
+}
+
+// ConfigureForm copies domain presentation without replacing the editable draft.
+func (m *Controls) ConfigureForm(id DialogID, p fieldform.Presentation) bool {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+		return false
+	}
+	m.Dialog.Form.Configure(p)
+	return true
+}
+
+// FormFeedback updates validation feedback without completing the form.
+func (m *Controls) FormFeedback(id DialogID, message string) bool {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+		return false
+	}
+	m.Dialog.Form.Error = message
+	return true
+}
+
+// FormDetailRequest captures the current file preview once for owner execution.
+func (m *Controls) FormDetailRequest(id DialogID) (fieldform.DetailRequest, bool) {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Form == nil {
+		return fieldform.DetailRequest{}, false
+	}
+	return m.Dialog.Form.TakeDetailRequest()
+}
+
+// AcceptFormDetail lets the controls reject results for replaced picker requests.
+func (m *Controls) AcceptFormDetail(msg fieldform.DetailMsg) {
+	if m.Dialog != nil && m.Dialog.Form != nil {
+		m.Dialog.Form.AcceptDetail(msg)
+	}
+}
+
+// AcceptFormScan lets the controls reject results for replaced picker requests.
+func (m *Controls) AcceptFormScan(msg fieldform.ScanMsg) {
+	if m.Dialog != nil && m.Dialog.Form != nil {
+		m.Dialog.Form.AcceptScan(msg)
+	}
 }
 
 func (m *Controls) PresentDialog(d Dialog) {
@@ -40,8 +98,18 @@ func (m *Controls) PresentDialog(d Dialog) {
 	m.Dialog.Shortcuts = slices.Clone(d.Shortcuts)
 	m.Dialog.Actions = slices.Clone(d.Actions)
 	if d.Table != nil {
+		state := d.Table.State
+		if state.owner != m || state.model == nil {
+			state = m.NewTable()
+		}
+		if d.Table.Rows != nil {
+			state.model.SetRows(copyTableRows(d.Table.Rows))
+		}
+		if d.Table.Selected != "" {
+			state.model.Select(d.Table.Selected)
+		}
 		m.Dialog.Table = &TableState{
-			Model:        d.Table.Model,
+			model:        state.model,
 			Columns:      slices.Clone(d.Table.Columns),
 			Description:  d.Table.Description,
 			Actions:      slices.Clone(d.Table.Actions),
@@ -51,13 +119,66 @@ func (m *Controls) PresentDialog(d Dialog) {
 	}
 }
 
-// RefreshTable preserves search and selection while replacing domain row snapshots.
-func (m *Controls) RefreshTable(rows []table.Row) {
+func (m *Controls) refreshTable(rows []table.Row) {
+	m.Dialog.Table.model.SetRows(copyTableRows(rows))
+}
+
+func copyTableRows(rows []table.Row) []table.Row {
 	snapshot := slices.Clone(rows)
 	for i := range snapshot {
 		snapshot[i].Cells = slices.Clone(rows[i].Cells)
 	}
-	m.Dialog.Table.Model.SetRows(snapshot)
+	return snapshot
+}
+
+// TableID is reusable navigation state owned by one Controls instance. Its zero
+// value requests fresh state when presenting a table; hosts never edit widgets.
+type TableID struct {
+	owner *Controls
+	model *table.Model
+}
+
+// TableSelection reads a retained table's selected row, including while hidden.
+// A zero or foreign handle has no selected row.
+func (m *Controls) TableSelection(id TableID) string {
+	if id.owner != m || id.model == nil {
+		return ""
+	}
+	return id.model.Selected()
+}
+
+// TableSnapshot is a copied read of the current table, including rendered hit
+// geometry. Mutating it cannot change navigation or the presented rows.
+type TableSnapshot struct {
+	Rows             []table.Row
+	Selected, Filter string
+	Focus, Offset    int
+	MoreOpen         bool
+	Layout           table.Layout
+}
+
+// TableSnapshot returns a detached view, or its zero value for a stale dialog.
+func (m *Controls) TableSnapshot(id DialogID) TableSnapshot {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+		return TableSnapshot{}
+	}
+	model := m.Dialog.Table.model
+	layout := model.Layout(m.TableProps())
+	layout.Actions = slices.Clone(layout.Actions)
+	layout.MenuActions = slices.Clone(layout.MenuActions)
+	return TableSnapshot{
+		Rows: copyTableRows(model.Rows), Selected: model.Selected(), Filter: model.Search.Value(),
+		Focus: model.Focus, Offset: model.Offset, MoreOpen: model.MoreOpen, Layout: layout,
+	}
+}
+
+// SyncTableFocus changes input focus only for the current table lifetime.
+func (m *Controls) SyncTableFocus(id DialogID, active bool) bool {
+	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
+		return false
+	}
+	m.Dialog.Table.model.SyncFocus(active)
+	return true
 }
 
 // DialogID identifies one overlay lifetime without exposing its mutable state.
@@ -93,7 +214,7 @@ func (m *Controls) TableSelectedID(id DialogID) string {
 	if id.owner != m || id.dialog == nil || m.Dialog != id.dialog || m.Dialog.Table == nil {
 		return ""
 	}
-	return m.Dialog.Table.Model.Selected()
+	return m.Dialog.Table.model.Selected()
 }
 
 // SetTableActions copies action availability for the current table lifetime.
@@ -112,6 +233,6 @@ func (m *Controls) UpdateTable(id DialogID, description string, rows []table.Row
 		return false
 	}
 	m.Dialog.Table.Description = description
-	m.RefreshTable(rows)
+	m.refreshTable(rows)
 	return true
 }

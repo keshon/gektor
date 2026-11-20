@@ -116,9 +116,18 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
 		}
 		if m.chrome.Dialog.Form != nil {
 			if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() {
-				intent, cmd := m.preferences.UpdateKey(msg, m.chrome.FormProps())
-				m.chrome.ResizeFormEditor()
-				return m, tea.Batch(cmd, m.chrome.HandleIntent(intent))
+				m.preparePreferences()
+				snapshot, _ := m.chrome.FormSnapshot(m.preferencesDialog)
+				if !snapshot.FeedbackOpen {
+					intent, handled := m.preferences.Shortcut(msg.String())
+					if handled {
+						m.preparePreferences()
+						if msg.String() == "f4" {
+							m.chrome.FocusForm(0)
+						}
+						return m, m.chrome.HandleIntent(intent)
+					}
+				}
 			}
 			return m, m.chrome.FormKey(msg)
 		}

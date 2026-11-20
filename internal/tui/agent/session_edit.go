@@ -46,10 +46,12 @@ func (m *Model) deleteActive() {
 		return
 	}
 	m.openForm(screen.Form{
-		Title:      "Delete session",
-		Hint:       "Permanently removes this saved session.",
-		ApplyLabel: "Delete",
-		Fields:     nil,
+		Title:         "Delete session",
+		Destructive:   true,
+		StartOnCancel: true,
+		Hint:          "Permanently removes this saved session.",
+		ApplyLabel:    "Delete",
+		Fields:        nil,
 	}, func(_ map[string]string) error {
 		err := os.RemoveAll(target)
 		if err != nil {
@@ -59,9 +61,6 @@ func (m *Model) deleteActive() {
 		m.refreshSessions()
 		return nil
 	})
-	m.chrome.Dialog.Form.Destructive = true
-	// Destructive confirmation starts on Cancel.
-	m.chrome.FocusForm(1)
 }
 
 func (m *Model) inspectConnection() {

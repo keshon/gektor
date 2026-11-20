@@ -12,11 +12,16 @@ import (
 // Form supplies initial draft values. Controls copy its fields and choice lists.
 type Form struct {
 	Title, Hint, ApplyLabel    string
+	DialogTitle                string
 	Fields                     []form.Field
 	Choices                    map[string][]string
+	Labels                     map[string]map[string]string
+	InlineChoices              map[string]int
+	NoSearchFields             map[string]bool
 	ShowWhen                   map[string][]form.Condition
 	FileFields                 map[string]fieldform.FilePicker
 	Destructive, StartOnCancel bool
+	SaveCopy                   bool
 }
 
 // Dialog describes an informational overlay with owner-supplied actions or a table.
@@ -29,10 +34,14 @@ type Dialog struct {
 	Table          *Table
 }
 
-// Table transfers its model to controls while the overlay is open. The feature
-// may retain it for later navigation but must not update it during presentation.
+// Table supplies copied row snapshots and an optional reusable navigation state.
+// Nil Rows preserves that state's previous rows; a non-nil empty slice clears it.
+// Selected requests a visible row by identity; empty preserves the selection.
+// A state from another Controls instance never shares navigation.
 type Table struct {
-	Model        *table.Model
+	State        TableID
+	Rows         []table.Row
+	Selected     string
 	Columns      []table.Column
 	Description  string
 	Actions      []table.Action

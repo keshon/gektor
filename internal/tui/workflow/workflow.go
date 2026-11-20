@@ -27,6 +27,7 @@ import (
 type Model struct {
 	permissionDialog, runsDialog, proposalDialog screen.DialogID
 	permissionRequests                           map[screen.DialogID]chan permission.Effect
+	runsTable                                    screen.TableID
 	proposalBefore                               string
 	proposalDraft                                workflow.Definition
 

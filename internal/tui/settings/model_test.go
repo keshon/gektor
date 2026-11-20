@@ -15,7 +15,7 @@ import (
 func TestInvalidProfileKeepsApplyDisabledAndPreservesStagedValues(t *testing.T) {
 	p := profile()
 	_, fields := PageFields(p, "profiles", config.Preferences{})
-	m := NewModel(fields, textarea.New())
+	m := newTestForm(fields, textarea.New())
 	m.EditSession = &EditSession{Draft: New(p), Section: "profiles"}
 	m.EditSession.Draft.Visit("profiles", fields)
 	path := filepath.Join(t.TempDir(), "broken.json")
@@ -40,7 +40,7 @@ func TestInvalidProfileKeepsApplyDisabledAndPreservesStagedValues(t *testing.T) 
 func TestScreenEmitsApplicationIntentsWithoutChangingProfile(t *testing.T) {
 	p := profile()
 	_, fields := PageFields(p, "generation", config.Preferences{})
-	m := NewModel(fields, textarea.New())
+	m := newTestForm(fields, textarea.New())
 	m.EditSession = &EditSession{Draft: New(p), Section: "generation"}
 	m.EditSession.Draft.Visit("generation", fields)
 	m.Focus(0, m.FieldVisible)

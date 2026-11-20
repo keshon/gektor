@@ -134,9 +134,10 @@ Both were corrected before the successful full run.
 1. Complete native terminal review of chat, streaming, tools, permissions, queues
    and workflows in both theme families at 40×20, 80×24 and 120×40. The automated
    96-frame matrix passes; native input, fonts and cross-platform parity remain open.
-2. Reduce remaining mutable host access to settings drafts/layout and retained
-   table models. Opaque identity, guarded results and suspended draft ownership
-   are implemented in both consumers; full control-state encapsulation is not.
+2. Finish control-state encapsulation around dialog/form presentation and layout.
+   Settings now use copied snapshots and presentation configuration; retained
+   tables use opaque owner-bound handles. Both consumers preserve navigation,
+   but some dialog/form presentation state remains directly accessible.
 3. Resume GEKTOR-only tool/context experiments if changing defaults. Eighteen
    paired simple-task runs and one baseline ledger run passed; the ledger pair
    was interrupted when the user returned work to the TUI. Context-policy and
@@ -216,11 +217,11 @@ marking a cell complete; resizing one inspected view does not accept the others.
 | Workflow | Open canvas and inspector, edit a draft, run a harmless fixture, deny a permission and cancel; inspect persisted status | Pending |
 | Workbench | Scroll detail, resize and switch palette; edit and cancel; replace a refresh and quit while it is pending | Pending |
 
-The isolated [session recovery smoke check](../development/testing.md#session-recovery-smoke-check)
-provides a fake model and temporary home for session checks. Its immediate text
-reply does not exercise delayed streaming, tool calls or permission requests;
-those require a suitable deterministic fixture or a separately recorded local
-model session. Do not count the smoke helper alone as this matrix passing.
+The isolated [scripted TUI smoke check](../development/testing.md#native-interaction-review-with-a-scripted-backend)
+provides a temporary home and deterministic streaming, adjacent tool calls,
+harmless permission requests and a local workflow fixture. The documented
+manual checklist has not been executed. Automated backend tests and building
+the helper do not count as this native matrix passing.
 
 Public package extraction and distribution remain deferred until native review,
 both consumers' ownership checks and controlled comparisons pass. There is no
@@ -247,3 +248,37 @@ After the subsequent TUI identity migration and eval-profile addition:
 - The first integrated identity-event check found two remaining pointer-based
   test references; both were converted before the passing runs. Native terminal
   acceptance remains pending, and public extraction is still deferred.
+
+## TUI ownership continuation after `ace9dc1`
+
+Settings policy now consumes copied field snapshots and returns presentation
+configuration. Controls retain the editor and picker; configuring unchanged
+values preserves the cursor and focus. Form creation no longer returns a mutable
+widget. Appearance configuration is supplied with the form request. Discovery
+requests capture values and cancellation contexts, are admitted once per picker,
+and are cancelled when the picker or dialog closes or is replaced. Stale results
+cannot update a replacement form.
+
+Retained table widgets are private to controls. The shell, Agent, Workflow and
+workbench retain owner-bound `TableID` handles and supply copied rows. Tests cover
+filter, selection, focus and scroll across detail/edit returns, foreign handles,
+snapshot isolation and stale updates. Workbench remains the boundary exercise;
+some dialog/form presentation state is still exposed, so no public extraction
+or complete encapsulation is claimed. Packed chat badges are unchanged.
+
+The smoke helper now supplies delayed cancellable streaming, two adjacent tool
+calls, allow/deny fixtures and a local workflow returning 3 from input 2. Its
+protocol, permission and workflow tests run without a model server. Native
+terminal review remains pending at the matrix sizes above in both theme families.
+
+
+Validation for this ownership continuation on Windows amd64:
+
+- Full normal and race suites: `go test -p 1 ./...` and `go test -race -p 1 ./...` passed.
+- The TUI/workbench normal suite reran successfully after final source cleanup.
+- `go vet ./...`, the native executable build and all 45 dry eval definitions passed.
+- Explicit smoke-helper race tests and vet passed.
+- Documentation path/anchor checks and `git diff --check` passed.
+- An integrated vet attempt exposed an older copy of the shared control-state
+  file; the intended ID-only events and private table model were restored before
+  the passing checks. Native terminal acceptance remains unperformed.

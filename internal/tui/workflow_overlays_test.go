@@ -73,7 +73,7 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	before := draft.Source()
 	older, newer := seedWorkflowRuns(t, m)
 	m.workflowCommand("runs")
-	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != newer {
+	if m.chrome.Dialog.Table == nil || m.chrome.TableSelectedID(m.chrome.DialogID()) != newer {
 		t.Fatal("runs are not newest first")
 	}
 	for _, a := range m.footerActions() {
@@ -89,7 +89,11 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	}
 	m.closeDialog()
 	m.workflowCommand("runs")
+	if m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "no match" {
+		t.Fatal("reopening runs lost the filter")
+	}
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
+	m.handleKey(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m.Update(tea.PasteMsg{Content: older})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chrome.Dialog != nil || len(m.workflows.TakeCommands()) != 1 || m.workflows.State().Busy || m.workflows.State().InspectingRun || draft.Source() != before {

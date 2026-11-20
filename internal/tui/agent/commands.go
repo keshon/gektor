@@ -259,7 +259,7 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		m.fitBottom()
 		return m, nil
 	case "processes":
-		m.openProcesses(nil)
+		m.openProcesses(screen.TableID{})
 		return m, nil
 	case "rename":
 		m.renameActive()

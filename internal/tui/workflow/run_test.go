@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func workflowRecipe() workflow.Definition {
@@ -352,5 +354,37 @@ func TestWorkflowSessionApprovalAndAccessReset(t *testing.T) {
 	w.action(workflowAction{"new-path", "new.json"})
 	if w.approvals.FullAccess() {
 		t.Fatal("new recipe inherited full access")
+	}
+}
+
+func TestRunListRetainsNavigationAcrossInspection(t *testing.T) {
+	m := workflowTestModel(t)
+	runs := make([]store.RunSummary, 60)
+	for i := range runs {
+		runs[i] = store.RunSummary{ID: fmt.Sprint(i), Name: fmt.Sprintf("Saved recipe %02d", i), Status: "completed"}
+	}
+	m.workflows.openRuns(runs)
+	m.syncControls()
+	m.handleKey(tea.KeyPressMsg{Code: '/'})
+	m.chrome.DialogInput(tea.PasteMsg{Content: "recipe"})
+	m.syncControls()
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	before := m.chrome.TableSnapshot(m.chrome.DialogID())
+	if before.Offset == 0 || before.Filter != "recipe" {
+		t.Fatal("run list did not establish navigation context")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.chrome.Dialog != nil {
+		t.Fatal("run inspection did not leave the list")
+	}
+	m.chrome.Open("Run inspection", []string{before.Selected})
+	m.syncControls()
+	m.workflows.openRuns(runs)
+	m.syncControls()
+	after := m.chrome.TableSnapshot(m.chrome.DialogID())
+	if after.Selected != before.Selected || after.Filter != before.Filter || after.Offset != before.Offset {
+		t.Fatal("return to saved runs reset navigation", before, after)
 	}
 }

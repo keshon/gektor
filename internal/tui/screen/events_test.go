@@ -1,7 +1,10 @@
 package screen
 
 import (
+	"charm.land/bubbletea/v2"
 	"errors"
+	"fmt"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"testing"
 
 	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
@@ -38,8 +41,9 @@ func TestDialogResumeRequiresOwnedSuspendedLifetime(t *testing.T) {
 
 func TestTableRefreshRejectsOldLifetimeAndCopiesSnapshots(t *testing.T) {
 	var controls Controls
-	view := controls.NewTable()
-	controls.PresentDialog(Dialog{Title: "queue", Table: &Table{Model: view, List: true, EmptyMessage: "empty"}})
+	state := controls.NewTable()
+	view := state.model
+	controls.PresentDialog(Dialog{Title: "queue", Table: &Table{State: state, List: true, EmptyMessage: "empty"}})
 	id := controls.DialogID()
 	view.Search.SetValue("message")
 	rows := []table.Row{{ID: "first", Cells: []string{"message one"}}, {ID: "second", Cells: []string{"message two"}}}
@@ -164,5 +168,83 @@ func TestOpaqueFormCompletionCannotAffectReplacement(t *testing.T) {
 		if event.ID == (DialogID{}) {
 			t.Fatal("event missing identity")
 		}
+	}
+}
+
+func TestRetainedTableNavigationAndSnapshotIsolation(t *testing.T) {
+	for _, theme := range []string{"dark", "light"} {
+		for _, size := range [][2]int{{40, 20}, {80, 24}} {
+			t.Run(fmt.Sprintf("%s/%dx%d", theme, size[0], size[1]), func(t *testing.T) {
+				palette := NewPalette(theme)
+				controls := &Controls{Props: ControlProps{Width: size[0], Height: size[1], Area: pane.Rect{Width: size[0], Height: size[1]}, Palette: palette, Styles: palette.Styles()}}
+				state := controls.NewTable()
+				rows := make([]table.Row, 60)
+				for i := range rows {
+					rows[i] = table.Row{ID: fmt.Sprint(i), Cells: []string{fmt.Sprintf("record %02d", i)}}
+				}
+				columns := []table.Column{{Label: "Record"}}
+				actions := []table.Action{{ID: "details", Label: "Open", Key: "enter", Enabled: true}}
+				controls.PresentDialog(Dialog{Title: "Records", Table: &Table{State: state, Rows: rows, Columns: columns, Actions: actions}})
+				stale := controls.DialogID()
+				// Requests transfer snapshots, including the nested cell slices.
+				rows[0].Cells[0] = "caller changed"
+				columns[0].Label = "caller changed"
+				actions[0].Enabled = false
+				if got := controls.TableSnapshot(stale); got.Rows[0].Cells[0] != "record 00" || !got.Layout.Actions[0].Enabled {
+					t.Fatal("presentation retained request-owned data")
+				}
+				controls.DialogInput(tea.KeyPressMsg{Code: '/'})
+				controls.DialogInput(tea.PasteMsg{Content: "record"})
+				controls.DialogInput(tea.KeyPressMsg{Code: tea.KeyEsc})
+				controls.DialogInput(tea.KeyPressMsg{Code: tea.KeyPgDown})
+				controls.DialogInput(tea.KeyPressMsg{Code: tea.KeyPgDown})
+				controls.DialogInput(tea.KeyPressMsg{Code: tea.KeyTab})
+				before := controls.TableSnapshot(stale)
+				if before.Offset == 0 || before.Focus != 1 || before.Filter != "record" {
+					t.Fatal("test did not establish scrolled, filtered navigation", before)
+				}
+				controls.Open("Details", []string{"Read a record"})
+				if controls.TableSelection(state) != before.Selected {
+					t.Fatal("hidden table lost selection")
+				}
+				controls.PresentDialog(Dialog{Title: "Records again", Table: &Table{State: state, Columns: []table.Column{{Label: "Record"}}, Actions: []table.Action{{ID: "details", Enabled: true}}}})
+				current := controls.DialogID()
+				after := controls.TableSnapshot(current)
+				if after.Selected != before.Selected || after.Filter != before.Filter || after.Focus != before.Focus || after.Offset != before.Offset {
+					t.Fatal("overlay return reset navigation", before, after)
+				}
+				if controls.UpdateTable(stale, "late reply", nil, nil) || controls.SetTableActions(stale, nil) || controls.SyncTableFocus(stale, false) {
+					t.Fatal("old overlay lifetime changed the reused table")
+				}
+				after.Rows[0].Cells[0] = "snapshot mutation"
+				after.Layout.Actions[0].Enabled = false
+				if got := controls.TableSnapshot(current); got.Rows[0].Cells[0] != "record 00" || !got.Layout.Actions[0].Enabled {
+					t.Fatal("read snapshot exposed mutable table state")
+				}
+				// Retaining state does not prevent an explicit empty snapshot from clearing it.
+				controls.PresentDialog(Dialog{Title: "Empty", Table: &Table{State: state, Rows: []table.Row{}}})
+				if controls.TableSelection(state) != "" || len(controls.TableSnapshot(controls.DialogID()).Rows) != 0 {
+					t.Fatal("explicit empty rows retained obsolete records")
+				}
+			})
+		}
+	}
+}
+
+func TestTableHandlesBelongToTheirControls(t *testing.T) {
+	var first, second Controls
+	state := first.NewTable()
+	rows := []table.Row{{ID: "one", Cells: []string{"First"}}, {ID: "two", Cells: []string{"Second"}}}
+	first.PresentDialog(Dialog{Title: "First", Table: &Table{State: state, Rows: rows, Selected: "two"}})
+	firstDialog := first.DialogID()
+	second.PresentDialog(Dialog{Title: "Second", Table: &Table{State: state, Rows: []table.Row{{ID: "other", Cells: []string{"Other"}}}}})
+	if first.TableSelection(state) != "two" || second.TableSelection(state) != "" || second.TableSelectedID(second.DialogID()) != "other" {
+		t.Fatal("foreign table handle shared navigation or records")
+	}
+	if second.UpdateTable(firstDialog, "foreign", nil, nil) || second.SyncTableFocus(firstDialog, false) {
+		t.Fatal("foreign dialog changed another controls owner")
+	}
+	if first.TableSelectedID(firstDialog) != "two" {
+		t.Fatal("second owner mutated the first table")
 	}
 }

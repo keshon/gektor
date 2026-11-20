@@ -10,21 +10,20 @@ import (
 )
 
 func (m *Model) openPermissions() {
-	rows := []table.Row{}
+	m.openPermissionTable(m.chrome.NewTable())
+}
+
+func (m *Model) openPermissionTable(view screen.TableID) {
+	rows := make([]table.Row, 0, len(m.policyDetails))
 	for i, rule := range m.policyDetails {
 		rows = append(rows, table.Row{ID: strconv.Itoa(i), Cells: []string{strconv.Itoa(i + 1), rule.Effect.String(), rule.Tool, rule.Pattern}})
 	}
-	view := m.chrome.NewTable()
-	view.SetRows(rows)
-	m.openPermissionTable(view)
-}
 
-func (m *Model) openPermissionTable(view *table.Model) {
-	m.chrome.PresentDialog(screen.Dialog{Title: "Permissions", Table: &screen.Table{Model: view,
+	m.chrome.PresentDialog(screen.Dialog{Title: "Permissions", Table: &screen.Table{State: view, Rows: rows,
 		Columns:     []table.Column{{Label: "Order", Width: 5}, {Label: "Decision", Width: 8}, {Label: "Tool", Width: 18}, {Label: "Pattern"}},
 		Description: "Later matching rules take precedence. Plan uses read-only tools. Act follows rules and approval prompts. This view does not change permissions.",
 		Actions: []table.Action{
-			{ID: "details", Label: "Details", Key: "enter", Enabled: view.Selected() != ""},
+			{ID: "details", Label: "Details", Key: "enter", Enabled: len(rows) > 0},
 			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
 		},
 	}})
@@ -32,9 +31,9 @@ func (m *Model) openPermissionTable(view *table.Model) {
 	m.permissionDialog = m.chrome.DialogID()
 }
 
-type permissionTableMsg struct{ view *table.Model }
+type permissionTableMsg struct{ view screen.TableID }
 
-func (m *Model) permissionAction(view *table.Model, action, id string) tea.Cmd {
+func (m *Model) permissionAction(view screen.TableID, action, id string) tea.Cmd {
 	if action != "details" {
 		return nil
 	}

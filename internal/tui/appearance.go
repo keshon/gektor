@@ -15,12 +15,10 @@ import (
 func (m *Model) persistTheme(name string) error { return m.application.SaveTheme(name) }
 
 func (m *Model) openTheme() {
-	m.openForm(screen.Form{
-		Title:      "Theme",
-		Hint:       "Applies immediately to both modes and is remembered for future launches.",
-		ApplyLabel: "Apply",
-		Fields:     []form.Field{{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name, Multiline: false}},
-	}, func(v map[string]string) error {
+	f := themeChoiceForm()
+	f.Title = "Theme"
+	f.Fields = []form.Field{{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name}}
+	m.openForm(f, func(v map[string]string) error {
 		name := v["theme"]
 		if !config.ValidTheme(name) {
 			return fmt.Errorf("choose a theme from the list")
@@ -32,16 +30,18 @@ func (m *Model) openTheme() {
 		m.applyTheme(name)
 		return nil
 	})
-	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames()}
-	m.prepareThemeChoice()
 }
 
 // openAppearance stages presentation choices and saves them together on Apply.
 func (m *Model) openAppearance() {
-	m.openForm(screen.Form{Title: "Appearance", Hint: "Applies immediately to both modes and is remembered for future launches.", ApplyLabel: "Apply", Fields: []form.Field{
+	f := themeChoiceForm()
+	f.Title = "Appearance"
+	f.Fields = []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
 		{Key: "frame", Label: "Panel frame", Value: m.agent.Appearance().Frame},
-	}}, func(values map[string]string) error {
+	}
+	f.Choices["frame"] = []string{"outlined", "minimal"}
+	m.openForm(f, func(values map[string]string) error {
 		theme, frame := values["theme"], values["frame"]
 		if !config.ValidTheme(theme) {
 			return fmt.Errorf("choose a theme from the list")
@@ -62,8 +62,6 @@ func (m *Model) openAppearance() {
 		m.applyTheme(theme)
 		return nil
 	})
-	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames(), "frame": {"outlined", "minimal"}}
-	m.prepareThemeChoice()
 }
 
 func (m *Model) applyTheme(name string) {
@@ -115,13 +113,16 @@ func (m *Model) applicationAction(command string) bool {
 	return false
 }
 
-func (m *Model) prepareThemeChoice() {
+func themeChoiceForm() screen.Form {
 	labels := map[string]string{}
 	for _, name := range config.ThemeNames() {
 		labels[name] = settings.ChoiceLabel("theme", name)
 	}
-	f := m.chrome.Dialog.Form
-	f.Labels = map[string]map[string]string{"theme": labels}
-	f.InlineChoices = map[string]int{"theme": len(labels)}
-	f.NoSearchFields = map[string]bool{"theme": true}
+	return screen.Form{
+		Hint: "Applies immediately to both modes and is remembered for future launches.", ApplyLabel: "Apply",
+		Choices:        map[string][]string{"theme": config.ThemeNames()},
+		Labels:         map[string]map[string]string{"theme": labels},
+		InlineChoices:  map[string]int{"theme": len(labels)},
+		NoSearchFields: map[string]bool{"theme": true},
+	}
 }

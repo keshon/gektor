@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -63,9 +64,9 @@ func processModel(t *testing.T) (*Model, string) {
 func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	m, id := processModel(t)
 	m.command("/processes")
-	view := m.chrome.Dialog.Table.Model
-	if view.Selected() != id {
-		t.Fatal(view.Rows)
+	view := m.processTable
+	if m.chrome.TableSelection(view) != id {
+		t.Fatal(m.chrome.TableSnapshot(m.chrome.DialogID()).Rows)
 	}
 	m.confirmStopProcess(id, view)
 	if !m.chrome.Dialog.Form.Destructive || m.chrome.Dialog.Form.Index != 1 {
@@ -109,8 +110,8 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 
 func TestProcessManagerOutputReturnAndLateCompletion(t *testing.T) {
 	m, id := processModel(t)
-	m.openProcesses(nil)
-	view := m.chrome.Dialog.Table.Model
+	m.openProcesses(screen.TableID{})
+	view := m.processTable
 	m.inspectProcess(id, view)
 	if text := strings.Join(m.chrome.Dialog.Lines, "\n"); !strings.Contains(text, "Workspace:") || !strings.Contains(text, "managed output marker") {
 		t.Fatal(m.chrome.Dialog.Lines)
@@ -118,7 +119,7 @@ func TestProcessManagerOutputReturnAndLateCompletion(t *testing.T) {
 	m.chrome.Close()
 	m.syncControls()
 	m.testUpdate(processListMsg{view})
-	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != id {
+	if m.chrome.Dialog.Table == nil || m.chrome.TableSelectedID(m.chrome.DialogID()) != id {
 		t.Fatal("return lost process selection")
 	}
 	m.chrome.Dialog = nil
@@ -145,8 +146,8 @@ func TestProcessManagerEmptyAndMenus(t *testing.T) {
 	if !found {
 		t.Fatal("process manager missing from Run menu")
 	}
-	m.openProcesses(nil)
-	if len(m.chrome.Dialog.Table.Model.Rows) != 0 {
+	m.openProcesses(screen.TableID{})
+	if len(m.chrome.TableSnapshot(m.chrome.DialogID()).Rows) != 0 {
 		t.Fatal("showed foreign process")
 	}
 	for _, width := range []int{40, 80, 120} {

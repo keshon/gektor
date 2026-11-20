@@ -37,7 +37,7 @@ func (m *Model) openMCP() {
 		return
 	}
 	view := m.chrome.NewTable()
-	if m.mcpTable != nil {
+	if m.mcpTable != (screen.TableID{}) {
 		view = m.mcpTable
 	}
 	statuses := map[string]mcpmanager.Status{}
@@ -66,15 +66,14 @@ func (m *Model) openMCP() {
 		}
 		rows = append(rows, table.Row{ID: server.ID, Cells: []string{server.ID, state, origin, fmt.Sprint(server.Tools), server.Description}})
 	}
-	view.SetRows(rows)
-	m.chrome.PresentDialog(screen.Dialog{Title: "MCP servers", Table: &screen.Table{Model: view,
+	m.chrome.PresentDialog(screen.Dialog{Title: "MCP servers", Table: &screen.Table{State: view, Rows: rows,
 		Columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Origin", Width: 10, HideNarrow: true}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
 		Description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
-		Actions:     m.mcpActions(view, statuses),
 	}})
 
 	m.mcpTable = view
 	m.mcpDialog = m.chrome.DialogID()
+	m.chrome.SetTableActions(m.mcpDialog, m.mcpActions(view, statuses))
 }
 
 func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
@@ -323,8 +322,8 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) mcpActions(view *table.Model, statuses map[string]mcpmanager.Status) []table.Action {
-	selected := view.Selected()
+func (m *Model) mcpActions(view screen.TableID, statuses map[string]mcpmanager.Status) []table.Action {
+	selected := m.chrome.TableSelection(view)
 	status, exists := statuses[selected]
 	idle := m.state == stDone && m.evaluation == nil && !m.mcpBusy
 	connection, label := "connect", "Connect"

@@ -3,13 +3,13 @@ package agent
 import (
 	"testing"
 
-	"github.com/keshon/gektor/internal/tui/components/table"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestHiddenAgentResultsCannotReplaceApplicationOverlay(t *testing.T) {
 	for _, result := range []any{
 		sessionCopiedMsg{label: "Session ID", text: "original"},
-		processListMsg{view: &table.Model{}},
+		processListMsg{view: screen.TableID{}},
 		mcpDoneMsg{},
 	} {
 		m := sizeModel(t, testModel())

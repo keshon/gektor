@@ -33,18 +33,7 @@ func toolSettingsModel(t *testing.T) *Model {
 
 func chooseTool(t *testing.T, m *Model, id, action string) {
 	t.Helper()
-	view := m.chrome.Dialog.Table.Model
-	found := false
-	for i, row := range view.Rows {
-		if row.ID == id {
-			view.Cursor = i
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatal("missing row", id)
-	}
+	selectTableRow(t, m, id)
 	m.chrome.TableAction(action)
 	m.settleControls()
 }
@@ -589,7 +578,8 @@ func TestSessionToolControlsPersistAndKeepConversationHistory(t *testing.T) {
 			t.Fatal("change did not return to inventory")
 		}
 	}
-	m.chrome.Dialog.Table.Model.Search.SetValue("Web")
+	m.Update(tea.KeyPressMsg{Code: '/'})
+	m.Update(tea.PasteMsg{Content: "Web"})
 	change("load")
 	var found bool
 	for _, set := range m.toolsets {
@@ -600,7 +590,7 @@ func TestSessionToolControlsPersistAndKeepConversationHistory(t *testing.T) {
 	if !found {
 		t.Fatal("load status missing")
 	}
-	if m.chrome.Dialog.Table.Model.Search.Value() != "Web" {
+	if m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "Web" {
 		t.Fatal("loading lost filter")
 	}
 	change("unload")
@@ -659,11 +649,7 @@ func TestToolsInventoryPreview(t *testing.T) {
 			m.launch.Env.Capabilities = []*extension.Capability{{ID: "browser", Source: "browser:chrome", Description: "Browser automation"}, {ID: "yougile", Description: "Project tasks"}}
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			m.openTools()
-			for i, row := range m.chrome.Dialog.Table.Model.Rows {
-				if row.ID == "native_web" {
-					m.chrome.Dialog.Table.Model.Cursor = i
-				}
-			}
+			selectTableRow(t, m, "native_web")
 			cmd := m.toolAction(screen.Event{Row: "native_web", Action: "load"})
 			if cmd == nil {
 				t.Fatal("load unavailable")
@@ -690,4 +676,17 @@ func TestToolsInventoryPreview(t *testing.T) {
 			}
 		}
 	}
+}
+
+func selectTableRow(t *testing.T, m *Model, id string) {
+	t.Helper()
+	snapshot := m.chrome.TableSnapshot(m.chrome.DialogID())
+	m.Update(tea.KeyPressMsg{Code: tea.KeyHome, Mod: tea.ModCtrl})
+	for range len(snapshot.Rows) {
+		if m.chrome.TableSelectedID(m.chrome.DialogID()) == id {
+			return
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	}
+	t.Fatal("missing selectable row", id)
 }

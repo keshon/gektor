@@ -10,6 +10,7 @@ import (
 )
 
 func (m *Model) stagedSettings() (config.Profile, error) {
+	m.preparePreferences()
 	m.preferences.StorePage()
 	return m.preferences.EditSession.Draft.Resolve()
 }
@@ -17,17 +18,17 @@ func (m *Model) stagedSettings() (config.Profile, error) {
 func (m *Model) saveSettingsCopy() {
 	p, err := m.stagedSettings()
 	if err != nil {
-		m.chrome.Dialog.Form.Error = err.Error()
+		m.chrome.FormFeedback(m.preferencesDialog, err.Error())
 		return
 	}
 	name := "custom"
-	for _, field := range m.chrome.Dialog.Form.Fields {
+	for _, field := range m.preferences.Fields {
 		if field.Key == "profile-name" {
 			name = strings.TrimSpace(field.Value)
 		}
 	}
 	if name == "" || strings.ContainsAny(name, "/\\:") || name == "." || name == ".." {
-		m.chrome.Dialog.Form.Error = "Use a profile name without directory separators"
+		m.chrome.FormFeedback(m.preferencesDialog, "Use a profile name without directory separators")
 		return
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".json") {
@@ -37,10 +38,10 @@ func (m *Model) saveSettingsCopy() {
 	root := filepath.Join(filepath.Dir(exe), "profiles")
 	path := filepath.Join(root, name)
 	if err := config.SaveCopy(p, path); err != nil {
-		m.chrome.Dialog.Form.Error = err.Error()
+		m.chrome.FormFeedback(m.preferencesDialog, err.Error())
 		return
 	}
-	m.chrome.Dialog.Form.Error = "Saved copy: " + path
+	m.chrome.FormFeedback(m.preferencesDialog, "Saved copy: "+path)
 }
 
 func (m *Model) saveCustomSettings(profile config.Profile) error {
@@ -60,7 +61,7 @@ func (m *Model) saveCustomSettings(profile config.Profile) error {
 // customProfileTarget reports where a changed form should be saved: the
 // custom directory, and the currently loaded profile to reuse its name.
 func (m *Model) customProfileTarget() (dir, source string, ok bool) {
-	if m.application == nil || m.application.PreferencePath == "" || m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || (m.preferences == nil || m.preferences.EditSession == nil) {
+	if m.application == nil || m.application.PreferencePath == "" || m.chrome.DialogID() != m.preferencesDialog || (m.preferences == nil || m.preferences.EditSession == nil) {
 		return "", "", false
 	}
 	ws := m.preferences.EditSession

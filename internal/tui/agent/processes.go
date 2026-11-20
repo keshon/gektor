@@ -15,14 +15,14 @@ import (
 	"github.com/keshon/gektor/internal/tui/screen"
 )
 
-type processListMsg struct{ view *table.Model }
+type processListMsg struct{ view screen.TableID }
 type processStopMsg struct {
 	id   string
-	view *table.Model
+	view screen.TableID
 }
 type processStoppedMsg struct {
 	dialog screen.DialogID
-	view   *table.Model
+	view   screen.TableID
 	id     string
 	err    error
 }
@@ -43,11 +43,11 @@ func processStatus(p toolbackground.Process) string {
 	return "Running"
 }
 
-func (m *Model) openProcesses(view *table.Model) {
-	if view == nil {
+func (m *Model) openProcesses(view screen.TableID) {
+	if view == (screen.TableID{}) {
 		view = m.chrome.NewTable()
 	}
-	m.chrome.PresentDialog(screen.Dialog{Title: "Background processes", Table: &screen.Table{Model: view,
+	m.chrome.PresentDialog(screen.Dialog{Title: "Background processes", Table: &screen.Table{State: view,
 		Columns:      []table.Column{{Label: "ID", Width: 6}, {Label: "Status", Width: 10}, {Label: "PID", Width: 7, HideNarrow: true}, {Label: "Session", Width: 10, HideNarrow: true}, {Label: "Command"}},
 		Description:  "This GEKTOR launch only. Closing GEKTOR or applying settings stops these processes. Details include workspace and captured output.",
 		EmptyMessage: "No managed background processes in this launch.",
@@ -58,11 +58,11 @@ func (m *Model) openProcesses(view *table.Model) {
 	m.refreshProcesses(view)
 }
 
-func (m *Model) returnToProcesses(view *table.Model) {
+func (m *Model) returnToProcesses(view screen.TableID) {
 	m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return processListMsg{view} })
 }
 
-func (m *Model) inspectProcess(id string, view *table.Model) {
+func (m *Model) inspectProcess(id string, view screen.TableID) {
 	p, output, err := m.baseEnv.Procs.Inspect(id)
 	if err != nil {
 		m.chrome.Open("Background process", []string{err.Error()})
@@ -79,7 +79,7 @@ func (m *Model) inspectProcess(id string, view *table.Model) {
 	m.rememberReturn(dialogReturn{processes: view})
 }
 
-func (m *Model) confirmStopProcess(id string, view *table.Model) {
+func (m *Model) confirmStopProcess(id string, view screen.TableID) {
 	p, _, err := m.baseEnv.Procs.Inspect(id)
 	if err != nil || p.Exited || p.PID == 0 {
 		m.openProcesses(view)
@@ -111,7 +111,7 @@ func (m *Model) stopProcess(msg processStopMsg) tea.Cmd {
 	})
 }
 
-func (m *Model) refreshProcesses(view *table.Model) {
+func (m *Model) refreshProcesses(view screen.TableID) {
 	statuses := map[string]toolbackground.Process{}
 
 	rows := []table.Row{}
@@ -132,8 +132,8 @@ func (m *Model) refreshProcesses(view *table.Model) {
 	}
 }
 
-func (m *Model) processActions(view *table.Model, statuses map[string]toolbackground.Process) []table.Action {
-	p, exists := statuses[view.Selected()]
+func (m *Model) processActions(view screen.TableID, statuses map[string]toolbackground.Process) []table.Action {
+	p, exists := statuses[m.chrome.TableSelection(view)]
 	return []table.Action{
 		{ID: "details", Label: "Output", Key: "enter", Enabled: exists},
 		{ID: "stop", Label: "Stop…", Key: "s", Enabled: exists && !p.Exited && p.PID > 0, Destructive: true},
@@ -142,7 +142,7 @@ func (m *Model) processActions(view *table.Model, statuses map[string]toolbackgr
 	}
 }
 
-func (m *Model) processAction(view *table.Model, action, id string) tea.Cmd {
+func (m *Model) processAction(view screen.TableID, action, id string) tea.Cmd {
 	switch action {
 	case "refresh":
 		m.refreshProcesses(view)

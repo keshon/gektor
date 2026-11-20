@@ -11,14 +11,14 @@ func (m *Controls) DialogActions() []Action {
 	if m.Dialog != nil && m.Dialog.Table != nil {
 		props := m.TableProps()
 
-		usable := m.Dialog.Table.Model.Layout(props).Capacity > 0
+		usable := m.Dialog.Table.model.Layout(props).Capacity > 0
 		enter := Action{Key: tea.KeyEnter, Mod: 0, Name: "Enter", Label: "Choose", Short: "Choose", Enabled: false}
 		for _, action := range props.Actions {
 			if action.ID == props.DefaultAction {
 				enter.Label, enter.Short, enter.Enabled = action.Label, action.Label, action.Enabled
 			}
 		}
-		if usable && m.Dialog.Table.Model.MoreOpen {
+		if usable && m.Dialog.Table.model.MoreOpen {
 			return []Action{{Key: tea.KeyEnter, Mod: 0, Name: "Enter", Label: "Choose", Short: "Choose", Enabled: true}, {Key: tea.KeyEscape, Mod: 0, Name: "Esc", Label: "Back", Short: "Back", Enabled: true}, {Key: 'q', Mod: tea.ModCtrl, Name: "Ctrl+Q", Label: "Quit", Short: "Quit", Enabled: true}}
 		}
 		if !usable {

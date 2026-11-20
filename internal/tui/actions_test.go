@@ -20,7 +20,7 @@ func TestActionsOpenAndDispatchThroughBothScreens(t *testing.T) {
 		if dialog == nil || m.chrome.DialogID() != m.actionsDialog || dialog.Table == nil {
 			t.Fatal("Actions did not open")
 		}
-		dialog.Table.Model.Search.SetValue("Appearance")
+		m.Update(tea.PasteMsg{Content: "Appearance"})
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 		if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Title != "Appearance" {
 			t.Fatal("selected action did not open Appearance")

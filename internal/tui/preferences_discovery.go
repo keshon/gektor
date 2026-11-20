@@ -9,28 +9,56 @@ import (
 
 	"github.com/keshon/gektor/internal/app"
 	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
+
+type settingsDiscovery struct {
+	dialog screen.DialogID
+	picker fieldform.RequestID
+	cancel context.CancelFunc
+}
+
+func (m *Model) cancelSettingsDiscovery() {
+	if m.settingsDiscovery != nil {
+		m.settingsDiscovery.cancel()
+		m.settingsDiscovery = nil
+	}
+}
+
+func (m *Model) syncSettingsDiscovery() {
+	job := m.settingsDiscovery
+	if job == nil {
+		return
+	}
+	snapshot, ok := m.chrome.FormSnapshot(job.dialog)
+	if !ok || !snapshot.PickerOpen || snapshot.PickerID != job.picker {
+		m.cancelSettingsDiscovery()
+	}
+}
 
 // discoverSettings admits only the current picker request. The effect captures
 // values and the launch context, never the mutable form or application model.
 func (m *Model) discoverSettings(request fieldform.DiscoveryRequest) tea.Cmd {
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
-		return nil
-	}
-	picker := m.chrome.Dialog.Form.Picker
-	if picker == nil || picker.ID != request.ID {
+	snapshot, ok := m.chrome.FormSnapshot(m.preferencesDialog)
+	if !ok || !snapshot.PickerOpen || snapshot.PickerID != request.ID {
 		return nil
 	}
 
 	if m.preferences == nil || m.preferencesDialog != m.chrome.DialogID() {
 		return nil
 	}
+	if job := m.settingsDiscovery; job != nil && job.dialog == m.preferencesDialog && job.picker == request.ID {
+		return nil
+	}
 	provider, providerErr := m.preferences.Provider(request)
 	if providerErr != nil {
 		return func() tea.Msg { return fieldform.ScanMsg{ID: request.ID, Err: providerErr} }
 	}
-	ctx := m.base
+	m.cancelSettingsDiscovery()
+	ctx, stop := context.WithCancel(m.base)
+	m.settingsDiscovery = &settingsDiscovery{dialog: m.preferencesDialog, picker: request.ID, cancel: stop}
 	return func() tea.Msg {
+		defer stop()
 		discovery, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		options := app.BackendOptions{

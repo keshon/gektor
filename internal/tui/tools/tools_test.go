@@ -49,7 +49,7 @@ func toolsFixture(t *testing.T) (*Model, string) {
 func TestOpeningAndSavingPreferencesNeverRunsExecutable(t *testing.T) {
 	model, marker := toolsFixture(t)
 	view := model.Media(true)
-	if len(view.Table.Model.Rows) != 5 {
+	if len(view.Table.Rows) != 5 {
 		t.Fatal("missing dependencies")
 	}
 	_, err := model.Preferences("ffmpeg")

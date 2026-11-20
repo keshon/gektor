@@ -89,6 +89,18 @@ func (m *Model) Selected() string {
 	return rows[min(max(m.Cursor, 0), len(rows)-1)].ID
 }
 
+// Select chooses a visible row by stable identity. Rows excluded by the current
+// filter cannot be selected; a missing identity leaves navigation unchanged.
+func (m *Model) Select(id string) bool {
+	for i, row := range m.filtered() {
+		if row.ID == id {
+			m.Cursor = i
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Model) SetRows(rows []Row) {
 	id := m.Selected()
 	m.Rows = rows

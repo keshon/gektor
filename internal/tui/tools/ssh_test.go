@@ -17,7 +17,7 @@ func TestSSHPreferencesPreserveReferencesWithoutResolvingSecrets(t *testing.T) {
 	model.SSHProfiles = ssh.Profiles{Path: filepath.Join(t.TempDir(), "ssh.json")}
 	values := map[string]string{"name": "dev", "host": "example.com", "port": "22", "user": "tester", "known_hosts": filepath.Join(t.TempDir(), "known_hosts"), "auth": "Password", "advanced": "Yes", "password_source": "Environment variable", "password_env": "MISSING_SSH_PASSWORD"}
 	view := model.SSH(true)
-	if len(view.Table.Model.Rows) != 0 || !view.Table.Actions[0].Enabled {
+	if len(view.Table.Rows) != 0 || !view.Table.Actions[0].Enabled {
 		t.Fatal("empty setup cannot add a connection")
 	}
 	_, err := model.SSHPreferences("")

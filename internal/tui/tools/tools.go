@@ -9,7 +9,6 @@ import (
 	"time"
 	"unicode"
 
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -100,19 +99,13 @@ func (m *Model) Accept(result CheckResult) bool {
 	return true
 }
 
-func newTable(rows []table.Row) *table.Model {
-	model := table.New(screen.TextInputStyles(textinput.New().Styles()))
-	model.SetRows(rows)
-	return model
-}
-
 func Inventory(sets []app.Toolset) screen.Dialog {
 	rows := make([]table.Row, 0, len(sets))
 	for _, set := range sets {
 		rows = append(rows, table.Row{ID: set.ID, Cells: []string{clean(set.Name), set.Group, set.Loading, set.Status}})
 	}
 	return screen.Dialog{Title: "Tools", Table: &screen.Table{
-		Model: newTable(rows), Columns: []table.Column{{Label: "Toolset", Width: 18}, {Label: "Source", Width: 12, HideNarrow: true}, {Label: "Loading", Width: 12, HideNarrow: true}, {Label: "Status", Width: 12}},
+		Rows: rows, Columns: []table.Column{{Label: "Toolset", Width: 18}, {Label: "Source", Width: 12, HideNarrow: true}, {Label: "Loading", Width: 12, HideNarrow: true}, {Label: "Status", Width: 12}},
 		Description: "Choose which tools this conversation can use.",
 		Actions:     []table.Action{{ID: "details", Label: "Details", Key: "enter", Enabled: true}},
 	}}
@@ -173,7 +166,7 @@ func (m *Model) Media(editable bool) screen.Dialog {
 		rows = append(rows, table.Row{ID: name, Cells: []string{name, clean(state), clean(path)}})
 	}
 	return screen.Dialog{Title: "Media executables", Table: &screen.Table{
-		Model: newTable(rows), Columns: []table.Column{{Label: "Program", Width: 10}, {Label: "Check", Width: 12}, {Label: "Path"}}, Description: description,
+		Rows: rows, Columns: []table.Column{{Label: "Program", Width: 10}, {Label: "Check", Width: 12}, {Label: "Path"}}, Description: description,
 		Actions: []table.Action{{ID: "operations", Label: "Operations", Key: "o", Enabled: true}, {ID: "details", Label: "Preferences", Key: "enter", Enabled: editable && m.checking == "" && err == nil}, {ID: "check", Label: "Check executable", Key: "c", Enabled: m.checking == "" && err == nil}},
 	}}
 }

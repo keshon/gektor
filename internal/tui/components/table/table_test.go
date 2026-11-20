@@ -229,3 +229,17 @@ func TestTableDescriptionCanWrapBeyondThreeLines(t *testing.T) {
 		t.Fatalf("wrapped description displaced the table: capacity=%d height=%d", layout.Capacity, len(layout.Rows)+2)
 	}
 }
+
+func TestSelectUsesVisibleStableIdentity(t *testing.T) {
+	model := New(textinput.New().Styles())
+	model.SetRows([]Row{{ID: "hidden", Cells: []string{"Other"}}, {ID: "first", Cells: []string{"Record one"}}, {ID: "second", Cells: []string{"Record two"}}})
+	model.Search.SetValue("record")
+	if !model.Select("second") || model.Selected() != "second" || model.Cursor != 1 {
+		t.Fatal("selection used source order instead of filtered identity")
+	}
+	for _, missing := range []string{"hidden", "missing"} {
+		if model.Select(missing) || model.Selected() != "second" {
+			t.Fatal("invisible row changed selection", missing)
+		}
+	}
+}

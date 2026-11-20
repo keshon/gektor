@@ -95,6 +95,78 @@ Automated coverage in `internal/tui/agent/session_workspace_test.go` checks 40- 
 confirmation cancellation, and a refresh that removes or reorders a session.
 These tests exercise state and layout, not native terminal input.
 
+## Native interaction review with a scripted backend
+
+The same helper also provides deterministic interaction cases. Run it manually
+in a native terminal after building GEKTOR. It uses ordinary production chat
+streaming, `read_file`, permission gates, message queues and workflow execution;
+the helper supplies only local backend responses and temporary fixture data.
+The child starts in temporary workspace B. No real model endpoint is contacted.
+
+```text
+go run scripts/tui-smoke.go -binary bin/gektor.exe -delay 1s
+```
+
+`smoke stream` emits 20 flushed chunks, taking approximately 20 seconds at this
+delay. Other messages retain the immediate `Local smoke reply.` behavior. The
+tool cases select responses from the latest user turn, so they can be repeated
+or used in different sessions. After tool results arrive, the backend ends the
+turn without repeating the tool calls. Its final text does not assert that a
+permission was allowed; inspect the actual result.
+
+Perform each check at 120×40 and 80×24, then at 40×20. Include dark and light
+themes with minimal and outlined frames using Appearance. Repeat palette-specific
+checks for One Half and Solarized where those palettes are part of the release
+review. Resizing during an open dialog is part of the check.
+
+1. Send `smoke stream`. Confirm text arrives incrementally and transcript scrolling
+   remains responsive. Scroll away from the bottom and return with Ctrl+End.
+2. During another stream, send a plain follow-up such as `queued smoke message`.
+   Open the message queue with Alt+Q while the stream is still active. Inspect its
+   waiting/received state; edit or remove only a waiting message. Close the queue
+   and verify the actual submitted follow-up appears once when received. Repeat
+   with a removed follow-up and verify it is never received.
+3. Start another stream and stop it with Esc. Confirm generation stops and a new
+   message can run. Repeat while a queue inspection dialog is open: close the
+   dialog first, then stop the run. Test quit protection separately with Ctrl+Q.
+4. Send `smoke tools`. This produces two adjacent ordinary `read_file` calls for
+   `smoke-one.txt` and `smoke-two.txt`. Retain the single packed badge row at normal
+   widths, and inspect each badge separately. Each target must open its own file
+   path and result; closing inspection must return to the same chat position.
+   At narrow widths, verify both targets remain reachable without clipping controls.
+5. Send `smoke allow`. The read targets `smoke-allow.env`, whose contents are only
+   `SMOKE_VALUE=allow-fixture-only`. Shipping policy asks because its name ends in
+   `.env`. Choose Allow once; inspect the successful read result.
+6. Send `smoke deny`. Deny the analogous harmless read of `smoke-deny.env`; inspect
+   its permission-denied result. Repeat and cancel the prompt to verify denial
+   and recovery. Keep Ask permission selected; Full access or an Allow for session
+   grant can bypass later prompts and invalidate this check.
+7. Open `/workflows`, then Ctrl+O and enter `smoke-workflow.json`. Inspect and edit
+   its transform node, cancel an edit, and confirm the draft is preserved. Validate
+   and run the fixture through the normal forms. Its sole script operation returns
+   `input + 1` for input 2; it has no external operation or model dependency.
+8. Open saved workflow runs with H, inspect the completed run, and return to the
+   draft with D. Check form focus, inspector scrolling and dialog cancellation
+   while resizing, then return to chat and confirm its position is retained.
+
+Record terminal application/version, OS, binary revision, dimensions, theme/frame,
+case, expected/observed behavior and pass/fail for each native attempt. Unperformed
+cases remain pending. The helper prints request counts for troubleshooting; those
+counts and its protocol tests do not establish native acceptance or LLM performance.
+
+The helper is excluded from ordinary package discovery by its build constraint.
+Run its offline protocol/service tests explicitly:
+
+```text
+go test -race scripts/tui-smoke.go scripts/tui-smoke_test.go
+go build -o work/tui-smoke.exe scripts/tui-smoke.go
+```
+
+These tests exercise the production OpenAI-compatible client with streaming and
+nonstreaming tool calls, tool-result termination, default Ask policy, stream
+cancellation and the fixture's real workflow service. They do not operate a
+terminal or record a native visual/input verdict.
+
 ## Lazy calls and request attribution
 
 Activated tools expose their schemas directly and use the ordinary registry

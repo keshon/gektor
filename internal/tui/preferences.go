@@ -18,7 +18,7 @@ func (m *Model) editSettings(section string) {
 	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() && m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
 		ws = m.preferences.EditSession
 		if ws != nil {
-			m.preferences.Prepare()
+			m.preparePreferences()
 			m.preferences.StorePage()
 		}
 	}
@@ -46,12 +46,16 @@ func (m *Model) editSettings(section string) {
 	if m.chrome.Dialog != nil {
 		m.chrome.Close()
 	}
+	saved := ws.Draft.Visit(section, fields)
 	m.openForm(screen.Form{
-		Title:      title,
-		Hint:       settings.Hint(section),
-		ApplyLabel: "Apply",
-		Fields:     fields,
+		Title:       "Settings / " + title,
+		DialogTitle: "Settings",
+		SaveCopy:    true,
+		Hint:        settings.Hint(section),
+		ApplyLabel:  "Apply",
+		Fields:      saved,
 	}, func(_ map[string]string) error {
+		m.preparePreferences()
 		m.preferences.StorePage()
 		profile, err := ws.Draft.Resolve()
 		if err != nil {
@@ -63,14 +67,20 @@ func (m *Model) editSettings(section string) {
 		// reads the old one must not keep running against the new.
 		return m.requestProfileChange(profile)
 	})
-	m.chrome.Dialog.Form.SaveCopy = true
-	m.preferences = &settings.Model{Model: &m.chrome.Dialog.Form.Model, EditSession: ws}
+	m.preferences = &settings.Model{EditSession: ws}
 	m.preferencesDialog = m.chrome.DialogID()
-	m.preferences.Prepare()
-	saved := ws.Draft.Visit(section, fields)
-	m.chrome.Dialog.Form.Fields = saved
-	m.chrome.Dialog.Form.Index = len(saved)
+	m.preparePreferences()
 	m.chrome.FocusForm(0)
-	m.chrome.Dialog.Title = "Settings"
-	m.chrome.Dialog.Form.Title = "Settings / " + title
+}
+
+// preparePreferences supplies copied domain presentation to the controls-owned draft.
+func (m *Model) preparePreferences() {
+	if m.preferences == nil {
+		return
+	}
+	snapshot, ok := m.chrome.FormSnapshot(m.preferencesDialog)
+	if !ok {
+		return
+	}
+	m.chrome.ConfigureForm(m.preferencesDialog, m.preferences.Prepare(snapshot))
 }

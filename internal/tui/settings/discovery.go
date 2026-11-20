@@ -36,22 +36,9 @@ func (f *Model) Provider(request fieldform.DiscoveryRequest) (config.Provider, e
 	return profile.Provider, nil
 }
 
-// DetailCommand keeps profile decoding outside the shared filesystem picker.
-func (f *Model) DetailCommand() tea.Cmd {
-	p := f.Picker
-	if p == nil || p.Field != "load-profile" {
-		return f.Model.DetailCommand()
-	}
-	if p.Loading || len(p.Filtered) == 0 {
-		return nil
-	}
-	path := p.Filtered[p.Cursor]
-	if p.DetailPath == path {
-		return nil
-	}
-	p.DetailPath, p.Detail = path, ""
-	id := p.ID
+// ProfileDetail decodes a copied profile selection outside the update loop.
+func ProfileDetail(request fieldform.DetailRequest) tea.Cmd {
 	return func() tea.Msg {
-		return fieldform.DetailMsg{ID: id, Path: path, Text: CatalogDetail("load-profile", path)}
+		return fieldform.DetailMsg{ID: request.ID, Path: request.Path, Text: CatalogDetail("load-profile", request.Path)}
 	}
 }

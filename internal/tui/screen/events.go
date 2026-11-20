@@ -96,7 +96,7 @@ func (m *Controls) Prepare() {
 		m.refreshSecret()
 	}
 	if m.Dialog != nil && m.Dialog.Table != nil {
-		search := &m.Dialog.Table.Model.Search
+		search := &m.Dialog.Table.model.Search
 		search.SetStyles(m.palette().TextInputStyles(search.Styles()))
 	}
 }

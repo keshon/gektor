@@ -14,7 +14,7 @@ func TestChatGPTSettingsHideUnsupportedFieldsAndRoundTrip(t *testing.T) {
 	p.Provider = config.Provider{Kind: "chatgpt", URL: "https://api.openai.com/v1", Model: "test-model"}
 	for _, section := range []string{"model", "generation"} {
 		_, fields := PageFields(p, section, config.Preferences{})
-		f := NewModel(fields, textarea.New())
+		f := newTestForm(fields, textarea.New())
 		f.EditSession = &EditSession{Draft: New(p), Section: section}
 		f.Fields = fields
 		f.EditSession.Draft.Visit(section, fields)
@@ -36,7 +36,7 @@ func TestChatGPTSettingsHideUnsupportedFieldsAndRoundTrip(t *testing.T) {
 	if got := SuggestedBackendURL("http://127.0.0.1:9931", "llama", "chatgpt"); got != p.Provider.URL {
 		t.Fatal(got)
 	}
-	f := NewModel(nil, textarea.New())
+	f := newTestForm(nil, textarea.New())
 	f.EditSession = &EditSession{Draft: New(p), Section: "model", AccountLabel: "connected@example.com"}
 	if !strings.Contains(f.note(), "connected@example.com") {
 		t.Fatal("account missing")

@@ -14,7 +14,7 @@ import (
 // Controls holds application-owned menu and overlay state. A shell supplies the
 // same controls to its screens; each screen retains its own execution state.
 // The shell drains events after input and coordinates focus with their owners.
-// Controls must not be copied after first use; dialog IDs belong to this owner.
+// Controls must not be copied after first use; IDs belong to this owner.
 type Controls struct {
 	Props  ControlProps
 	events []Event
@@ -91,7 +91,7 @@ type FormState struct {
 
 // TableState keeps presentation and stable-ID actions together for an overlay.
 type TableState struct {
-	Model                     *table.Model
+	model                     *table.Model
 	List                      bool
 	Columns                   []table.Column
 	Description, EmptyMessage string

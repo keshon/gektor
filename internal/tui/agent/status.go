@@ -24,13 +24,14 @@ func (m *Model) statusLine() string {
 			return m.controlHints(popup.Shortcut{Key: "Ctrl+S", Action: "save encrypted"}, popup.Shortcut{Key: "Esc", Action: "cancel"})
 		}
 		if m.chrome.Dialog.Table != nil {
+			table := m.chrome.TableSnapshot(m.chrome.DialogID())
 			if m.chrome.Dialog.Table.List {
 				return m.controlHints(popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "Esc", Action: "close"})
 			}
-			if m.chrome.Dialog.Table.Model.Layout(m.chrome.TableProps()).Capacity == 0 {
+			if table.Layout.Capacity == 0 {
 				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"})
 			}
-			if m.chrome.Dialog.Table.Model.MoreOpen {
+			if table.MoreOpen {
 				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"})
 			}
 			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "/", Action: "filter"}, popup.Shortcut{Key: "Tab", Action: "controls"})

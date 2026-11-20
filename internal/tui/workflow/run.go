@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/app"
@@ -175,7 +174,9 @@ func (m *Model) openRuns(runs []store.RunSummary) {
 	}
 	runs = append([]store.RunSummary(nil), runs...)
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].Started.After(runs[j].Started) })
-	view := table.New(textinput.New().Styles())
+	if m.runsTable == (screen.TableID{}) {
+		m.runsTable = m.dialogs.NewTable()
+	}
 	rows := make([]table.Row, 0, len(runs))
 	for _, run := range runs {
 		started := "Unknown"
@@ -184,10 +185,10 @@ func (m *Model) openRuns(runs []store.RunSummary) {
 		}
 		rows = append(rows, table.Row{ID: run.ID, Cells: []string{cleanText(nonEmpty(run.Name)), cleanText(run.Status), started, run.ID, cleanText(run.RecipePath)}})
 	}
-	view.SetRows(rows)
 	m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow runs", Lines: nil,
 		Table: &screen.Table{
-			Model:       view,
+			State:       m.runsTable,
+			Rows:        rows,
 			Columns:     []table.Column{{Label: "Recipe", Width: 14}, {Label: "Status", Width: 12}, {Label: "Started"}},
 			Description: "Saved runs in this workspace, newest first. Search by recipe, status, date or run ID. Open inspects a saved record; it does not run the recipe.",
 		},
@@ -240,13 +241,12 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		if r.action == "open-path" {
 			m.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
 			if m.active {
-				form := m.recipePath("open")
-				form.Editor.SetValue(r.path)
+				m.recipePath("open", r.path)
 				message := "Could not open recipe: " + r.err.Error()
 				if os.IsNotExist(r.err) {
 					message = "Recipe not found: " + r.path + ". Enter an existing path, or Esc then Ctrl+N to create one."
 				}
-				form.Error = message
+				m.dialogs.FormFeedback(m.dialogs.DialogID(), message)
 			}
 			return nil
 		}

@@ -35,7 +35,7 @@ func TestActionBrowserUsesMenuAvailabilityAndCommands(t *testing.T) {
 		{Text: "Delete record", Command: "record:delete", Enabled: false},
 	}}}}}
 	controls.OpenActions("")
-	model := controls.Dialog.Table.Model
+	model := controls.Dialog.Table.model
 	if len(model.Rows) != 1 || model.Rows[0].ID != "record:open" || model.Focus != 1 {
 		t.Fatal("browser ignored availability or menu command identity", model.Rows)
 	}
@@ -62,10 +62,11 @@ func TestExpandedReadingPreservesTableAndDialogScroll(t *testing.T) {
 	if controls.LayoutDialog().Inner != 76 {
 		t.Fatal("details did not restore normal width")
 	}
-	model := controls.NewTable()
+	state := controls.NewTable()
+	model := state.model
 	model.Rows = []table.Row{{ID: "stable", Cells: []string{"Record"}}}
 	model.Focus = 1
-	controls.PresentDialog(Dialog{Title: "Records", Table: &Table{Model: model}})
+	controls.PresentDialog(Dialog{Title: "Records", Table: &Table{State: state}})
 	controls.TableInput(tea.KeyPressMsg{Code: tea.KeyF11})
 	if model.Layout(controls.TableProps()).Width != 118 || model.Focus != 1 || model.Selected() != "stable" {
 		t.Fatal("expanding table lost context")

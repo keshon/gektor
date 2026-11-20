@@ -77,7 +77,7 @@ func TestCancelAndStaleDialogCannotSave(t *testing.T) {
 func TestRefreshRejectsStaleResultAndPreservesSelection(t *testing.T) {
 	m := newModel()
 	defer m.Close()
-	selected := m.rows.Selected()
+	selected := m.controls.TableSelection(m.rows)
 	first := m.startRefresh()
 	oldJob := m.pending
 	second := m.startRefresh()
@@ -88,8 +88,8 @@ func TestRefreshRejectsStaleResultAndPreservesSelection(t *testing.T) {
 	}
 	first()
 	m.Update(second())
-	if m.books[0].ID != "earthsea" || m.rows.Selected() != selected || m.pending != nil {
-		t.Fatalf("refresh lost order or selection: %#v, selected %q", m.books, m.rows.Selected())
+	if m.books[0].ID != "earthsea" || m.controls.TableSelection(m.rows) != selected || m.pending != nil {
+		t.Fatalf("refresh lost order or selection: %#v, selected %q", m.books, m.controls.TableSelection(m.rows))
 	}
 
 	refresh := m.startRefresh()
@@ -211,5 +211,43 @@ func TestDetailResizeAndThemePreserveLifetimeAndScroll(t *testing.T) {
 	after = ansi.Strip(m.View().Content)
 	if m.dialog != id || !strings.Contains(after, "paragraph 006") || strings.Contains(after, "paragraph 000") {
 		t.Fatal("resize reset detail scroll or lifetime")
+	}
+}
+
+func TestLibraryNavigationSurvivesDetailAndCancelledEdit(t *testing.T) {
+	m := newModel()
+	defer m.Close()
+	m.books = make([]book, 60)
+	for i := range m.books {
+		m.books[i] = book{ID: fmt.Sprint(i), Title: fmt.Sprintf("Book record %02d", i), Notes: "Notes"}
+	}
+	m.openLibrary()
+	m.drainEvents()
+	m.Update(key('/', 0))
+	m.Update(tea.PasteMsg{Content: "record"})
+	m.Update(key(tea.KeyEsc, 0))
+	m.Update(key(tea.KeyPgDown, 0))
+	m.Update(key(tea.KeyPgDown, 0))
+	before := m.controls.TableSnapshot(m.dialog)
+	if before.Offset == 0 || before.Filter != "record" {
+		t.Fatal("library did not scroll or filter")
+	}
+	m.Update(key(tea.KeyEnter, 0))
+	if m.page != details || m.selected != before.Selected {
+		t.Fatal("selected record did not open")
+	}
+	m.Update(key('e', 0))
+	m.Update(key('g', tea.ModCtrl))
+	m.Update(tea.PasteMsg{Content: "cancelled title"})
+	m.Update(key(tea.KeyEsc, 0))
+	m.Update(key(tea.KeyEsc, 0))
+	after := m.controls.TableSnapshot(m.dialog)
+	if m.page != library || after.Selected != before.Selected || after.Filter != before.Filter || after.Offset != before.Offset || after.Focus != before.Focus {
+		t.Fatal("return from edit/detail reset library navigation", before, after)
+	}
+	for _, book := range m.books {
+		if book.Title == "cancelled title" {
+			t.Fatal("cancelled edit changed a book")
+		}
 	}
 }

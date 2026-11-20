@@ -24,8 +24,8 @@ func TestPermissionsFilterKeepsRuleOrderAndFullDetails(t *testing.T) {
 	m.openPermissions()
 	m.testKey(tea.KeyPressMsg{Code: '/'})
 	m.testUpdate(tea.PasteMsg{Content: "read_file"})
-	view := m.chrome.Dialog.Table.Model
-	if view.Selected() != "1" || len(view.Rows) != 3 {
+	view := m.chrome.TableSnapshot(m.chrome.DialogID())
+	if view.Selected != "1" || len(view.Rows) != 3 {
 		t.Fatal("filter reordered or changed policy rules")
 	}
 	text := ansi.Strip(m.testView().Content)
@@ -40,7 +40,7 @@ func TestPermissionsFilterKeepsRuleOrderAndFullDetails(t *testing.T) {
 	m.syncControls()
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
 	m.testUpdate(msg)
-	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "read_file" || m.chrome.Dialog.Table.Model.Selected() != "1" {
+	if m.chrome.Dialog.Table == nil || m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "read_file" || m.chrome.TableSelectedID(m.chrome.DialogID()) != "1" {
 		t.Fatal("returning from Details lost table state")
 	}
 	m.chrome.Close()
@@ -86,7 +86,7 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 				}
 			}
 			p := m.testControls().TableProps()
-			l := m.chrome.Dialog.Table.Model.Layout(p)
+			l := m.chrome.TableSnapshot(m.chrome.DialogID()).Layout
 			left, top, _, _ := m.dialogArea()
 			for _, hit := range l.Hits {
 				if hit.Action == "close" {

@@ -43,9 +43,9 @@ func TestCompactDialogsKeepChromeAndMatchMouseRows(t *testing.T) {
 				if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
 					t.Fatal("management command did not open a table")
 				}
-				list := m.chrome.Dialog.Table.Model
+				dialogID := m.chrome.DialogID()
 				m.syncPresentation()
-				layout := list.Layout(m.chrome.TableProps())
+				layout := m.chrome.TableSnapshot(dialogID).Layout
 				if layout.Capacity < 3 {
 					t.Fatalf("compact dialog shows only %d rows", layout.Capacity)
 				}
@@ -58,8 +58,8 @@ func TestCompactDialogsKeepChromeAndMatchMouseRows(t *testing.T) {
 					t.Fatal("compact modal left the composer exposed")
 				}
 				m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-				if list.Selected() != "bravo" {
-					t.Fatal("keyboard did not select the second row", list.Selected())
+				if m.chrome.TableSelectedID(dialogID) != "bravo" {
+					t.Fatal("keyboard did not select the second row", m.chrome.TableSelectedID(dialogID))
 				}
 				clicked := false
 				for y, row := range rows {
@@ -70,8 +70,8 @@ func TestCompactDialogsKeepChromeAndMatchMouseRows(t *testing.T) {
 						break
 					}
 				}
-				if !clicked || list.Selected() != "charlie" {
-					t.Fatal("painted row and mouse selection disagree", list.Selected())
+				if !clicked || m.chrome.TableSelectedID(dialogID) != "charlie" {
+					t.Fatal("painted row and mouse selection disagree", m.chrome.TableSelectedID(dialogID))
 				}
 				if dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR"); dir != "" {
 					err = os.MkdirAll(dir, 0700)

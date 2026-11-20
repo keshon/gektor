@@ -11,7 +11,6 @@ import (
 	"github.com/keshon/gektor/internal/executables"
 	agentui "github.com/keshon/gektor/internal/tui/agent"
 	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
@@ -31,7 +30,7 @@ const (
 type Model struct {
 	tools               *toolsui.Model
 	toolsets            []app.Toolset
-	toolsTable          *table.Model
+	toolsTable          screen.TableID
 	toolsDialog         screen.DialogID
 	toolsPage           toolPage
 	mediaSelection      string
@@ -43,6 +42,7 @@ type Model struct {
 	form                pendingForm
 	preferences         *settings.Model
 	preferencesDialog   screen.DialogID
+	settingsDiscovery   *settingsDiscovery
 	actionsDialog       screen.DialogID
 
 	profile           *app.PreparedProfile
@@ -95,6 +95,7 @@ func newModel(ctx context.Context, cfg Config) (*Model, error) {
 
 // Close releases both screens, including their background operations.
 func (m *Model) Close() {
+	m.cancelSettingsDiscovery()
 	if m.toolLoadCancel != nil {
 		m.toolLoadCancel()
 		<-m.toolLoadDone

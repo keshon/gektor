@@ -30,7 +30,6 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/completion"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/gate"
-	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/userdirs"
@@ -73,7 +72,7 @@ type Model struct {
 	processDialog, permissionDialog, mcpDialog screen.DialogID
 	lessonDialogs                              map[screen.DialogID]retrospective.Result
 
-	processTable, permissionTable *table.Model
+	processTable, permissionTable screen.TableID
 	form                          pendingForm
 
 	hidden           bool
@@ -131,7 +130,7 @@ type Model struct {
 	// overrides; sessionEnv layers those on per session.
 	mcp          *mcpmanager.Manager
 	mcpBusy      bool
-	mcpTable     *table.Model
+	mcpTable     screen.TableID
 	baseEnv      roles.Env
 	started      time.Time
 	elapsed      time.Duration

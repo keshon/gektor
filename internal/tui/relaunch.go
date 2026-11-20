@@ -29,10 +29,10 @@ func (m *Model) openWorkspace() {
 		Hint:       "Apply restarts GEKTOR in the selected workspace.",
 		ApplyLabel: "Apply",
 		Fields:     fields,
+		FileFields: map[string]fieldform.FilePicker{"app-workspace": {Root: m.application.Preferences.Workspace, Directory: true}},
 	}, func(_ map[string]string) error {
 		return m.requestProfileChange(m.profile.Profile.Clone())
 	})
-	m.chrome.Dialog.Form.FileFields = map[string]fieldform.FilePicker{"app-workspace": {Root: m.application.Preferences.Workspace, Directory: true}}
 }
 
 // requestProfileChange replaces owned services without starting an Agent run.
@@ -47,17 +47,20 @@ func (m *Model) requestProfileChange(profile config.Profile) error {
 		return err
 	}
 
+	snapshotForm, formOpen := m.chrome.FormSnapshot(m.chrome.DialogID())
 	p := m.application.Preferences
 	p.Profile = &profile
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && (m.preferences == nil || m.preferences.EditSession == nil) {
-		if workspace, ok := m.chrome.Dialog.Form.Values()["app-workspace"]; ok {
-			p.Workspace = strings.TrimSpace(workspace)
+	if formOpen && (m.preferences == nil || m.preferences.EditSession == nil) {
+		for _, field := range snapshotForm.Fields {
+			if field.Key == "app-workspace" {
+				p.Workspace = strings.TrimSpace(field.Value)
+			}
 		}
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.preferences != nil && m.preferences.EditSession != nil && m.preferences.EditSession.LoadedPath != "" {
+	if formOpen && m.preferences != nil && m.preferences.EditSession != nil && m.preferences.EditSession.LoadedPath != "" {
 		p.ProfilePath = m.preferences.EditSession.LoadedPath
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.preferences != nil && m.preferences.EditSession != nil {
+	if formOpen && m.preferences != nil && m.preferences.EditSession != nil {
 		fields, _ := m.preferences.EditSession.Draft.Fields("workspace")
 		for _, field := range fields {
 			if field.Key == "app-workspace" {
@@ -93,7 +96,7 @@ func (m *Model) requestProfileChange(profile config.Profile) error {
 	if err := m.saveCustomSettings(profile); err != nil {
 		return err
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.preferences != nil && m.preferences.EditSession != nil && m.preferences.EditSession.LoadedPath != "" {
+	if formOpen && m.preferences != nil && m.preferences.EditSession != nil && m.preferences.EditSession.LoadedPath != "" {
 		p.ProfilePath = m.preferences.EditSession.LoadedPath
 	}
 	workspaceRoot := ""

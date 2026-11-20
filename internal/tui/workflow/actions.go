@@ -99,7 +99,7 @@ func (m *Model) command(action string) tea.Cmd {
 		}
 		m.setNotice(pane.NoticeInfo, "Stopping…")
 	case "new", "open":
-		m.recipePath(action)
+		m.recipePath(action, "")
 	case "save":
 		m.saveForm()
 	case "add":
@@ -180,8 +180,11 @@ func workflowRequiresDraft(action string) bool {
 	}
 }
 
-func (m *Model) recipePath(action string) *fieldform.Model {
-	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: m.editor.Path}}
+func (m *Model) recipePath(action, path string) {
+	if path == "" {
+		path = m.editor.Path
+	}
+	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: path}}
 	var fileFields map[string]fieldform.FilePicker
 	if action == "open" {
 		fileFields = map[string]fieldform.FilePicker{"path": {Root: m.config.WS.Root(), Extensions: []string{".json"}}}
@@ -192,7 +195,7 @@ func (m *Model) recipePath(action string) *fieldform.Model {
 	if m.editor.Dirty() {
 		fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
 	}
-	return m.openForm(screen.Form{
+	m.openForm(screen.Form{
 		Title:      "Workflow / " + action,
 		Hint:       "Workspace: " + m.config.WS.Root(),
 		ApplyLabel: "Continue",

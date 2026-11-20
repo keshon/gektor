@@ -103,6 +103,7 @@ func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 	// The first field is the temperature, focused on open.
 	m.chrome.Dialog.Form.Focus(0, m.chrome.Dialog.Form.FieldVisible)
 	m.chrome.Dialog.Form.Editor.SetValue("0.9")
+	m.preparePreferences()
 	if !m.preferences.Dirty() {
 		t.Fatal("an edit did not make the form dirty")
 	}

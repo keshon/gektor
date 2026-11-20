@@ -189,7 +189,7 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	m.chrome.Close()
 	m.syncControls()
 	m.testUpdate(m.pendingCommands[len(m.pendingCommands)-1]())
-	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "reference" {
+	if m.chrome.Dialog.Table == nil || m.chrome.TableSnapshot(m.chrome.DialogID()).Filter != "reference" {
 		t.Fatal("Details lost the parent filter")
 	}
 	m.state = stDone
@@ -198,7 +198,7 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	if err != nil || saved.Enabled || manager.List()[0].Connected {
 		t.Fatal("Disable did not update exactly the selected server", err)
 	}
-	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != "reference" {
+	if m.chrome.Dialog.Table == nil || m.chrome.TableSelectedID(m.chrome.DialogID()) != "reference" {
 		t.Fatal("refresh lost selected server")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyDelete})
@@ -225,7 +225,7 @@ func TestBundledMCPUsesSharedSettingsWithoutRawCommand(t *testing.T) {
 	}
 	m.mcp, m.state = manager, stDone
 	m.openMCP()
-	row := m.chrome.Dialog.Table.Model.Rows[0]
+	row := m.chrome.TableSnapshot(m.chrome.DialogID()).Rows[0]
 	if row.Cells[2] != "Bundled" {
 		t.Fatal("bundled origin missing", row)
 	}

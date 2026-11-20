@@ -15,19 +15,27 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 )
+
+const smokeRecipe = `{"version":4,"name":"Smoke workflow","steps":[{"id":"transform","tool":"script_transform","node_version":1,"args":{"code":"return input + 1;","input":2}}]}`
 
 func main() {
 	binary := flag.String("binary", "bin/gektor.exe", "built GEKTOR executable")
 	keep := flag.Bool("keep", false, "keep temporary fixtures after closing")
+	delay := flag.Duration("delay", 350*time.Millisecond, "delay between smoke stream chunks (20 chunks)")
 	flag.Parse()
-	if err := smoke(*binary, *keep); err != nil {
+	if *delay < 0 || *delay > 5*time.Second {
+		fmt.Fprintln(os.Stderr, "delay must be between 0 and 5s")
+		os.Exit(1)
+	}
+	if err := smoke(*binary, *keep, *delay); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func smoke(binary string, keep bool) error {
+func smoke(binary string, keep bool, delay time.Duration) error {
 	binary, err := filepath.Abs(binary)
 	if err != nil {
 		return err
@@ -54,6 +62,19 @@ func smoke(binary string, keep bool) error {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return err
 		}
+		for name, content := range map[string]string{
+			"smoke-one.txt":   "First harmless tool-inspection fixture.\n",
+			"smoke-two.txt":   "Second harmless tool-inspection fixture.\n",
+			"smoke-allow.env": "SMOKE_VALUE=allow-fixture-only\n",
+			"smoke-deny.env":  "SMOKE_VALUE=deny-fixture-only\n",
+		} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+				return err
+			}
+		}
+		if err := os.WriteFile(filepath.Join(dir, "smoke-workflow.json"), []byte(smokeRecipe), 0600); err != nil {
+			return err
+		}
 	}
 	for _, fixture := range []struct{ id, title, workspace string }{
 		{"a", "Saved in workspace A", a}, {"b", "Saved in workspace B", b},
@@ -71,31 +92,7 @@ func smoke(binary string, keep bool) error {
 		return err
 	}
 	var requests atomic.Int64
-	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/models") {
-			json.NewEncoder(w).Encode(map[string]any{"data": []map[string]string{{"id": "smoke"}}})
-			return
-		}
-		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/chat/completions") {
-			http.NotFound(w, r)
-			return
-		}
-		requests.Add(1)
-		var body struct {
-			Stream bool `json:"stream"`
-		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		if body.Stream {
-			w.Header().Set("Content-Type", "text/event-stream")
-			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"Local smoke reply.\"},\"finish_reason\":null}]}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"role": "assistant", "content": "Local smoke reply."}, "finish_reason": "stop"}}, "usage": map[string]int{"prompt_tokens": 10, "completion_tokens": 5}})
-	})}
+	server := &http.Server{Handler: smokeBackend(&requests, delay), ReadHeaderTimeout: 5 * time.Second}
 	go server.Serve(listener)
 	defer server.Close()
 	url := "http://" + listener.Addr().String() + "/v1"
@@ -105,7 +102,10 @@ func smoke(binary string, keep bool) error {
 		return err
 	}
 	fmt.Printf("Temporary data: %s\nOpen /sessions; fixtures cover two workspaces, legacy and missing roots.\n", root)
+	fmt.Println("Send: smoke stream (queue/cancel), smoke tools (two read badges), smoke allow / smoke deny (fixture .env permission).")
+	fmt.Println("Workflow: /workflows, Ctrl+O, smoke-workflow.json. Native review must be performed manually; this helper records no acceptance verdict.")
 	cmd := exec.Command(binary, "-tui", "-api-key", "smoke")
+	cmd.Dir = b
 	cmd.Env = os.Environ()
 	for _, key := range []string{"HOME", "USERPROFILE"} {
 		prefix := key + "="
@@ -120,4 +120,103 @@ func smoke(binary string, keep bool) error {
 	err = cmd.Run()
 	fmt.Printf("\nMock model requests: %d\n", requests.Load())
 	return err
+}
+
+// smokeBackend selects a response from the latest user turn, rather than a global
+// request index, so retrying or switching sessions does not consume another case.
+func smokeBackend(requests *atomic.Int64, delay time.Duration) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/models") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]string{{"id": "smoke"}}})
+			return
+		}
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/chat/completions") {
+			http.NotFound(w, r)
+			return
+		}
+		requests.Add(1)
+		var body struct {
+			Stream   bool `json:"stream"`
+			Messages []struct {
+				Role    string          `json:"role"`
+				Content json.RawMessage `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		prompt, toolResult := "", false
+		for _, message := range body.Messages {
+			if message.Role == "user" {
+				_ = json.Unmarshal(message.Content, &prompt)
+				toolResult = false
+			}
+			if message.Role == "tool" {
+				toolResult = true
+			}
+		}
+		prompt = strings.ToLower(strings.TrimSpace(prompt))
+		message := map[string]any{"role": "assistant", "content": "Local smoke reply."}
+		finish := "stop"
+		var calls []map[string]any
+		if !toolResult {
+			paths := []string{}
+			switch prompt {
+			case "smoke tools":
+				paths = []string{"smoke-one.txt", "smoke-two.txt"}
+			case "smoke allow":
+				paths = []string{"smoke-allow.env"}
+			case "smoke deny":
+				paths = []string{"smoke-deny.env"}
+			}
+			for index, path := range paths {
+				args, _ := json.Marshal(map[string]string{"path": path})
+				calls = append(calls, map[string]any{"id": fmt.Sprintf("smoke_%d", index), "type": "function", "function": map[string]string{"name": "read_file", "arguments": string(args)}})
+			}
+		}
+		if len(calls) > 0 {
+			message["content"] = "Inspecting local smoke fixtures."
+			message["tool_calls"] = calls
+			finish = "tool_calls"
+		} else if toolResult {
+			message["content"] = "Smoke tool results received. Inspect the individual badges for success or permission denial."
+		}
+		if !body.Stream {
+			_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": message, "finish_reason": finish}}, "usage": map[string]int{"prompt_tokens": 10, "completion_tokens": 5}})
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		frame := func(delta map[string]any, reason any) {
+			data, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"delta": delta, "finish_reason": reason}}})
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		}
+		if prompt == "smoke stream" && !toolResult {
+			for index := 0; index < 20; index++ {
+				frame(map[string]any{"content": fmt.Sprintf("Smoke streaming chunk %02d.\n", index+1)}, nil)
+				timer := time.NewTimer(delay)
+				select {
+				case <-r.Context().Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
+			}
+		} else {
+			delta := map[string]any{"role": "assistant", "content": message["content"]}
+			if len(calls) > 0 {
+				for index, call := range calls {
+					call["index"] = index
+				}
+				delta["tool_calls"] = calls
+			}
+			frame(delta, nil)
+		}
+		frame(map[string]any{}, finish)
+		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	})
 }

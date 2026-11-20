@@ -84,12 +84,10 @@ func (m *Model) openTools() {
 	}
 	m.toolsets = sets
 	view := toolsui.Inventory(sets)
-	if m.toolsTable != nil {
-		m.toolsTable.SetRows(view.Table.Model.Rows)
-		view.Table.Model = m.toolsTable
-	} else {
-		m.toolsTable = view.Table.Model
+	if m.toolsTable == (screen.TableID{}) {
+		m.toolsTable = m.chrome.NewTable()
 	}
+	view.Table.State = m.toolsTable
 	m.chrome.PresentDialog(view)
 	m.toolsDialog = m.chrome.DialogID()
 	m.toolsPage = toolList
@@ -98,12 +96,7 @@ func (m *Model) openTools() {
 
 func (m *Model) openMediaTools() {
 	view := m.tools.Media(m.toolsEditable())
-	for i, row := range view.Table.Model.Rows {
-		if row.ID == m.mediaSelection {
-			view.Table.Model.Cursor = i
-			break
-		}
-	}
+	view.Table.Selected = m.mediaSelection
 	m.chrome.PresentDialog(view)
 	m.toolsDialog = m.chrome.DialogID()
 	m.toolsPage = toolMedia
@@ -205,7 +198,7 @@ func (m *Model) refreshMediaTools() {
 		return
 	}
 	view := m.tools.Media(m.toolsEditable())
-	m.chrome.UpdateTable(m.toolsDialog, view.Table.Description, view.Table.Model.Rows, view.Table.Actions)
+	m.chrome.UpdateTable(m.toolsDialog, view.Table.Description, view.Table.Rows, view.Table.Actions)
 }
 
 func (m *Model) toolPreferencesRestart() (*ModeChange, error) {
@@ -243,12 +236,7 @@ func (m *Model) applyExecutablePreference(name string, values map[string]string)
 
 func (m *Model) openSSHTools() {
 	view := m.tools.SSH(m.toolsEditable())
-	for i, row := range view.Table.Model.Rows {
-		if row.ID == m.sshSelection {
-			view.Table.Model.Cursor = i
-			break
-		}
-	}
+	view.Table.Selected = m.sshSelection
 	m.chrome.PresentDialog(view)
 	m.toolsDialog, m.toolsPage = m.chrome.DialogID(), toolSSH
 }
@@ -268,8 +256,7 @@ func (m *Model) sshToolAction(event screen.Event) tea.Cmd {
 	if event.Action == "test" {
 		cmd := m.tools.CheckSSH(m.base, event.Row)
 		view := m.tools.SSH(m.toolsEditable())
-		m.chrome.Dialog.Table.Description = view.Table.Description
-		m.chrome.Dialog.Table.Actions = view.Table.Actions
+		m.chrome.UpdateTable(m.toolsDialog, view.Table.Description, view.Table.Rows, view.Table.Actions)
 		return cmd
 	}
 	if !m.toolsEditable() {

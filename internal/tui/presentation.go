@@ -11,7 +11,7 @@ import (
 
 func (m *Model) syncPresentation() {
 	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() {
-		m.preferences.Prepare()
+		m.preparePreferences()
 	}
 	if m.workflows != nil {
 		m.workflows.SetSurface(m.workflowSurface())
@@ -42,7 +42,8 @@ func (m *Model) syncPresentation() {
 	m.chrome.Props = props
 	if m.chrome.Dialog != nil && (m.chrome.Dialog.Form != nil || m.chrome.Dialog.Table != nil || m.chrome.Dialog.Secret != nil) {
 		m.chrome.Props.Actions = m.chrome.DialogActions()
-		if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() && m.chrome.Dialog.Form.Picker == nil && !m.chrome.Dialog.Form.FeedbackOpen {
+		snapshot, formOpen := m.chrome.FormSnapshot(m.preferencesDialog)
+		if m.preferences != nil && formOpen && !snapshot.PickerOpen && !snapshot.FeedbackOpen {
 			ws := m.preferences.EditSession
 			if ws.Section == "model" {
 				m.chrome.Props.Actions = append(m.chrome.Props.Actions, screen.Action{Key: tea.KeyF4, Name: "F4", Label: "Advanced", Short: "Advanced", Enabled: true})

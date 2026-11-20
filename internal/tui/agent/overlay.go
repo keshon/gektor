@@ -104,7 +104,7 @@ func (m *Model) syncFocus() {
 	}
 	owner := m.activeInputOwner()
 	if m.chrome.Dialog != nil && m.chrome.Dialog.Table != nil {
-		m.chrome.Dialog.Table.Model.SyncFocus(owner == focusDialog)
+		m.chrome.SyncTableFocus(m.chrome.DialogID(), owner == focusDialog)
 	}
 	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
 		m.chrome.Dialog.Form.SyncInputFocus(owner == focusDialog)

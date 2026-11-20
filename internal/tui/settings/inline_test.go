@@ -16,7 +16,7 @@ import (
 
 func TestInlineChoiceKeyboardMouseAndInputOwnership(t *testing.T) {
 	for _, size := range [][2]int{{40, 12}, {80, 24}, {120, 40}} {
-		f := NewModel([]form.Field{{Key: "theme", Label: "Theme", Value: "dark"}}, textarea.New())
+		f := newTestForm([]form.Field{{Key: "theme", Label: "Theme", Value: "dark"}}, textarea.New())
 		f.Choices = map[string][]string{"theme": config.ThemeNames()}
 		f.ApplyLabel = "Apply"
 		f.Focus(0, nil)
@@ -58,7 +58,7 @@ func TestInlineChoiceKeyboardMouseAndInputOwnership(t *testing.T) {
 }
 
 func TestBooleanIsAnInlineCheckbox(t *testing.T) {
-	f := NewModel([]form.Field{{Key: "enabled", Label: "Enabled", Value: "false"}}, textarea.New())
+	f := newTestForm([]form.Field{{Key: "enabled", Label: "Enabled", Value: "false"}}, textarea.New())
 	f.Choices = map[string][]string{"enabled": {"true", "false"}}
 	f.Focus(0, nil)
 	props := fieldform.Props{Width: 80, Height: 24}
@@ -73,7 +73,7 @@ func TestBooleanIsAnInlineCheckbox(t *testing.T) {
 }
 
 func TestPickerPagingOutsideScrollAndCancel(t *testing.T) {
-	f := NewModel([]form.Field{{Key: "model", Value: "original"}}, textarea.New())
+	f := newTestForm([]form.Field{{Key: "model", Value: "original"}}, textarea.New())
 	f.Focus(0, nil)
 	props := fieldform.Props{Width: 100, Height: 24}
 	f.OpenPicker(props)
@@ -105,7 +105,7 @@ func TestPickerPagingOutsideScrollAndCancel(t *testing.T) {
 }
 
 func TestPickerActionsOwnFocusAndCancelWithoutChangingDraft(t *testing.T) {
-	f := NewModel([]form.Field{{Key: "model", Value: "original"}}, textarea.New())
+	f := newTestForm([]form.Field{{Key: "model", Value: "original"}}, textarea.New())
 	f.Focus(0, nil)
 	props := fieldform.Props{Width: 100, Height: 24}
 	f.OpenPicker(props)

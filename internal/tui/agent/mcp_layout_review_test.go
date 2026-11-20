@@ -48,16 +48,16 @@ func TestMCPReviewLayouts(t *testing.T) {
 			m.applyTheme(theme)
 			m.openMCP()
 			p := m.testControls().TableProps()
-			layout := m.chrome.Dialog.Table.Model.Layout(p)
+			layout := m.chrome.TableSnapshot(m.chrome.DialogID()).Layout
 			if len(layout.Rows)+2 > p.Height || layout.Capacity < 1 {
 				t.Fatal("MCP controls exceed available height", theme, size)
 			}
-			selected := m.chrome.Dialog.Table.Model.Selected()
+			selected := m.chrome.TableSelectedID(m.chrome.DialogID())
 			m.testKey(tea.KeyPressMsg{Code: 'm', Text: "m"})
-			if !m.chrome.Dialog.Table.Model.MoreOpen {
+			if !m.chrome.TableSnapshot(m.chrome.DialogID()).MoreOpen {
 				t.Fatal("MCP More menu is unavailable", theme, size)
 			}
-			menu := m.chrome.Dialog.Table.Model.Layout(m.testControls().TableProps()).Menu
+			menu := m.chrome.TableSnapshot(m.chrome.DialogID()).Layout.Menu
 			screen := uv.NewScreenBuffer(menu.Width, len(menu.Rows))
 			uv.NewStyledString(strings.Join(menu.Rows, "\n")).Draw(screen, uv.Rect(0, 0, menu.Width, len(menu.Rows)))
 			for row, text := range menu.Rows {
@@ -75,7 +75,7 @@ func TestMCPReviewLayouts(t *testing.T) {
 				}
 			}
 			m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
-			if m.chrome.Dialog == nil || m.chrome.Dialog.Table.Model.MoreOpen || m.chrome.Dialog.Table.Model.Selected() != selected {
+			if m.chrome.Dialog == nil || m.chrome.TableSnapshot(m.chrome.DialogID()).MoreOpen || m.chrome.TableSelectedID(m.chrome.DialogID()) != selected {
 				t.Fatal("returning from More lost the server list")
 			}
 			for _, row := range layout.Rows {

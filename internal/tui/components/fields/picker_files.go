@@ -45,24 +45,42 @@ func (f *Model) ScanDirectory(root string) tea.Cmd {
 // DetailCommand captures the selected path for an asynchronous preview, or returns nil
 // when that preview is already requested or the picker has no file selection.
 func (f *Model) DetailCommand() tea.Cmd {
-	if f == nil || f.Picker == nil {
+	request, ok := f.TakeDetailRequest()
+	if !ok {
 		return nil
+	}
+	return request.Command()
+}
+
+// DetailRequest identifies a selected file independently of its picker widget.
+type DetailRequest struct {
+	ID          RequestID
+	Field, Path string
+}
+
+// Command reads generic file metadata outside the update loop.
+func (r DetailRequest) Command() tea.Cmd {
+	scan := detailScan{ID: r.ID, Path: r.Path}
+	return scan.run
+}
+
+// TakeDetailRequest marks the selected file preview as requested once. A host
+// may supply its own preview text and return a DetailMsg with the same ID/path.
+func (f *Model) TakeDetailRequest() (DetailRequest, bool) {
+	if f == nil || f.Picker == nil {
+		return DetailRequest{}, false
 	}
 	p := f.Picker
 	if !p.IsFiles() || len(p.Filtered) == 0 || p.Loading {
-		return nil
+		return DetailRequest{}, false
 	}
 	path := p.Filtered[p.Cursor]
 	if path == p.DetailPath {
-		return nil
+		return DetailRequest{}, false
 	}
 	p.DetailPath = path
 	p.Detail = ""
-	scan := detailScan{
-		ID:   p.ID,
-		Path: path,
-	}
-	return scan.run
+	return DetailRequest{ID: p.ID, Field: p.Field, Path: path}, true
 }
 
 // DetailMsg carries one path preview back to its originating picker request.

@@ -36,7 +36,7 @@ type model struct {
 	page         page
 	controls     screen.Controls
 	dialog       screen.DialogID
-	rows         *table.Model
+	rows         screen.TableID
 	palette      *screen.Palette
 	status       string
 	pending      *refreshJob
@@ -166,7 +166,7 @@ func (m *model) openLibrary() {
 	m.controls.PresentDialog(screen.Dialog{
 		Title: "Books",
 		Table: &screen.Table{
-			Model:   m.rows,
+			State:   m.rows,
 			Columns: []table.Column{{Label: "Title"}},
 			Actions: []table.Action{
 				{ID: "details", Label: "Read", Key: "enter", Enabled: true},
@@ -183,7 +183,10 @@ func (m *model) refreshRows() {
 	for _, book := range m.books {
 		rows = append(rows, table.Row{ID: book.ID, Cells: []string{book.Title}})
 	}
-	m.controls.RefreshTable(rows)
+	m.controls.UpdateTable(m.dialog, "", rows, []table.Action{
+		{ID: "details", Label: "Read", Key: "enter", Enabled: len(rows) > 0},
+		{ID: "close", Label: "Quit", Key: "esc", Enabled: true},
+	})
 }
 
 func (m *model) selectedBook() book {
