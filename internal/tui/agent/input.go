@@ -4,6 +4,7 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/pkg/tui/components/cell"
 	"github.com/keshon/gektor/pkg/tui/components/composer"
@@ -20,10 +21,10 @@ func truncate(s string, n int) string { return cell.Truncate(s, n) }
 // Ctrl+O inserts a newline; Shift+Enter also works when the host preserves it.
 func newInput() composer.Model {
 	ta := textarea.New()
-	ta.Prompt = "> "
+	ta.Prompt = "❯ "
 	ta.SetVirtualCursor(false)
 	style := ta.Styles()
-	style.Cursor.Shape = tea.CursorUnderline
+	style.Cursor.Shape = tea.CursorBar
 	ta.SetStyles(inputStyles(style))
 	ta.MaxHeight = 6
 	ta.DynamicHeight = true
@@ -34,5 +35,9 @@ func newInput() composer.Model {
 	return composer.New(ta)
 }
 
-func inputStyles(s textarea.Styles) textarea.Styles       { return screen.InputStyles(s) }
+func inputStyles(s textarea.Styles) textarea.Styles {
+	s = screen.InputStyles(s)
+	s.Cursor.Color = lipgloss.Color(themeColor(colorPopupText))
+	return s
+}
 func textInputStyles(s textinput.Styles) textinput.Styles { return screen.TextInputStyles(s) }

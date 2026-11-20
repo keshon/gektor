@@ -33,7 +33,7 @@ func publish(ctx context.Context, ws *workspace.Workspace, source, destination s
 		return err
 	}
 	if len(entries) == 0 {
-		return fmt.Errorf("no variants were produced")
+		return fmt.Errorf("no image outputs were produced")
 	}
 	parent := filepath.Dir(destination)
 	if err := ws.MkdirAll(parent, 0755); err != nil {

@@ -334,12 +334,12 @@ func NewWorkflow(s service.Service) *workflow.Tool {
 }
 
 func workflowPolicy(ws *workspace.Workspace, policy permission.Policy, gate permission.Gate) (func(context.Context, string, json.RawMessage) error, imagecontract.OutputAuthorizer) {
-	output := func(ctx context.Context, path string, args json.RawMessage) error {
+	output := func(ctx context.Context, name, path string, args json.RawMessage) error {
 		rel, err := ws.Relative(path)
 		if err != nil {
 			return err
 		}
-		return permission.Authorize(ctx, policy, gate, "image_variants", filepath.ToSlash(rel), args)
+		return permission.Authorize(ctx, policy, gate, name, filepath.ToSlash(rel), args)
 	}
 	authorize := func(ctx context.Context, name string, args json.RawMessage) error {
 		workspacePaths := WorkspacePaths{WS: ws}

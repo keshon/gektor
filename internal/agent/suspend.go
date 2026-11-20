@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 )
 
@@ -89,15 +90,14 @@ func BudgetContinue(ctx context.Context, a *Agent, runErr error, stateFile strin
 	if err != nil {
 		return "", nil, false
 	}
-	// The [harness] prefix matches harnessText, which is unexported: this
-	// note is generated, not operator-typed.
+	// Metadata identifies this generated notice independently of its text.
 	note := fmt.Sprintf("[harness] Step budget extended by operator approval (+%d steps). Continue the remaining work: %s. Do not restart finished items.",
 		DefaultMaxSteps, remainingWork(open))
 	previous, mutations := a.Report(), a.LastRunMutations
 	maxSteps := a.cfg.MaxSteps
 	a.cfg.MaxSteps = DefaultMaxSteps
 	defer func() { a.cfg.MaxSteps = maxSteps }()
-	ans, err := a.Resume(ctx, history, note)
+	ans, err := a.resume(ctx, history, llm.Message{Role: llm.RoleUser, Content: note, Harness: "budget_extension"})
 	// Approval extends this run. Keep its measured effects, but never carry a
 	// verification verdict across the new work without running it again.
 	a.LastRunMutations += mutations

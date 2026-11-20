@@ -395,3 +395,46 @@ Validation after the public-package move:
 - The first focused run found the component-boundary test still walking the old
   directory. It moved beside the shared screen tests and passed. A stale example
   index link was also corrected before the passing documentation check.
+
+
+### Runtime notices and Pixelita completion
+
+The llama.cpp adapter's transient attribution footer repeated the current user
+request and mode as another user turn. Its wording matches the notices called
+prompt injection in the reported screenshot. The footer is removed. Both wire
+adapters now use a stable initial system explanation and JSON runtime envelopes
+for internally tagged user-role notices. Saved history retains its original
+content and roles. Tool results keep their tool role; compacted context, loaded
+context and image attachments remain informational. Text beginning `[harness]`
+does not acquire runtime provenance. Directives and approved budget continuation
+are tagged at their source. This is covered by request and provenance regressions;
+no live model run establishes that warnings have stopped.
+
+Pixelita's original-size optimization could be previewed but had no write tool.
+`image_optimize` now publishes that operation through the shared Agent/workflow
+contract. `keep` quantizes PNGs or optimizes JPEGs; `webp` converts PNG/JPEG at
+original dimensions. `image_variants` remains the resizing operation. Exact output
+permissions use the actual operation name. Tests decode real palette PNG and WebP
+outputs, check dimensions and source preservation, and exercise direct and workflow
+permissions, existing destinations and declined batches. Pixelita can decline an
+output under its size/fidelity thresholds. Quality/quantizer controls and explicit
+conversion to PNG are not exposed by the pinned public API. No dependency changed.
+
+The pending TUI edits keep a single main pane neutral, show focus color when the
+inspector is open, use `❯ ` with a native bar caret, and preserve reasoning styles
+on independently drawn wrapped rows. Terminal blink timing remains terminal-owned;
+no timing fix or native visual review is claimed. Packed tool badges are unchanged.
+
+A check during implementation found no recurring restore: the moved screen package
+matched HEAD, the old internal screen path was absent, and its source hash remained
+stable across repeated reads. No recent reset/checkout appeared in the reflog.
+
+Validation for these changes:
+
+- `go test -p 4 ./...`: passed after correcting the eval continuation producer's
+  obsolete generic notice tag. Earlier in-flight runs failed during implementation.
+- Race tests passed for agent, LLM adapters, roles, image capabilities, image tools,
+  tool catalog/policy, workflow agent tools and application composition.
+- `go vet ./...`, native executable build and all 45 dry eval definitions: passed.
+- Repository documentation conventions, formatting and `git diff --check`: passed.
+- No live model comparison, native terminal review, release or publication was run.

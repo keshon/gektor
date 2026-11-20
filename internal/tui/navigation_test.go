@@ -126,8 +126,8 @@ func TestMenuBrandAndHeaderWidth(t *testing.T) {
 		t.Fatalf("header width = %d, want 160 (clock at right edge)", n)
 	}
 	// Fixed two-line zone: the blocked input stays visible while
-	// running (empty transcript here, so "> " can only be the box).
-	if !strings.Contains(mm.View().Content, "> ") {
+	// running (empty transcript here, so "❯ " can only be the box).
+	if !strings.Contains(mm.View().Content, "❯ ") {
 		t.Fatal("running must keep the blocked input box")
 	}
 	mm = settingsModel(t)

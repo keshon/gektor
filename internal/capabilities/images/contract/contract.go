@@ -10,7 +10,7 @@ import (
 	"github.com/keshon/gektor/internal/workflow"
 )
 
-type OutputAuthorizer func(context.Context, string, json.RawMessage) error
+type OutputAuthorizer func(context.Context, string, string, json.RawMessage) error
 type Operation struct {
 	Service         images.Service
 	Kind            string
@@ -44,7 +44,7 @@ func operations() []operationSpec {
 		},
 		{
 			kind:        "preview",
-			description: "Preview image optimization or width variants without writing. Planned filenames are in items[].output.",
+			description: "Preview image optimization or width variants without writing. Without widths, keep quantizes PNGs or optimizes JPEGs; webp converts PNG/JPEG. With widths, resize only (no PNG quantization). Planned filenames are in items[].output.",
 			readOnly:    true,
 			retrySafe:   true,
 			input: `{
@@ -59,8 +59,24 @@ func operations() []operationSpec {
 }`,
 		},
 		{
+			kind:        "optimize",
+			description: "Optimize images at their original dimensions into a new output directory. format keep quantizes PNGs to a palette or optimizes JPEG Huffman coding; webp converts PNG/JPEG to WebP. Pixelita enforces size/fidelity thresholds and may decline outputs. No resizing, overwriting or source deletion; preview first with image_preview and no widths. items[].output contains saved paths.",
+			readOnly:    false,
+			retrySafe:   false,
+			input: `{
+  "type": "object",
+  "properties": {
+    "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16},
+    "format": {"type":"string","enum":["keep","webp"]},
+    "out_dir": {"type":"string","minLength":1}
+  },
+  "required": ["paths","out_dir"],
+  "additionalProperties": false
+}`,
+		},
+		{
 			kind:        "variants",
-			description: "Write image width variants to a new output directory; sources and existing files are preserved. Names: <stem>-<width>w.<ext>; items[].output contains saved paths. Preview shows names without writing.",
+			description: "Resize images to width variants in a new output directory; keep preserves format, webp converts PNG/JPEG. Does not quantize PNGs; use image_optimize without widths for that. Sources and existing files are preserved. Names: <stem>-<width>w.<ext>; items[].output contains saved paths. Preview shows names without writing.",
 			readOnly:    false,
 			retrySafe:   false,
 			input: `{
@@ -124,7 +140,7 @@ const outputSchema = `{
     "summary": {"type":"object","additionalProperties":{"type":"integer"}},
     "status": {"type":"string"},
     "sources": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"sha256_before":{"type":"string"},"sha256_after":{"type":"string"},"unchanged":{"type":"boolean"},"error":{"type":"string"}},"required":["path","sha256_before"]}},
-    "items": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"Actual saved path for variants; planned basename for preview. Select the matching metrics.width."},"status":{"type":"string"},"written":{"type":"boolean"},"code":{"type":"string"},"reason":{"type":"string"},"bytesBefore":{"type":"integer"},"bytesAfter":{"type":"integer"},"metrics":{"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"}}}},"required":["path","status"]}},
+    "items": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"Actual saved path for optimize/variants; planned basename for preview. For variants, select the matching metrics.width."},"status":{"type":"string"},"written":{"type":"boolean"},"code":{"type":"string"},"reason":{"type":"string"},"bytesBefore":{"type":"integer"},"bytesAfter":{"type":"integer"},"metrics":{"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"}}}},"required":["path","status"]}},
     "recovery": {"type":"string"},
     "error": {"type":"string"},
     "failure_stage": {"type":"string"}
@@ -173,7 +189,7 @@ func (o Operation) Run(ctx context.Context, raw json.RawMessage) (string, error)
 
 	var authorize images.WriteAuthorizer
 	if o.AuthorizeOutput != nil {
-		authorize = func(ctx context.Context, path string) error { return o.AuthorizeOutput(ctx, path, raw) }
+		authorize = func(ctx context.Context, path string) error { return o.AuthorizeOutput(ctx, o.Name(), path, raw) }
 	}
 
 	return o.Service.Run(ctx, o.Kind, in, authorize)

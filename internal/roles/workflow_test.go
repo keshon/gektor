@@ -38,6 +38,7 @@ func (c *authorClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatRes
 			call("download_file", `{"url":"https://example.com/file","path":"download.bin"}`),
 			call("enable_capability", `{"id":"external"}`),
 			call("image_variants", `{"paths":["image.png"],"widths":[8],"out_dir":"output"}`),
+			call("image_optimize", `{"paths":["image.png"],"out_dir":"optimized"}`),
 		}
 	case 2:
 		calls = []llm.ToolCall{call("workflow_save", `{"path":"other.json","recipe":{"version":4,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["image.png"]}}]}}`)}
@@ -102,7 +103,7 @@ func TestWorkflowAuthorCannotExecuteOrRedirectWrites(t *testing.T) {
 	if _, err := e.WS.Stat("recipe.json"); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"other.json", "owned.txt", "download.bin", "output", ".gektor/workflow-runs"} {
+	for _, path := range []string{"other.json", "owned.txt", "download.bin", "output", "optimized", ".gektor/workflow-runs"} {
 		if _, err := e.WS.Stat(path); !os.IsNotExist(err) {
 			t.Fatal("author escaped its write scope", path, err)
 		}

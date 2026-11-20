@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -164,6 +165,34 @@ func assertFits(t *testing.T, rows []string, width int) {
 	for _, row := range rows {
 		if ansi.StringWidth(row) > width {
 			t.Errorf("%d-column row exceeds %d: %q", ansi.StringWidth(row), width, row)
+		}
+	}
+}
+
+func TestWrappedRowsRetainStylesWhenRenderedSeparately(t *testing.T) {
+	styles := testStyles()
+	styles.Text = styles.Muted.Italic(true)
+	source := "A paragraph that wraps across several visual rows. **" + strings.Repeat("B", 70) + "** After bold text."
+	for _, width := range []int{12, 40} {
+		rows := Render(source, width, styles)
+		if len(rows) < 3 {
+			t.Fatal("fixture did not wrap")
+		}
+		for y, row := range rows {
+			buffer := uv.NewScreenBuffer(width, 1)
+			uv.NewStyledString(row).Draw(buffer, uv.Rect(0, 0, width, 1))
+			for x := range width {
+				cell := buffer.CellAt(x, 0)
+				if cell == nil || strings.TrimSpace(cell.Content) == "" {
+					continue
+				}
+				if cell.Style.Attrs&uv.AttrItalic == 0 || cell.Style.Fg == nil || cell.Style.Fg != styles.Muted.GetForeground() {
+					t.Fatalf("width %d row %d lost base style: %+v", width, y, cell)
+				}
+				if cell.Content == "B" && cell.Style.Attrs&uv.AttrBold == 0 {
+					t.Fatalf("row %d lost wrapped bold", y)
+				}
+			}
 		}
 	}
 }

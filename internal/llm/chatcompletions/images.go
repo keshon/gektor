@@ -59,7 +59,7 @@ func encodeContent(text string, images []string, allowImages bool) (json.RawMess
 // and Stream so both paths attach (or refuse) identically.
 func encodeMessages(messages []llm.Message, allowImages bool) ([]wireMessage, error) {
 	out := make([]wireMessage, 0, len(messages))
-	for _, m := range messages {
+	for _, m := range llm.WireMessages(messages) {
 		content, err := encodeContent(m.Content, m.Images, allowImages)
 		if err != nil {
 			return nil, err

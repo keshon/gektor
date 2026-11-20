@@ -95,6 +95,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 		{"image_inspect", `{"paths":["input.png"]}`, true, true, true},
 		{"image_preview", `{"paths":["input.png"]}`, true, true, true},
 		{"image_compare", `{"paths":["a.png","b.png"]}`, true, true, true},
+		{"image_optimize", `{"paths":["input.png"],"out_dir":"out"}`, false, false, false},
 		{"image_variants", `{"paths":["input.png"],"widths":[8],"out_dir":"out"}`, false, false, false},
 		{"media_status", `{}`, true, true, true},
 		{"video_info", `{"url":"https://youtu.be/abcdefghijk"}`, true, true, true},

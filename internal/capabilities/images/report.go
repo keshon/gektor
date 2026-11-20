@@ -29,6 +29,9 @@ func (t operation) evaluateReport(in Request, rep *imagekit.Report, sourceErr er
 	if t.Kind == "variants" && rep.Summary.Changed != len(in.Paths)*len(in.Widths) {
 		blocked = true
 	}
+	if t.Kind == "optimize" && rep.Summary.Changed != len(in.Paths) {
+		blocked = true
+	}
 	var operationErr error
 	if sourceErr != nil {
 		failed = true
@@ -53,7 +56,7 @@ func (t operation) evaluateReport(in Request, rep *imagekit.Report, sourceErr er
 func (t operation) formatReport(in Request, rep *imagekit.Report, staged stagedImages, outcome imageOutcome) (string, error) {
 	for i := range rep.Items {
 		it := &rep.Items[i]
-		if outcome.blocked && t.Kind == "variants" {
+		if outcome.blocked && t.writesOutputs() {
 			it.Written = false
 			it.Output = ""
 			if it.Status == "done" {
@@ -71,7 +74,7 @@ func (t operation) formatReport(in Request, rep *imagekit.Report, staged stagedI
 			it.Path = filepath.ToSlash(path)
 		}
 		if it.Output != "" {
-			if t.Kind == "variants" {
+			if t.writesOutputs() {
 				it.Output = filepath.ToSlash(filepath.Join(in.OutDir, filepath.Base(it.Output)))
 			} else {
 				it.Output = filepath.Base(it.Output)
@@ -83,7 +86,7 @@ func (t operation) formatReport(in Request, rep *imagekit.Report, staged stagedI
 	if t.Kind == "compare" {
 		status = "compared"
 	}
-	if t.Kind == "variants" {
+	if t.writesOutputs() {
 		status = "written"
 	}
 	if outcome.blocked {

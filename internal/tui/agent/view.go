@@ -30,7 +30,7 @@ func (m *Model) screenContent() string {
 	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)
 	footer := m.composerRows()
 	layout := m.panelGeometry(m.mainWidth(), len(footer), false, true)
-	focused := m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && !m.chrome.Header.Focused && (!m.inspectorVisible() || !m.inspector.focused)
+	focused := m.inspectorVisible() && !m.inspector.focused && !m.chrome.Header.Focused
 	rows := pane.Render(layout, paneHeader, body, footer, m.paneStyles(), focused)
 	content := "\n" + strings.Join(rows, "\n")
 

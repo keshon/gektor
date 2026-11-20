@@ -26,8 +26,7 @@ type Streamer interface {
 }
 
 type ChatRequest struct {
-	// UserRequest is host attribution metadata, not a new conversation turn.
-	// Local backends may repeat a bounded excerpt in a transient wire footer.
+	// UserRequest is inspection metadata and is never added to the wire history.
 	UserRequest      string
 	UserRequestCount int
 	RunDirective     string

@@ -91,15 +91,7 @@ func AnalyzeContext(req ChatRequest, sections []PromptSection) ContextReport {
 // content, tool schemas and images; out-of-band Reasoning is never replayed.
 func EstimatePromptTokens(req ChatRequest) int {
 	chars, tokens := 0, 0
-	if req.UserRequest != "" {
-		for _, message := range req.Messages {
-			if message.Role == RoleAssistant {
-				chars += min(utf8.RuneCountInString(req.UserRequest), 2048) + utf8.RuneCountInString(req.RunDirective) + 300
-				break
-			}
-		}
-	}
-	for _, m := range req.Messages {
+	for _, m := range WireMessages(req.Messages) {
 		if m.ProviderState.Matches(m) {
 			tokens += m.ProviderState.AdditionalTokens
 		}

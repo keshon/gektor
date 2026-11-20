@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/keshon/gektor/internal/llm"
@@ -278,9 +277,6 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (response llm.Cha
 	a.requests++
 	for i := range req.Messages {
 		m := &req.Messages[i]
-		if m.Harness == "" && strings.HasPrefix(m.Content, harnessPrefix) {
-			m.Harness = "notice"
-		}
 		if m.Harness != "" && m.Request == 0 {
 			m.Request = a.requests
 			if a.cfg.OnContext != nil {

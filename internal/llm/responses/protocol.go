@@ -46,7 +46,7 @@ func (c *Client) buildRequest(req llm.ChatRequest) ([]byte, bool, error) {
 	fallback := false
 	input := []any{}
 
-	for _, m := range llm.ModelMessages(req.Messages) {
+	for _, m := range llm.WireMessages(llm.ModelMessages(req.Messages)) {
 		if state := m.ProviderState; m.Role == llm.RoleAssistant && state.Matches(m) && state.Integration == "chatgpt:"+strings.TrimRight(c.baseURL, "/") && state.Model == c.model && state.Scope == c.replayScope && c.replayScope != "" {
 			var items []json.RawMessage
 			if json.Unmarshal(state.Payload, &items) == nil {

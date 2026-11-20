@@ -53,7 +53,7 @@ func (a *Agent) recordInspection(req llm.ChatRequest) {
 			continue
 		}
 		m = projected[0]
-		if a.cfg.Directive != "" && m.Role == llm.RoleUser && m.Content == harnessPrefix+a.cfg.Directive {
+		if a.cfg.Directive != "" && m.Role == llm.RoleUser && m.Harness == "directive" && m.Content == harnessPrefix+a.cfg.Directive {
 			v.Directive = a.cfg.Directive
 		}
 		r.MessageCount++

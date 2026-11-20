@@ -26,7 +26,8 @@ func recipeArgs(t *testing.T, ws *workspace.Workspace, source []byte) json.RawMe
 	}
 	return json.RawMessage(`{"recipe_path":"recipe.json"}`)
 }
-func allow(context.Context, string, json.RawMessage) error { return nil }
+func allow(context.Context, string, json.RawMessage) error                    { return nil }
+func allowImageOutput(context.Context, string, string, json.RawMessage) error { return nil }
 
 func TestRunRejectsMalformedArgumentsBeforeAuthorization(t *testing.T) {
 	tool := Tool{
@@ -68,7 +69,7 @@ func TestVersionTwoBindsInputsAndImageOutput(t *testing.T) {
 	recipeArgs(t, ws, source)
 	args := json.RawMessage(`{"recipe_path":"recipe.json","inputs":{"source":"input.png"}}`)
 	tool := Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow, Registry: func() (*workflow.Registry, error) {
-		return app.WorkflowRegistry(ws, t.TempDir(), allow, nil)
+		return app.WorkflowRegistry(ws, t.TempDir(), allowImageOutput, nil)
 	},
 	}
 	if _, err := tool.Run(t.Context(), args); err != nil {
@@ -128,7 +129,7 @@ func TestOutputDerivedPathsAreAuthorizedAndValidated(t *testing.T) {
 				}
 				return nil
 			}, Registry: func() (*workflow.Registry, error) {
-				return app.WorkflowRegistry(ws, t.TempDir(), allow, nil)
+				return app.WorkflowRegistry(ws, t.TempDir(), allowImageOutput, nil)
 			},
 			}
 			out, err := tool.Run(t.Context(), args)
@@ -184,7 +185,7 @@ func TestManualImageRecipeCompletes(t *testing.T) {
 	}
 	authorized := 0
 	out, err := (Tool{WS: ws, StoreDir: t.TempDir(), Authorize: func(context.Context, string, json.RawMessage) error { authorized++; return nil }, Registry: func() (*workflow.Registry, error) {
-		return app.WorkflowRegistry(ws, t.TempDir(), allow, nil)
+		return app.WorkflowRegistry(ws, t.TempDir(), allowImageOutput, nil)
 	},
 	}).Run(t.Context(), args)
 	if err != nil {

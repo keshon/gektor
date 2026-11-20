@@ -5,16 +5,86 @@ import (
 	"context"
 	"encoding/json"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/permission"
 	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
+
+func TestOptimizationUsesItsOwnOutputFilenamePolicy(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	img := image.NewNRGBA(image.Rect(0, 0, 128, 128))
+	for y := range 128 {
+		for x := range 128 {
+			img.SetNRGBA(x, y, color.NRGBA{uint8(x / 8 * 16), uint8(y / 8 * 16), 128, 255})
+		}
+	}
+	var data bytes.Buffer
+	encoder := png.Encoder{CompressionLevel: png.NoCompression}
+	if err := encoder.Encode(&data, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteFile("input.png", data.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	policy := permission.Policy{Rules: []permission.Rule{{Tool: "image_optimize", Pattern: "out/input-min.png", Effect: permission.Deny}}}
+	catalog := policyCatalog(t, Dependencies{WS: ws, Policy: policy, StoreDir: t.TempDir()})
+	for _, id := range []string{"native_images", "native_workflows"} {
+		if _, err := catalog.Enable(t.Context(), id, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	args := json.RawMessage(`{"paths":["input.png"],"out_dir":"out"}`)
+	if _, err := catalog.Registry.Run(t.Context(), "image_optimize", args); err == nil {
+		t.Fatal("direct optimization bypassed its filename deny")
+	}
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":4,"name":"denied optimization","steps":[{"id":"write","tool":"image_optimize","args":{"paths":["input.png"],"out_dir":"out"}}]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.Registry.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`)); err == nil {
+		t.Fatal("agent workflow optimization bypassed its filename deny")
+	}
+	service, err := app.NewWorkflow(ws, t.TempDir(), policy, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Run(t.Context(), "recipe.json", nil); err == nil {
+		t.Fatal("headless workflow optimization bypassed its filename deny")
+	}
+	if _, err := ws.Stat("out"); !os.IsNotExist(err) {
+		t.Fatal("denied optimization created output directory")
+	}
+	allowedService, err := app.NewWorkflow(ws, t.TempDir(), permission.Policy{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := allowedService.Run(t.Context(), "recipe.json", nil); err != nil {
+		t.Fatalf("authorized workflow optimization failed: %v", err)
+	}
+	output, err := ws.Open("out/input-min.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := png.Decode(output)
+	output.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := decoded.(*image.Paletted); !ok {
+		t.Fatalf("workflow did not produce quantized PNG: %T", decoded)
+	}
+}
 
 func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())

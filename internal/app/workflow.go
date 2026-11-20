@@ -154,12 +154,12 @@ func NewWorkflow(ws *workspace.Workspace, directory string, policy permission.Po
 		directory = userdirs.Sub("workflows")
 	}
 
-	output := func(ctx context.Context, path string, args json.RawMessage) error {
+	output := func(ctx context.Context, name, path string, args json.RawMessage) error {
 		rel, err := ws.Relative(path)
 		if err != nil {
 			return err
 		}
-		return permission.Authorize(ctx, policy, gate, "image_variants", filepath.ToSlash(rel), args)
+		return permission.Authorize(ctx, policy, gate, name, filepath.ToSlash(rel), args)
 	}
 	resource := func(ctx context.Context, name, path string, args json.RawMessage) error {
 		return permission.Authorize(ctx, policy, gate, name, path, args)

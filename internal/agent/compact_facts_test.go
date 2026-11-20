@@ -50,7 +50,7 @@ func TestFormatChecklist_RejectsOtherTools(t *testing.T) {
 func TestSummarizeDropped_SkipsHarnessNotices(t *testing.T) {
 	var f droppedFacts
 	f.add([][]llm.Message{{
-		{Role: llm.RoleUser, Content: harnessText("budget extended by operator approval")},
+		{Role: llm.RoleUser, Harness: "budget_extension", Content: harnessText("budget extended by operator approval")},
 		{Role: llm.RoleAssistant, Content: "working"},
 		{Role: llm.RoleUser, Content: "actually make it two players"},
 	}})

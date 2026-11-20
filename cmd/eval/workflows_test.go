@@ -52,8 +52,8 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			allow := func(context.Context, string, json.RawMessage) error { return nil }
-			tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), ValidateOnly: kind == "workflow_invalid", Authorize: allow, Registry: func() (*workflow.Registry, error) {
+			allow := func(context.Context, string, string, json.RawMessage) error { return nil }
+			tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), ValidateOnly: kind == "workflow_invalid", Authorize: func(context.Context, string, json.RawMessage) error { return nil }, Registry: func() (*workflow.Registry, error) {
 				return app.WorkflowRegistry(ws, workflowStoreDir(ws), allow, nil)
 			},
 			}
@@ -149,8 +149,8 @@ func TestWorkflowVerifierAcceptsParameterizedRecipeAndChecksCompiledRecord(t *te
 	if err := ws.WriteFile("recipe.json", source, 0600); err != nil {
 		t.Fatal(err)
 	}
-	allow := func(context.Context, string, json.RawMessage) error { return nil }
-	tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, Registry: func() (*workflow.Registry, error) {
+	allow := func(context.Context, string, string, json.RawMessage) error { return nil }
+	tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: func(context.Context, string, json.RawMessage) error { return nil }, Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(ws, workflowStoreDir(ws), allow, nil)
 	},
 	}

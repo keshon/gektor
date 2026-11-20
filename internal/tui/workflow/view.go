@@ -152,7 +152,7 @@ func (m *Model) content() string {
 	rows := view.Render(screen.Panel{
 		Title: mode + " / " + cleanText(title),
 		Hint:  pane.NoticeRow(cleanText(m.notice), m.noticeLevel, footerWidth, view.Styles.Notice),
-		Body:  left, Width: leftWidth, Focused: !m.inspect,
+		Body:  left, Width: leftWidth, Focused: m.inspectorOpen && !m.inspect,
 	})
 	if m.inspectorOpen {
 		width := regions.Side.Width

@@ -20,7 +20,7 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-func allowOutput(context.Context, string, json.RawMessage) error { return nil }
+func allowOutput(context.Context, string, string, json.RawMessage) error { return nil }
 
 func TestSessionAttachmentInspectAndPixelComparison(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
@@ -94,7 +94,10 @@ func TestEveryImageOutputIsAuthorizedBeforePublication(t *testing.T) {
 	denied := errors.New("second destination denied")
 	var destinations []string
 	args := json.RawMessage(`{"paths":["input.png"],"widths":[8,16],"out_dir":"out"}`)
-	op := Operation{Service: images.Service{WS: ws, Inputs: testInputs{ws}}, Kind: "variants", AuthorizeOutput: func(_ context.Context, path string, got json.RawMessage) error {
+	op := Operation{Service: images.Service{WS: ws, Inputs: testInputs{ws}}, Kind: "variants", AuthorizeOutput: func(_ context.Context, name, path string, got json.RawMessage) error {
+		if name != "image_variants" {
+			t.Fatalf("authorization lost operation name: %s", name)
+		}
 		if !bytes.Equal(got, args) {
 			t.Fatal("authorization lost original arguments")
 		}

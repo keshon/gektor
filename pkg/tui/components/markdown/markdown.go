@@ -186,7 +186,13 @@ func wrap(value string, width int) []string {
 func hardWrap(value string, width int) []string {
 	width = max(width, 1)
 	value = ansi.Hardwrap(value, max(width, 1), true)
-	rows := strings.Split(value, "\n")
+	// Rows are composed independently by panes and viewports. Restore the active
+	// style after every wrap so a preceding row's reset cannot strip it.
+	var styled strings.Builder
+	writer := lipgloss.NewWrapWriter(&styled)
+	_, _ = writer.Write([]byte(value))
+	_ = writer.Close()
+	rows := strings.Split(styled.String(), "\n")
 	for i, row := range rows {
 		if ansi.StringWidth(row) > width {
 			// A wide grapheme cannot fit a single remaining cell. Mark clipping

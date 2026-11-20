@@ -39,7 +39,6 @@ func testModel() *Model {
 		note: newNote(),
 	}
 	m.input = newInput()
-	m.input.Prompt = "> "
 	m.input.Focus()
 	m.bindControls()
 	return m

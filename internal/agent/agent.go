@@ -192,6 +192,10 @@ func (a *Agent) Run(ctx context.Context, task string, images ...string) (string,
 // appended as a fresh user message; the full history is already there, so
 // it need not summarise what happened.
 func (a *Agent) Resume(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
+	return a.resume(ctx, history, llm.Message{Role: llm.RoleUser, Content: note, Images: images})
+}
+
+func (a *Agent) resume(ctx context.Context, history []llm.Message, note llm.Message) (string, error) {
 	var err error
 	history, err = a.restoreHistory(history)
 	if err != nil {
@@ -199,12 +203,8 @@ func (a *Agent) Resume(ctx context.Context, history []llm.Message, note string, 
 	}
 
 	history = a.closePendingCalls(a.resumeHistory(history), "", "")
-	if strings.TrimSpace(note) != "" || len(images) > 0 {
-		history = append(history, llm.Message{
-			Role:    llm.RoleUser,
-			Content: note,
-			Images:  images,
-		})
+	if strings.TrimSpace(note.Content) != "" || len(note.Images) > 0 {
+		history = append(history, note)
 	}
 
 	return a.run(ctx, history)

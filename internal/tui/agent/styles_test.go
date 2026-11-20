@@ -29,12 +29,13 @@ func TestComposerCursorIsThemedInBothPalettes(t *testing.T) {
 	defer setTheme("dark")
 	for _, name := range []string{"dark", "light"} {
 		setTheme(name)
-		want := themeColor(colorAccent)
+		want := themeColor(colorPopupText)
 
 		composer := inputStyles(textarea.DefaultDarkStyles())
 		if !sameColor(composer.Cursor.Color, want) {
 			t.Fatalf("%s: composer cursor is %s, want %s", name, colorHex(composer.Cursor.Color), want)
 		}
+		want = themeColor(colorAccent)
 		field := textInputStyles(textinput.DefaultDarkStyles())
 		if !sameColor(field.Cursor.Color, want) {
 			t.Fatalf("%s: text input cursor is %s, want %s", name, colorHex(field.Cursor.Color), want)
@@ -51,9 +52,9 @@ func TestApplyingAThemeRestylesTheLiveCursor(t *testing.T) {
 
 	for _, name := range []string{"light", "dark"} {
 		m.applyTheme(name)
-		if got := colorHex(m.input.Styles().Cursor.Color); !sameColor(m.input.Styles().Cursor.Color, themeColor(colorAccent)) {
+		if got := colorHex(m.input.Styles().Cursor.Color); !sameColor(m.input.Styles().Cursor.Color, themeColor(colorPopupText)) {
 			t.Fatalf("%s: live composer cursor is %s, want %s",
-				name, got, themeColor(colorAccent))
+				name, got, themeColor(colorPopupText))
 		}
 		if got := colorHex(m.note.Styles().Cursor.Color); !sameColor(m.note.Styles().Cursor.Color, themeColor(colorAccent)) {
 			t.Fatalf("%s: live note cursor is %s, want %s",

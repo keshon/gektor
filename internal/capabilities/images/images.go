@@ -50,7 +50,7 @@ type Request struct {
 
 func (s Service) Validate(kind string, in Request) (Request, error) {
 	switch kind {
-	case "inspect", "preview", "variants", "compare":
+	case "inspect", "preview", "optimize", "variants", "compare":
 	default:
 		return in, fmt.Errorf("unknown image operation %q", kind)
 	}
@@ -87,6 +87,9 @@ func (s Service) Validate(kind string, in Request) (Request, error) {
 
 	if kind == "variants" && (len(in.Widths) == 0 || in.OutDir == "") {
 		return in, fmt.Errorf("variants requires widths and out_dir")
+	}
+	if kind == "optimize" && (len(in.Widths) > 0 || in.OutDir == "") {
+		return in, fmt.Errorf("optimize requires out_dir and does not accept widths; use variants for resizing")
 	}
 
 	in.Paths = append([]string(nil), in.Paths...)
@@ -169,7 +172,7 @@ func (s Service) Run(ctx context.Context, kind string, in Request, authorize Wri
 	}
 
 	// Encoding and authorization finish before any workspace output is created.
-	if t.Kind == "variants" && !outcome.blocked {
+	if t.writesOutputs() && !outcome.blocked {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
@@ -197,6 +200,10 @@ func (s Service) Run(ctx context.Context, kind string, in Request, authorize Wri
 	return t.formatReport(in, rep, staged, outcome)
 }
 
+func (t operation) writesOutputs() bool {
+	return t.Kind == "variants" || t.Kind == "optimize"
+}
+
 func (t operation) process(ctx context.Context, in Request, dir string, paths []string) (*imagekit.Report, error) {
 	var rep *imagekit.Report
 	var err error
@@ -213,14 +220,14 @@ func (t operation) process(ctx context.Context, in Request, dir string, paths []
 		if rep != nil {
 			rep.Notes = append(rep.Notes, "Pixel comparison only; object identity and semantic similarity are not measured. Different dimensions are resampled; perspective, lighting and aspect-ratio changes make these metrics unsuitable for identification.")
 		}
-	case "preview", "variants":
+	case "preview", "variants", "optimize":
 		rep, err = imagekit.Optimize(imagekit.OptimizeRequest{
 			Context: ctx,
 			Paths:   paths,
 			Widths:  in.Widths,
 			Format:  in.Format,
 			OutDir:  filepath.Join(dir, "output"),
-			Apply:   t.Kind == "variants",
+			Apply:   t.writesOutputs(),
 			Jobs:    1,
 		})
 	default:

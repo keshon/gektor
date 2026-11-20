@@ -92,6 +92,9 @@ func (f *droppedFacts) add(dropped [][]llm.Message) {
 					f.lastText = t
 				}
 			case llm.RoleUser:
+				if m.Harness != "" {
+					continue
+				}
 				if a := droppedAsk(m.Content); a != "" {
 					f.asks = append(f.asks, a)
 				}
@@ -235,7 +238,7 @@ func unquoteEach(s string) []string {
 // would crowd out the request that matters.
 func droppedAsk(content string) string {
 	t := strings.TrimSpace(content)
-	if t == "" || strings.HasPrefix(t, harnessPrefix) {
+	if t == "" {
 		return ""
 	}
 	return t

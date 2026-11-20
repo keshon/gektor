@@ -29,7 +29,7 @@ func (a *Agent) requestIdentity(req *llm.ChatRequest) {
 		if i > 0 && a.snapshot.History[i-1].Role == llm.RoleTool && len(message.Images) > 0 && message.Content == pictureNote(message.Images) {
 			continue
 		}
-		if message.Role == llm.RoleUser && message.Harness == "" && !strings.HasPrefix(message.Content, harnessPrefix) {
+		if message.Role == llm.RoleUser && message.Harness == "" {
 			req.UserRequest = message.Content
 			req.UserRequestCount++
 		}
@@ -91,7 +91,7 @@ func (a *Agent) withDirective(history []llm.Message) []llm.Message {
 	}
 	last := ""
 	for i := len(history) - 1; i >= 0; i-- {
-		if history[i].Role != llm.RoleUser {
+		if history[i].Role != llm.RoleUser || history[i].Harness != "directive" {
 			continue
 		}
 		if history[i].Content == mine {
@@ -106,5 +106,5 @@ func (a *Agent) withDirective(history []llm.Message) []llm.Message {
 	if last == mine {
 		return history
 	}
-	return append(history, llm.Message{Role: llm.RoleUser, Content: mine})
+	return append(history, llm.Message{Role: llm.RoleUser, Content: mine, Harness: "directive"})
 }

@@ -144,7 +144,7 @@ func TestInputHidesLineNumbers(t *testing.T) {
 	}
 }
 
-func TestNativeUnderlineCaretTracksComposerAndHidesOnHelp(t *testing.T) {
+func TestNativeBarCaretTracksComposerAndHidesOnHelp(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("first\nsecond")
@@ -152,7 +152,7 @@ func TestNativeUnderlineCaretTracksComposerAndHidesOnHelp(t *testing.T) {
 	m.fitInput()
 	m.fitBottom()
 	v := m.testView()
-	if v.Cursor == nil || v.Cursor.Shape != tea.CursorUnderline || v.Cursor.Y != m.termH-m.footerRows()-1 {
+	if v.Cursor == nil || v.Cursor.Shape != tea.CursorBar || v.Cursor.Y != m.termH-m.footerRows()-1 {
 		t.Fatalf("incorrect native composer cursor: %+v", v.Cursor)
 	}
 	if v.Cursor.X != 3+len("second") {

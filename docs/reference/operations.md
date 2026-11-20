@@ -6,7 +6,7 @@ Look up native operation names, arguments, results and limits. Agent enables opt
 
 | Task | Operations |
 |---|---|
-| Inspect and process images | `image_inspect`, `image_preview`, `image_variants`, `image_compare` |
+| Inspect and process images | `image_inspect`, `image_preview`, `image_optimize`, `image_variants`, `image_compare` |
 | Read and save structured records | `record_read`, `record_write` |
 | Transform data with JavaScript | `script_transform` |
 | Ask a model for text or structured data | `model_generate` |
@@ -360,6 +360,7 @@ Enable `native_images` through `enable_capability` to load these schemas:
 |---|---|---|
 | `image_inspect` | Format, dimensions, metadata | None |
 | `image_preview` | Preview optimization or explicit width variants | None |
+| `image_optimize` | Quantize PNGs, optimize JPEGs or convert to WebP at original dimensions | New output directory |
 | `image_variants` | Create explicit width variants | New output directory |
 | `image_compare` | PSNR and SSIM for two images | None |
 
@@ -370,6 +371,18 @@ Image inputs and outputs have these limits:
 - Output format: `keep` or `webp`.
 - A new output directory. Source replacement, deletion and destination overwrite
   are not exposed.
+
+For original-size output, preview without `widths`, then use `image_optimize`:
+
+```json
+{"paths":["input.png"],"format":"webp","out_dir":"optimized"}
+```
+
+Use `format: "keep"` on a PNG for palette quantization. JPEG `keep` optimizes
+Huffman coding. `image_variants` resizes images; it does not quantize PNGs.
+Pixelita applies its size and fidelity thresholds and may decline an output.
+The tools do not expose quantizer tuning, WebP quality settings or conversion
+to PNG from another format.
 
 Image operations use staged copies; workspace access goes through
 GEKTOR's rooted file API.
@@ -396,7 +409,7 @@ Validation
 checks structure, supported operations, argument schemas, IDs and path scope.
 It does not predict whether future input files exist or encoding will succeed.
 
-The catalog includes these four image operations, `record_read`, `record_write`,
+The catalog includes these five image operations, `record_read`, `record_write`,
 `script_transform`, `model_generate`, `http_request`, `artifact_import`,
 `artifact_write`, `artifact_read_text`, `docx_read`, `xlsx_read`, `pdf_read`, `download_file`, `archive_list`, `archive_create`, `archive_extract`,
 `run_program`, `workflow_call` and the [media operations](#video-and-audio).

@@ -131,7 +131,7 @@ func executeProbeAgent(ctx context.Context, p Probe, env roles.Env, images []str
 		history := []llm.Message{
 			{Role: llm.RoleSystem},
 			{Role: llm.RoleUser, Content: p.Task, Images: images},
-			{Role: llm.RoleUser, Harness: "notice", Content: "[harness] " + prompts.ActMode},
+			{Role: llm.RoleUser, Harness: "directive", Content: "[harness] " + prompts.ActMode},
 		}
 		history = append(history, p.Continuation...)
 		final, err = a.Resume(ctx, history, "")
