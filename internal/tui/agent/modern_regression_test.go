@@ -22,12 +22,12 @@ func TestModernPackedToolNamesKeepRowsAndHitTargets(t *testing.T) {
 			state.appendToolName(&part, 0, 1, second, props, width)
 			rows := strings.Split(ansi.Strip(part), "\n")
 			for _, row := range rows {
-				if strings.TrimSpace(row) == "" || ansi.StringWidth(row) > width || !strings.HasPrefix(row, " ") || strings.HasPrefix(row, "  ") {
+				if strings.TrimSpace(row) == "" || ansi.StringWidth(row) > width || !strings.HasPrefix(row, "  ") || strings.HasPrefix(row, "   ") {
 					t.Fatal("packed tool introduced empty, overflowing or unaligned row", width, length, row)
 				}
 			}
 			for _, hit := range state.render.inlineTools {
-				if hit.row >= len(rows) || hit.start < 1 || hit.end > ansi.StringWidth(rows[hit.row]) || hit.start >= hit.end {
+				if hit.row >= len(rows) || hit.start < 2 || hit.end > ansi.StringWidth(rows[hit.row]) || hit.start >= hit.end {
 					t.Fatal("packed tool hit target missed its rendered row", width, length, hit)
 				}
 			}

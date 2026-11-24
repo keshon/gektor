@@ -250,7 +250,7 @@ func (t *transcriptState) appendToolName(part *string, partIndex, index int, b b
 	}
 	inset := 0
 	if props.modern && width >= 6 {
-		inset = 1
+		inset = 2
 	}
 	fragments := reflow(text, max(width-inset, 1))
 	badgeStyle := lipgloss.NewStyle().Background(background)
