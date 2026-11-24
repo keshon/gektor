@@ -172,11 +172,16 @@ func modernToolArguments(text string) string {
 
 	rows := []string{name}
 	for _, key := range keys {
+		raw := fields[key]
 		value := ""
-		err = json.Unmarshal(fields[key], &value)
-		if err != nil {
+		if raw[0] == '"' {
+			err = json.Unmarshal(raw, &value)
+			if err != nil {
+				return prettyToolArguments(text)
+			}
+		} else {
 			var formatted bytes.Buffer
-			err = json.Indent(&formatted, fields[key], "", "  ")
+			err = json.Indent(&formatted, raw, "", "  ")
 			if err != nil {
 				return prettyToolArguments(text)
 			}

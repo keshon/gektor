@@ -248,11 +248,11 @@ func (t *transcriptState) appendToolName(part *string, partIndex, index int, b b
 	if props.modern {
 		text = plainGlyph + " " + name
 	}
-	wrapWidth := width
+	inset := 0
 	if props.modern && width >= 6 {
-		wrapWidth -= 2
+		inset = 2
 	}
-	fragments := reflow(text, max(wrapWidth, 1))
+	fragments := reflow(text, max(width-inset, 1))
 	badgeStyle := lipgloss.NewStyle().Background(background)
 	if b.callID == props.selectedCall && b.callID != "" {
 		badgeStyle = badgeStyle.Bold(true)
@@ -261,22 +261,17 @@ func (t *transcriptState) appendToolName(part *string, partIndex, index int, b b
 		rows := strings.Split(*part, "\n")
 		row := len(rows) - 1
 		column := ansi.StringWidth(rows[row])
-		if props.modern && column == 0 && width >= 6 {
-			*part += "  "
-			column = 2
-		}
 		separator := ""
-		if column > 0 {
-			separator = " "
+		if column == 0 {
+			separator = strings.Repeat(" ", inset)
+			column = inset
+		} else if column > inset {
 			if column+1+ansi.StringWidth(fragment) > width {
-				separator = "\n"
+				separator = "\n" + strings.Repeat(" ", inset)
 				row++
-				column = 0
-				if props.modern && width >= 6 {
-					separator += "  "
-					column = 2
-				}
+				column = inset
 			} else {
+				separator = " "
 				column++
 			}
 		}

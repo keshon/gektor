@@ -40,9 +40,9 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 }
 
 // Choosers retain a value row while focused instead of opening an inline editor.
-func (f *Model) display(field form.Field, value string) (string, bool) {
+func (f *Model) display(field form.Field, value string, styles form.Styles) (string, bool) {
 	if len(f.Options(field.Key)) > 0 {
-		return "[ " + f.ChoiceLabel(field.Key, value) + " ▾ ]", false
+		return f.fieldButton(field, f.ChoiceLabel(field.Key, value)+" ▾", styles), false
 	}
 	switch {
 	case f.FilePicker(field.Key):
@@ -52,11 +52,20 @@ func (f *Model) display(field form.Field, value string) (string, bool) {
 			// element is what the reader recognises.
 			shown = filepath.Base(value)
 		}
-		return shown + "  [ Choose… ]", false
+		return shown + "  " + f.fieldButton(field, "Choose…", styles), false
 	case f.DiscoveryFields[field.Key] != "":
-		return value + "  [ Discover… ]", false
+		return value + "  " + f.fieldButton(field, "Discover…", styles), false
 	}
 	return value, true
+}
+
+func (f *Model) fieldButton(field form.Field, label string, styles form.Styles) string {
+	text := form.ButtonLabel(label, cell.Width(label)+4, styles)
+	if !styles.FilledButtons {
+		return text
+	}
+	focused := f.Index >= 0 && f.Index < len(f.Fields) && f.Fields[f.Index].Key == field.Key
+	return form.Button(text, focused, true, false, styles)
 }
 
 func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {
@@ -77,22 +86,25 @@ func (f *Model) plainLayout(props Props) form.Layout {
 	if f.Index < len(f.Fields) && len(f.Options(f.Fields[f.Index].Key)) > 0 {
 		choice = f.ChoiceLabel(f.Fields[f.Index].Key, f.Editor.Value())
 	}
+	styles := props.formStyles()
 	appearance := form.Props{
-		Title:          props.Title,
-		Hint:           f.Hint,
-		Error:          f.Error,
-		FieldErrors:    f.FieldErrors,
-		FeedbackHint:   feedbackHint,
-		PrimaryLabel:   f.ApplyLabel,
-		Width:          w,
-		Height:         h,
-		Destructive:    f.Destructive,
-		Choice:         choice,
-		Styles:         props.formStyles(),
-		Options:        f.inlineOptions,
-		Visible:        f.FieldVisible,
-		Label:          f.fieldLabel,
-		Display:        f.display,
+		Title:        props.Title,
+		Hint:         f.Hint,
+		Error:        f.Error,
+		FieldErrors:  f.FieldErrors,
+		FeedbackHint: feedbackHint,
+		PrimaryLabel: f.ApplyLabel,
+		Width:        w,
+		Height:       h,
+		Destructive:  f.Destructive,
+		Choice:       choice,
+		Styles:       styles,
+		Options:      f.inlineOptions,
+		Visible:      f.FieldVisible,
+		Label:        f.fieldLabel,
+		Display: func(field form.Field, value string) (string, bool) {
+			return f.display(field, value, styles)
+		},
 		Note:           f.Note,
 		Shortcuts:      f.Shortcuts,
 		DisablePrimary: f.DisablePrimary,

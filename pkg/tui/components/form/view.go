@@ -169,7 +169,12 @@ func (f Model) Layout(props Props) Layout {
 			}
 			rows = append(rows, choiceRows...)
 		case i == f.Index && props.Choice != "":
-			rows = append(rows, cell.Line("[ "+props.Choice+" ]  Enter to choose", inner))
+			if props.Styles.FilledButtons {
+				label := ButtonLabel(props.Choice+" ▾", inner, props.Styles)
+				rows = append(rows, cell.Line(Button(label, true, true, false, props.Styles), inner))
+			} else {
+				rows = append(rows, cell.Line("[ "+props.Choice+" ]  Enter to choose", inner))
+			}
 		case i == f.Index && editable:
 			rows = append(rows, strings.Split(f.Editor.View(), "\n")...)
 		default:

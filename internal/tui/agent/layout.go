@@ -45,7 +45,7 @@ func (m *Model) paneStyles() pane.Styles {
 }
 
 func (m *Model) transcriptTop() int {
-	return 1 + m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true).Body.Y
+	return 1 + m.panelGeometry(m.mainWidth(), 1, false, true).Body.Y
 }
 
 func (m *Model) dialogArea() (left, top, width, height int) {
