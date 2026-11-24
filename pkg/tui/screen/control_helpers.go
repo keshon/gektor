@@ -10,6 +10,7 @@ import (
 
 	"github.com/keshon/gektor/pkg/tui/components/cell"
 	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
+	"github.com/keshon/gektor/pkg/tui/components/form"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
@@ -55,9 +56,18 @@ func (m *Controls) NewEditor() textarea.Model {
 func (m *Controls) FormProps() fieldform.Props {
 	a := m.Props.Area
 	s := m.Props.Styles
+	buttons := m.formStyles()
 	return fieldform.Props{Width: a.Width, Height: a.Height, Left: a.X, Top: a.Y, Title: m.dialog.Title,
-		Styles:  fieldform.Styles{Title: s.Title, Disabled: s.Disabled, Muted: s.Dim, Focus: s.Focus, Error: s.Err, Selected: s.Hunk},
+		Styles:  fieldform.Styles{Title: s.Title, Disabled: s.Disabled, Muted: s.Dim, Focus: s.Focus, Error: s.Err, Selected: s.Hunk, Button: buttons.Button, FilledButtons: buttons.FilledButtons},
 		Surface: m.popupSurface(), SearchStyles: m.palette().TextInputStyles(textinput.New().Styles())}
+}
+
+func (m *Controls) formStyles() form.Styles {
+	s := m.Props.Styles
+	normal := m.popupSurface().Normal
+	button := normal.Background(lipgloss.Color(m.palette().Color(ColorSelectedBackground)))
+	return form.Styles{Normal: normal, Title: s.Title, Muted: s.Dim, Focus: s.Focus,
+		Disabled: s.Disabled, Error: s.Err, Button: button, FilledButtons: m.Props.Modern}
 }
 
 // IsMouseClick distinguishes a press from motion, wheel, and release messages.

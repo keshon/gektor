@@ -32,7 +32,7 @@ func TestToolStatesAgreeAcrossPresentationsAndThemes(t *testing.T) {
 				if !strings.HasPrefix(compact, item.glyph+" ") || !strings.Contains(compact, item.word) || strings.Contains(compact, "PRIVATE_OUTPUT") {
 					t.Fatalf("%s %d: compact state or evidence boundary failed: %q", theme, width, compact)
 				}
-				if detail := ansi.Strip(renderToolCard(b, defaultStyles(), width)[0]); !strings.HasPrefix(detail, item.glyph+" ") {
+				if detail := ansi.Strip(renderToolCard(b, defaultStyles(), width, false)[0]); !strings.HasPrefix(detail, item.glyph+" ") {
 					t.Fatal("detailed and compact state markers disagree", detail)
 				}
 				if b != before {

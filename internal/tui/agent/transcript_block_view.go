@@ -12,10 +12,7 @@ import (
 	"github.com/keshon/gektor/pkg/tui/components/transcript"
 )
 
-// roleLabel is the bracketed tag on a block's label row. One tag per role
-// keeps the transcript systematic: the reader learns the whole vocabulary
-// from a few lines and never parses speaker prose to tell a refusal from a
-// plan.
+// roleLabel names optional message metadata in the transcript.
 func roleLabel(r role) string {
 	switch r {
 	case roleUser:
@@ -44,20 +41,60 @@ func roleLabel(r role) string {
 	return "OUTPUT"
 }
 
+func modernRoleLabel(r role) string {
+	switch r {
+	case roleUser:
+		return "Request"
+	case roleAnswer:
+		return "Reply"
+	case roleThink:
+		return "Thinking"
+	case roleTool:
+		return "Tool"
+	case roleResult:
+		return "Result"
+	case roleGate:
+		return "Question"
+	case roleMarker:
+		return "System"
+	case roleError:
+		return "Error"
+	case roleWarning:
+		return "Warning"
+	case roleStatus:
+		return "Status"
+	case roleReceipt:
+		return "Run"
+	}
+	return "Output"
+}
+
 const systemSpeaker = "SYSTEM"
 
-// speakerLabel names the participant a block belongs to, uppercased.
+// speakerLabel keeps the configured participant name.
 // User and assistant roles carry the configured assistant/user names;
 // everything else is machine chrome.
 func speakerLabel(b block, props transcriptProps) string {
 	switch b.role {
 	case roleUser:
+		if props.modern {
+			return props.user
+		}
 		return strings.ToUpper(props.user)
 	case roleAnswer, roleThink, roleTool, roleResult:
+		if props.modern {
+			return props.speaker
+		}
 		return strings.ToUpper(props.speaker)
 	case roleMarker:
+		if props.modern {
+			return "System"
+		}
 		return systemSpeaker
 	default:
+		if props.modern {
+			return "System"
+		}
 		return systemSpeaker
 	}
 }
@@ -95,6 +132,7 @@ func thinkSummary(s string, width int) string {
 // reads differently depending on what the reader has chosen to hide,
 // and nothing about the stored message changed.
 type renderOpts struct {
+	modern bool
 	// expand controls thinking only; tool content has its own preference.
 	expand    bool
 	hideTools bool
@@ -119,26 +157,36 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 		b.text = strings.Trim(b.text, "\n")
 	}
 	b.result = strings.TrimRight(cleanText(b.result), "\n")
+	if opts.modern && b.contextText != "" && b.role != roleTool {
+		b.text = b.contextText
+	}
 	b = normalizeHarnessMarker(b)
 	raw := b.text
 	if b.role == roleThink && !opts.expand {
-		// Collapsed keeps the summary-only rule (size here, never in
-		// full view); the label row carries the tag either way, so the
-		// body never repeats it.
-		raw = thinkSummary(b.text, width)
+		if opts.modern {
+			raw = cellLine(ansi.Truncate(strings.Join(strings.Fields(b.text), " "), max(width, 1), "…"), width)
+		} else {
+			raw = thinkSummary(b.text, width)
+		}
 	}
 	var body []string
 	switch {
+	case opts.modern && b.role == roleUser:
+		body = renderRaw(b, raw, st, width)
 	case b.role == roleThink && !opts.expand:
 		body = []string{st.Think.Render(raw)}
 	case b.role == roleTool && opts.hideTools:
 		body = []string{compactTool(b, st, width)}
 	case b.role == roleReceipt:
-		body = receiptText(b, st, width)
+		if opts.modern {
+			body = receiptSummary(b, st, width)
+		} else {
+			body = receiptText(b, st, width)
+		}
 	case b.role == roleResult && opts.hideTools:
 		body = []string{st.Dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
 	case b.role == roleTool:
-		body = renderToolCard(b, st, width)
+		body = renderToolCard(b, st, width, opts.modern)
 	case isMdRole(b.role):
 		body = renderMdBlock(b, raw, st, width)
 	default:
@@ -147,14 +195,21 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	if !opts.labels || (b.role == roleTool && opts.hideTools) {
 		return strings.Join(body, "\n")
 	}
-	return strings.Join(append([]string{labelRow(roleLabel(b.role), b.at, st, width)}, body...), "\n")
+	label := roleLabel(b.role)
+	if opts.modern {
+		label = modernRoleLabel(b.role)
+	}
+	return strings.Join(append([]string{labelRow(label, b.at, st, width, opts.modern)}, body...), "\n")
 }
 
-// labelRow draws a block's tag line: [LABEL] at the left edge, the
+// labelRow draws an optional message label at the left edge, with the
 // timestamp flush right. The body owns no label column, so this row is
 // the block's only chrome and has the full width to work with.
-func labelRow(label string, at time.Time, st styles, width int) string {
-	line := st.Dim.Render("[" + label + "]")
+func labelRow(label string, at time.Time, st styles, width int, modern bool) string {
+	if !modern {
+		label = "[" + label + "]"
+	}
+	line := st.Dim.Render(label)
 	// A narrow terminal cannot hold both. The tag is structure and the
 	// time is decoration, so chrome yields rather than pushing past the
 	// edge or shredding the label into two wrapped rows.
@@ -195,7 +250,7 @@ var toolRailWidth = lipgloss.Width(toolRail)
 
 // renderToolCard draws the complete call and output, wrapping arguments
 // without discarding them. Compact summaries use a separate renderer.
-func renderToolCard(b block, st styles, width int) []string {
+func renderToolCard(b block, st styles, width int, modern bool) []string {
 	glyph := transcript.ActionGlyph(toolState(b), toolActionStyles(st))
 	var out []string
 	for i, call := range reflow(b.text, max(width-2, 1)) {
@@ -223,10 +278,16 @@ func renderToolCard(b block, st styles, width int) []string {
 			frags = append(frags, f)
 		}
 	}
-	for i, f := range frags {
-		out = append(out, st.Dim.Render(toolRail)+resultLineStyle(orig[i], f, st))
+	prefix := toolRail
+	if modern {
+		prefix = "  "
 	}
-	out = append(out, st.Dim.Render(toolClose))
+	for i, f := range frags {
+		out = append(out, st.Dim.Render(prefix)+resultLineStyle(orig[i], f, st))
+	}
+	if !modern {
+		out = append(out, st.Dim.Render(toolClose))
+	}
 	return out
 }
 
@@ -314,6 +375,66 @@ func railText(text string, st styles, width int) string {
 	lines := strings.Split(text, "\n")
 	for i := range lines {
 		lines[i] = lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render("│ ") + cellLine(lines[i], max(width-2, 1))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func messageWidth(r role, width int) int {
+	inset := 2
+	if r == roleUser {
+		inset = 4
+	}
+	return max(width-inset, 1)
+}
+
+// presentMessage is shared by saved turns and streaming parts. The body is
+// already wrapped to messageWidth, so adding its surface never changes tool rows.
+func presentMessage(body string, b block, props transcriptProps, width int, showName bool) string {
+	heading := ""
+	if showName {
+		heading = speakerLabel(b, props)
+	}
+	if props.labels && b.role != roleReceipt {
+		label := modernRoleLabel(b.role)
+		if heading != "" && heading != label {
+			heading += " ▪ "
+		}
+		if heading != label {
+			heading += label
+		}
+	}
+	if b.role == roleThink && !props.labels {
+		if heading != "" {
+			heading += " ▪ "
+		}
+		heading += "Thinking"
+	}
+	if b.role == roleReceipt {
+		heading = ""
+	}
+	inner := messageWidth(b.role, width)
+	if heading != "" {
+		body = cellLine(props.styles.Dim.Render(heading), inner) + "\n" + body
+	}
+	if b.role == roleUser && width >= 6 {
+		surface := lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorPopupBackground)))
+		rail := props.styles.Hunk.Background(lipgloss.Color(themeColor(colorPopupBackground))).Render("▎ ")
+		lines := []string{strings.Repeat(" ", inner)}
+		lines = append(lines, strings.Split(body, "\n")...)
+		lines = append(lines, strings.Repeat(" ", inner))
+		for i, line := range lines {
+			style := surface.Foreground(lipgloss.Color(themeColor(colorPopupText)))
+			if heading != "" && i == 1 {
+				style = style.Foreground(lipgloss.Color(themeColor(colorDim)))
+			}
+			lines[i] = rail + style.Render(cellLine(ansi.Strip(line), inner)+"  ")
+		}
+		return strings.Join(lines, "\n")
+	}
+	prefix := strings.Repeat(" ", max(width-inner, 0))
+	lines := strings.Split(body, "\n")
+	for i := range lines {
+		lines[i] = prefix + lines[i]
 	}
 	return strings.Join(lines, "\n")
 }

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/pkg/tui/screen"
@@ -26,6 +27,12 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "copy-session-id", "copy-session-path":
 		return m, m.copySession(command)
+	case "run-details":
+		if receipt := m.latestReceipt(); receipt != nil {
+			text := strings.Join(receiptText(*receipt, m.styles, max(m.termW-8, 1)), "\n")
+			m.chrome.Open("Last run details", strings.Split(ansi.Strip(text), "\n"))
+		}
+		return m, nil
 	case "message-queue":
 		m.openInputQueue()
 		return m, nil

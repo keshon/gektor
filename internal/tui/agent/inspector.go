@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -104,7 +105,11 @@ func (m *Model) refreshInspector() {
 	pane.Viewport.SetWidth(max(layout.Body.Width, 1))
 	pane.Viewport.SetHeight(max(layout.Body.Height, 1))
 	pane.compact = false
-	pane.blocks = []block{resultBlock("Arguments\n" + prettyToolArguments(b.text))}
+	arguments := prettyToolArguments(b.text)
+	if m.modern {
+		arguments = modernToolArguments(b.text)
+	}
+	pane.blocks = []block{resultBlock("Arguments\n" + arguments)}
 	live, thinking := "", ""
 	if strings.HasPrefix(b.text, "delegate_task ") {
 		child := m.child(b.callID)
@@ -145,8 +150,43 @@ func (m *Model) refreshInspector() {
 	for i := range pane.blocks {
 		pane.blocks[i].at = time.Time{}
 	}
-	pane.refresh(transcriptProps{speaker: "Subagent", user: m.userName(), styles: m.styles, live: live, liveThink: thinking, hideNames: true, labels: false})
+	pane.refresh(transcriptProps{modern: m.modern, speaker: "Subagent", user: m.userName(), styles: m.styles, live: live, liveThink: thinking, hideNames: true, labels: false})
 }
+
+// String arguments stay literal so file content is readable without JSON escapes.
+func modernToolArguments(text string) string {
+	name, args, ok := strings.Cut(text, " ")
+	if !ok {
+		return text
+	}
+	var fields map[string]json.RawMessage
+	err := json.Unmarshal([]byte(args), &fields)
+	if err != nil || len(fields) == 0 {
+		return prettyToolArguments(text)
+	}
+	keys := make([]string, 0, len(fields))
+	for key := range fields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	rows := []string{name}
+	for _, key := range keys {
+		value := ""
+		err = json.Unmarshal(fields[key], &value)
+		if err != nil {
+			var formatted bytes.Buffer
+			err = json.Indent(&formatted, fields[key], "", "  ")
+			if err != nil {
+				return prettyToolArguments(text)
+			}
+			value = formatted.String()
+		}
+		rows = append(rows, key+"\n"+value)
+	}
+	return strings.Join(rows, "\n\n")
+}
+
 func prettyToolArguments(text string) string {
 	name, args, ok := strings.Cut(text, " ")
 	if !ok {
@@ -224,6 +264,9 @@ func (m *Model) inspectionRows(heading, hint, body string, width int, focused, c
 }
 
 func (m *Model) inspectionHints(width int, shortcuts ...popup.Shortcut) string {
+	if m.modern {
+		return ""
+	}
 	inner := m.panelGeometry(width, 1, true, false).Footer.Width
 	return popup.Shortcuts(inner, m.shortcutStyles(), shortcuts...)
 }
@@ -373,10 +416,10 @@ func (m *Model) inspectorMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 	}
 	m.inspector.focused = false
 	m.inspector.selecting = false
-	if mouse.Y < paneTop || mouse.Y >= paneTop+m.transcript.Viewport.Height() {
+	if mouse.Y < m.transcriptTop() || mouse.Y >= m.transcriptTop()+m.transcript.Viewport.Height() {
 		return false, nil
 	}
-	row := mouse.Y - paneTop + m.transcript.Viewport.YOffset()
+	row := mouse.Y - m.transcriptTop() + m.transcript.Viewport.YOffset()
 	x := mouse.X - m.promptOffset()
 	for _, hit := range m.transcript.render.inlineTools {
 		if row == m.transcript.PartOffset(hit.part)+hit.row && x >= hit.start && x < hit.end && mouse.X != m.scrollbarX() {

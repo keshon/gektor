@@ -6,6 +6,9 @@ import (
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
+// Commander transcript origin used by its layout assertions.
+const paneTop = 4
+
 // Local screen tests supply controls just as the application parent does.
 func (m *Model) syncControls() { m.settleTestControls(); m.chrome.Props = m.Presentation() }
 

@@ -233,7 +233,7 @@ func (m *Model) suggestionLayout() (completion.Layout, int, int) {
 			return !item.Directory && strings.HasPrefix(item.Value, "/") && m.runsOnEnter(item.Value)
 		}})
 	geometry := m.panelGeometry(m.mainWidth(), 2, false, true)
-	return l, geometry.Body.X, paneTop + height - len(l.Rows)
+	return l, geometry.Body.X, m.transcriptTop() + height - len(l.Rows)
 }
 
 // suggestionView overlays the transcript while keeping the composer in place.

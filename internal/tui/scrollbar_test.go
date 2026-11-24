@@ -38,8 +38,8 @@ func TestAppearanceScrollbarDragThroughBothScreens(t *testing.T) {
 				}
 			}
 			if x < 0 {
-				// At a wide enough layout both fields fit, so there is no scrollbar.
-				if !strings.Contains(strings.Join(rows, "\n"), "Panel frame") {
+				// At a wide enough layout all fields fit, so there is no scrollbar.
+				if !strings.Contains(strings.Join(rows, "\n"), "Borders") {
 					t.Fatal("Appearance has neither second field nor scrollbar", workflow, width)
 				}
 				continue
@@ -49,11 +49,11 @@ func TestAppearanceScrollbarDragThroughBothScreens(t *testing.T) {
 			m.Update(tea.MouseMotionMsg{X: 0, Y: m.termH + 10, Button: tea.MouseLeft})
 			m.Update(tea.MouseReleaseMsg{X: 0, Y: m.termH - 1})
 			f = formSnapshot(m)
-			if m.chrome.DialogID() != dialog || f.Index != 1 || f.Values()["theme"] != values["theme"] || f.Values()["frame"] != values["frame"] {
-				t.Fatal("drag missed second field, changed a choice or activated toolbar", workflow, width, f.Index)
+			if m.chrome.DialogID() != dialog || f.Index != 2 || f.Values()["theme"] != values["theme"] || f.Values()["frame"] != values["frame"] || f.Values()["style"] != values["style"] {
+				t.Fatal("drag missed the last field, changed a choice or activated toolbar", workflow, width, f.Index)
 			}
-			if !strings.Contains(ansi.Strip(m.View().Content), "Panel frame") {
-				t.Fatal("second field remained hidden after dragging")
+			if !strings.Contains(ansi.Strip(m.View().Content), "UI style") {
+				t.Fatal("style field remained hidden after dragging")
 			}
 		}
 	}

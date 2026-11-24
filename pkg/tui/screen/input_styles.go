@@ -17,7 +17,11 @@ import (
 func InputStyles(styles textarea.Styles) textarea.Styles { return CurrentPalette().InputStyles(styles) }
 
 func (p *Palette) InputStyles(Styles textarea.Styles) textarea.Styles {
-	base := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))).Background(lipgloss.Color(p.Background))
+	background := p.Background
+	if p.Modern {
+		background = p.Color(ColorPopupBackground)
+	}
+	base := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))).Background(lipgloss.Color(background))
 	state := textarea.StyleState{Base: base, Text: base, CursorLine: base, Prompt: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorAccent))), Placeholder: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))), EndOfBuffer: base}
 	_, _, selected := p.PopupStyles()
 	state.Selection = selected

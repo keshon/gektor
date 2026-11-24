@@ -55,6 +55,9 @@ func (m *Model) headerBadges() []screen.Badge {
 		ctx += "/" + kTokens(m.limit)
 	}
 	width := m.transcript.Viewport.Width()
+	if m.modern {
+		return m.composerBadges(mode, activity, ctx, width)
+	}
 	candidates := []screen.Badge{{ID: "mode", Label: mode}, {ID: "activity", Label: activity + "  " + ctx}}
 	leftWidth := lipgloss.Width(mode) + lipgloss.Width(activity+"  "+ctx) + 4
 	if m.approvals.FullAccess() {
@@ -90,24 +93,67 @@ func (m *Model) headerBadges() []screen.Badge {
 	return candidates
 }
 
+// Composer metadata prioritizes the selected mode and model, then live state.
+func (m *Model) composerBadges(mode, activity, context string, width int) []screen.Badge {
+	mode = strings.ToUpper(mode[:1]) + strings.ToLower(mode[1:])
+	if m.state == stDone && m.runErr == nil {
+		activity = ""
+	}
+	badges := []screen.Badge{{ID: "mode", Label: mode}}
+	right := context
+	if activity != "" {
+		right = activity + "  " + context
+	}
+	available := width - lipgloss.Width(mode) - lipgloss.Width(right) - 6
+	if m.approvals.FullAccess() {
+		badges = append(badges, screen.Badge{ID: "access", Label: "AUTO"})
+		available -= 6
+	}
+	if m.steering && available >= 13 {
+		badges = append(badges, screen.Badge{ID: "steering", Label: "STEER"})
+		available -= 7
+	}
+	if available >= 6 {
+		model := strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), available))
+		badges = append(badges, screen.Badge{ID: "model", Label: model})
+	}
+	badges = append(badges, screen.Badge{ID: "activity", Label: right})
+	x := 0
+	for i := range badges {
+		if badges[i].ID == "activity" {
+			x = max(x, width-lipgloss.Width(right)-2)
+		}
+		badges[i].Start = x
+		badges[i].End = min(x+lipgloss.Width(badges[i].Label)+2, width)
+		x = badges[i].End
+	}
+	return badges
+}
+
 func (m *Model) badgeLine() string {
 	normal := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText)))
+	dim := m.styles.Dim
+	if m.modern {
+		background := lipgloss.Color(themeColor(colorPopupBackground))
+		normal = normal.Background(background)
+		dim = dim.Background(background)
+	}
 	badges := m.headerBadges()
 	var out []string
 	x := 0
 	for _, b := range badges {
-		out = append(out, strings.Repeat(" ", max(b.Start-x, 0)))
+		out = append(out, normal.Render(strings.Repeat(" ", max(b.Start-x, 0))))
 		x = b.End
 		style := normal
 		switch b.ID {
 		case "model":
 			if !m.usage.liveModel && (m.usage.last.Model != "" || m.usage.historical) {
-				style = m.styles.Dim
+				style = dim
 			}
 		case "access":
 			style = m.styles.Warn
 		case "steering":
-			style = m.styles.Dim
+			style = dim
 		case "mode":
 			style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
 		case "activity":
@@ -121,16 +167,23 @@ func (m *Model) badgeLine() string {
 			style = style.Foreground(lipgloss.Color(themeColor(color)))
 		}
 		if b.ID == "activity" {
-			phase, context, _ := strings.Cut(b.Label, "  ")
+			phase, context, hasPhase := strings.Cut(b.Label, "  ")
+			if m.modern && !hasPhase {
+				phase, context = "", b.Label
+			}
 			contextStyle := normal
 			if m.usage.historical {
-				contextStyle = m.styles.Dim
+				contextStyle = dim
 			} else if m.limit > 0 && float64(m.tokens)/float64(m.limit) >= 0.95 {
 				contextStyle = m.styles.Err
 			} else if m.limit > 0 && float64(m.tokens)/float64(m.limit) >= 0.85 {
 				contextStyle = m.styles.Warn
 			}
-			out = append(out, style.Render(" "+phase)+m.styles.Dim.Render("  ")+contextStyle.Render(context+" "))
+			phaseText := style.Render(" "+phase) + dim.Render("  ")
+			if m.modern && phase == "" {
+				phaseText = " "
+			}
+			out = append(out, phaseText+contextStyle.Render(context+" "))
 			continue
 		}
 		out = append(out, style.Render(" "+b.Label+" "))

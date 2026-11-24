@@ -12,7 +12,7 @@ func cellFrame(s string, width, height int) string { return cell.Frame(s, width,
 func (m *Model) fitColumns()                       { m.transcript.Viewport.SetWidth(max(m.paneWidth(), 1)) }
 func (m *Model) identityLine() string              { return m.badgeLine() }
 func (m *Model) promptOffset() int {
-	if !m.actionBarVisible() {
+	if m.termW < 40 || m.termH < 14 {
 		return 0
 	}
 	return 1
@@ -37,15 +37,17 @@ func (m *Model) panelGeometry(width, footerHeight int, close, conversation bool)
 	}
 	return pane.Measure(pane.Props{Width: width, Height: max(m.termH-1-m.actionBarRows(), 1), FooterHeight: footerHeight,
 		LeftInset: m.promptOffset(), RightInset: right, Outlined: !m.minimal && m.promptOffset() > 0,
-		BottomEdge: m.actionBarVisible(), Close: close})
+		BottomEdge: m.promptOffset() > 0, Quiet: m.modern && m.minimal, Headerless: m.modern && conversation, Close: close})
 }
 
 func (m *Model) paneStyles() pane.Styles {
 	return pane.Styles{Border: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupBorder))), Title: m.styles.Title, Focus: m.styles.Focus}
 }
 
-const paneTop = 4
+func (m *Model) transcriptTop() int {
+	return 1 + m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true).Body.Y
+}
 
 func (m *Model) dialogArea() (left, top, width, height int) {
-	return m.promptOffset(), paneTop, m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
+	return m.promptOffset(), m.transcriptTop(), m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
 }

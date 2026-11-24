@@ -9,14 +9,22 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) applyAppearance(a config.Appearance) {
+	m.modern = a.Style == "modern"
+	m.input.Prompt = "❯ "
+	if m.modern {
+		m.input.Prompt = "▎ "
+	}
+	screen.SetModern(m.modern)
 	m.minimal = a.Frame != "outlined"
 	m.hideNames, m.hideLabels = a.HideNames, a.HideLabels
 	m.hideSYS, m.hideTools = a.HideSystem, a.HideTools
 	m.transcript.compact = !a.ExpandThinking
 	m.hideThinking, m.toolNamesOnly = a.HideThinking, a.ToolNamesOnly
+	m.RefreshTheme()
 	m.transcript.render.cache = nil
 	m.fitBottom()
 	m.refreshContent()
@@ -35,6 +43,11 @@ func (m *Model) currentAppearance() config.Appearance {
 	}
 	if m.minimal {
 		a.Frame = "minimal"
+	}
+	if m.modern {
+		a.Style = "modern"
+	} else {
+		a.Style = "commander"
 	}
 	return a
 }
@@ -101,6 +114,9 @@ func prefillText(p llm.Progress, st styles, width int) string {
 	total := max(p.PromptTokens, 0)
 	processed := min(max(p.ProcessedTokens, 0), total)
 	label := fmt.Sprintf("Cached unknown · Prompt %d/%d", processed, total)
+	if width < lipgloss.Width(label) {
+		label = fmt.Sprintf("Prompt %d/%d · Cached ?", processed, total)
+	}
 	filled := 0
 	// llama.cpp processed includes cache; only the suffix is new work.
 	if p.CacheKnown && p.CachedTokens >= 0 && p.CachedTokens <= processed {

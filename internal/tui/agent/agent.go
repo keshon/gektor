@@ -228,6 +228,7 @@ type Model struct {
 	hideLabels    bool
 	hideNames     bool
 	minimal       bool
+	modern        bool
 	hideTools     bool
 	hideThinking  bool
 	toolNamesOnly bool

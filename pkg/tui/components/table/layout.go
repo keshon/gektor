@@ -308,7 +308,7 @@ func (m *Model) buttons(actions []Action, width int, styles form.Styles) ([]stri
 	row, x := "", 0
 
 	for i, action := range actions {
-		label := cell.Truncate("[ "+action.Label+" ]", width)
+		label := form.ButtonLabel(action.Label, width, styles)
 		length := cell.Width(label)
 		if x > 0 && x+2+length > width {
 			rows = append(rows, row)

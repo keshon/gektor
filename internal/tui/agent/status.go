@@ -34,7 +34,11 @@ func (m *Model) statusLine() string {
 		hint = selected
 	}
 	if !m.transcript.Follow && m.state == stDone {
-		hint += "  Scrolled up"
+		if m.modern {
+			hint = m.controlHints(popup.Shortcut{Key: "Ctrl+End", Action: "Latest"}) + "  Scrolled up"
+		} else {
+			hint += "  Scrolled up"
+		}
 	}
 	return m.styles.Status.Render(hint)
 }

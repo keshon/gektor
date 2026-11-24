@@ -1,5 +1,8 @@
 # TUI mockups
 
+The [modernization experiment](modernization.md) describes the current branch
+prototype, its preview export and what to review before merging.
+
 Open [gektor-ui.figcraft](gektor-ui.figcraft) in FigCraft. This is the editable
 project; text, shapes, components, variables and prototype links are native
 layers. The `.figcraft` format is FigCraft's native format. Its `.fig` export

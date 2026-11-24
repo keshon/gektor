@@ -169,6 +169,13 @@ not individual screen renderers.
 
 ### Geometry and spacing
 
+Modern panes with hidden borders use whitespace in place of horizontal rules.
+The shared `pane.Props.Quiet` option controls those rules. `Headerless` measures
+the conversation without a status header; its metadata belongs below the input.
+Rendering and interaction consume the same measured body and footer bounds.
+The Agent composer uses the input surface color; outlined frames and modal
+dividers retain their separate structural roles.
+
 - Measure widths and coordinates in terminal cells, including styled text.
 - Keep the existing 80-cell task-modal width as the default. Clamp it to the
   available area; a minimum width must never push content off screen.
@@ -262,9 +269,11 @@ the terminal guide and must not leak into ordinary multiline form fields.
 
 During a run, show one summary row above the draft: queued count, received count
 when present, and the latest message preview. The count and ALT+Q open the queue.
-The running toolbar keeps Stop, Send and Queue visible at 40 columns, even when
-the queue is empty. Run > Message queue provides the same entry point. Help and
-Newline stay available by keyboard. Do not repeat those shortcuts above the input.
+The composer keeps Stop and Queue visible at 40 columns during a run, even when
+the queue is empty. Run > Message queue provides the same entry point. Help, Send
+and Newline remain available by keyboard. Modern idle inputs show no routine shortcut
+row; F1, menus and the action search provide discovery. Commander retains its
+bottom action strip and original transcript treatment.
 
 The queue uses the table component's list layout: main text, a detail row and
 space between messages. Its actions wrap to a second footer row when needed.
@@ -342,12 +351,12 @@ navigation. Menus stay attached to their origin and clamp to the screen.
 Use an ellipsis for an action opening another dialog. Show checkmarks for
 independent toggles and radio marks for mutually exclusive choices.
 
-A toolbar is a group of direct actions. The global hotkey bar and modal
-shortcuts share key formatting, but do not duplicate commands that cannot run
+A toolbar is a group of direct actions. Commander renders the global hotkey
+bar; Modern uses local controls. Dialog buttons and local shortcuts do not duplicate commands that cannot run
 in the current context. Display key labels in uppercase, including named keys
 and modifiers: `T`, `DELETE`, `ENTER`, `ESC`, `CTRL+S`. This affects presentation;
 the accepted key bindings stay unchanged. Action labels keep normal casing.
-The hotkey bar keeps one blank terminal column between
+The reusable toolbar component keeps one blank terminal column between
 action blocks, using the surrounding surface color. The gap stays visible at
 narrow widths and never activates an action when clicked. This spacing belongs
 to the shared component, not each screen.
@@ -407,8 +416,9 @@ not start, with its command and available process evidence. Old sessions without
 structured facts retain unknown verification; completion alone is never a pass.
 
 When the available dialog area is shorter than 18 rows, the application host
-lends the composer and pane chrome to the overlay. The top application menu and
-bottom active-action strip remain visible. Painting and pointer input use the
+lends the composer and pane chrome to the overlay. The top application menu
+remains visible. Modern keeps dialog actions inside the overlay; Commander
+retains its bottom active-action strip. Painting and pointer input use the
 same expanded area; closing restores the underlying draft.
 
 Every list defines loading, empty, no-match and failed-load states. A failed

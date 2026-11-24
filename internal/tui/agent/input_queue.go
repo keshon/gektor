@@ -68,6 +68,9 @@ func (m *Model) queueSummary() string {
 	if preview == "" && len(latest.Images) > 0 {
 		preview = fmt.Sprintf("%d images", len(latest.Images))
 	}
+	if m.modern {
+		return strings.Join(labels, " ▪ ") + " ▪ " + preview
+	}
 	return strings.Join(labels, " · ") + " · Latest: " + preview
 }
 

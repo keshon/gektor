@@ -137,7 +137,12 @@ until you apply them in Settings. A new installation starts in Plan even when
 extra flags are supplied; `-plan=false` explicitly starts in Act.
 
 Click the top menus, or press `F9` and use the arrow keys.
-The bottom row shows actions for the current screen. Press `F1` for help.
+Choose **Settings > Appearance > UI style** for **Commander** or **Modern**.
+Commander keeps the bottom hotkey strip. Modern uses controls inside dialogs
+and beside the draft instead. In Modern, mode, model and context sit below the
+input. **Borders > Visible / Hidden** controls panel outlines independently of
+the UI style. Existing preferences default to Commander.
+Press `F1` for help.
 Press `F12`, or open **Help > Actions…**, to search the enabled menu commands for
 the current screen. Type to filter and press Enter to run the selected action.
 

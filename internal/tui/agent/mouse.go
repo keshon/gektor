@@ -49,7 +49,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 	if m.state == stPermission || m.state == stAsk {
 		mouse := msg.Mouse()
-		if mouse.X < m.promptOffset() || mouse.Y < paneTop || mouse.Y >= paneTop+m.transcript.Viewport.Height() {
+		if mouse.X < m.promptOffset() || mouse.Y < m.transcriptTop() || mouse.Y >= m.transcriptTop()+m.transcript.Viewport.Height() {
 			return m, nil
 		}
 		// The gate popup overlays the transcript rather than replacing it,
@@ -91,7 +91,7 @@ type scrollDrag = screen.Drag
 // scrollbar. A grab on the thumb drags it; a click on the track pages.
 // It reports whether it consumed the message.
 func (m *Model) scrollbarMouse(msg tea.MouseMsg) bool {
-	return viewportScrollbarMouse(&m.transcript.Viewport, &m.transcript.Follow, &m.scrollDrag, m.scrollbarX(), paneTop, msg)
+	return viewportScrollbarMouse(&m.transcript.Viewport, &m.transcript.Follow, &m.scrollDrag, m.scrollbarX(), m.transcriptTop(), msg)
 }
 
 func viewportScrollbarMouse(v *transcript.Viewport, follow *bool, drag *scrollDrag, column, paneY int, msg tea.MouseMsg) bool {

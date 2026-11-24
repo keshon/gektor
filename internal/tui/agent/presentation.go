@@ -15,6 +15,7 @@ func (m *Model) controlProps() screen.ControlProps {
 		Area:    pane.Rect{X: left, Y: top, Width: width, Height: height},
 		Inset:   m.promptOffset(),
 		Ready:   m.ready,
+		Modern:  m.modern,
 		Styles:  m.styles,
 		Blocked: m.sessions != nil || m.state == stAsk || m.state == stPermission,
 	}
@@ -23,12 +24,16 @@ func (m *Model) controlProps() screen.ControlProps {
 			props.Help = append(props.Help, screen.HelpSection{Title: section.title, Rows: section.rows})
 		}
 	}
+	separator := " · "
+	if m.modern {
+		separator = " ▪ "
+	}
 	identity := m.activeSessionTitle()
 	if m.stateFile != "" {
-		identity = filepath.Base(filepath.Dir(m.stateFile)) + " · " + identity
+		identity = filepath.Base(filepath.Dir(m.stateFile)) + separator + identity
 	}
 	if m.ws != nil {
-		identity = filepath.Base(m.ws.Root()) + " · " + identity
+		identity = filepath.Base(m.ws.Root()) + separator + identity
 	}
 	props.Identity = identity
 	return props
@@ -52,6 +57,12 @@ func (m *Model) Presentation() screen.ControlProps {
 		props.Menus = append(props.Menus, group)
 	}
 	props.Badges = m.headerBadges()
+	if m.modern {
+		props.BadgeRow = m.termH - m.promptOffset() - 1
+		if m.minimal {
+			props.BadgeRow--
+		}
+	}
 	for _, id := range []string{"mode", "activity", "model", "context", "run", "steering"} {
 		props.BadgeMenus = append(props.BadgeMenus, screen.Menu{ID: id, Items: m.decorateMenu(m.badgeItems(id))})
 	}

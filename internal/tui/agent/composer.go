@@ -7,11 +7,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // composerRows is shared by rendering, viewport measurement and hit testing.
-// Routine shortcuts live in the toolbar; exceptional run details remain here.
+// Exceptional run details and queue state remain beside the draft.
 func (m *Model) composerRows() []string {
 	width := m.transcript.Viewport.Width()
 	rows := []string{}
@@ -20,10 +21,16 @@ func (m *Model) composerRows() []string {
 		rows = append(rows, cellLine(status, width))
 	}
 	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		if m.modern {
+			return []string{strings.Repeat(" ", width)}
+		}
 		return append(rows, cellLine(m.styles.Dim.Render("Draft preserved"), width))
 	}
 	if m.state == stPermission {
 		return append(rows, strings.Split(cellFrame(m.gateBar(), width, lipgloss.Height(m.gateBar())), "\n")...)
+	}
+	if m.modern && m.minimal {
+		rows = append([]string{strings.Repeat(" ", width)}, rows...)
 	}
 	if m.state != stAsk {
 		if summary := m.queueSummary(); summary != "" {
@@ -33,7 +40,31 @@ func (m *Model) composerRows() []string {
 			rows = append(rows, cellLine(m.attachmentLine(), width))
 		}
 	}
-	return append(rows, strings.Split(cellFrame(m.input.View(), width, m.input.Height()), "\n")...)
+	input := strings.Split(m.input.View(), "\n")
+	background := currentPalette().Background
+	if m.modern {
+		background = themeColor(colorPopupBackground)
+	}
+	surface := lipgloss.NewStyle().Background(lipgloss.Color(background))
+	for i := range m.input.Height() {
+		line := ""
+		if i < len(input) {
+			line = truncate(input[i], width)
+		}
+		padding := strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
+		row := line + surface.Render(padding)
+		rows = append(rows, row)
+	}
+	if m.modern {
+		rows = append(rows, strings.Repeat(" ", width), m.identityLine())
+		if m.minimal {
+			rows = append(rows, strings.Repeat(" ", width))
+		}
+		for i, row := range rows {
+			rows[i] = screen.PaintSurface(cellLine(row, width), background)
+		}
+	}
+	return rows
 }
 
 // Queue receipt can happen between UI events. Refit only when the measured
@@ -45,10 +76,17 @@ func (m *Model) syncComposerHeight() {
 }
 
 func (m *Model) composerStatus() string {
-	if m.state == stRunning && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.actionBarVisible() {
+	if m.state == stRunning && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
 		if m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
 			return m.styles.Dim.Render(m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)))
 		}
+		if !m.modern {
+			return ""
+		}
+		hints := []popup.Shortcut{{Key: "Esc", Action: "stop"}, {Key: "Alt+Q", Action: "Queue"}}
+		return m.controlHints(hints...)
+	}
+	if m.modern && m.state == stDone && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
 		return ""
 	}
 	return m.statusLine()
@@ -62,9 +100,15 @@ func (m *Model) composerQueueMouse(msg tea.MouseMsg) bool {
 	if m.composerStatus() != "" {
 		y++
 	}
+	if m.modern && m.minimal {
+		y++
+	}
 	// The count is an entry point; the preview remains plain text.
 	label := strings.Split(m.queueSummary(), " · ")[0]
 	x := layout.Footer.X
+	if m.modern {
+		label = cellLine(m.queueSummary(), m.transcript.Viewport.Width())
+	}
 	if msg.Mouse().Y == y && msg.Mouse().X >= x && msg.Mouse().X < x+lipgloss.Width(label) {
 		m.openInputQueue()
 		return true

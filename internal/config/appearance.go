@@ -4,6 +4,7 @@ import "fmt"
 
 // Appearance changes rendering only, independently of session/model settings.
 type Appearance struct {
+	Style          string `json:"style,omitempty"`
 	Frame          string `json:"frame,omitempty"`
 	HideNames      bool   `json:"hide_names,omitempty"`
 	HideLabels     bool   `json:"hide_labels,omitempty"`
@@ -14,8 +15,11 @@ type Appearance struct {
 	ExpandThinking bool   `json:"expand_thinking,omitempty"`
 }
 
-// Validate accepts the default frame or a supported explicit frame.
+// Validate accepts the default Commander style and supported frame choices.
 func (a Appearance) Validate() error {
+	if a.Style != "" && a.Style != "commander" && a.Style != "modern" {
+		return fmt.Errorf("unknown UI style %q", a.Style)
+	}
 	if a.Frame != "" && a.Frame != "minimal" && a.Frame != "outlined" {
 		return fmt.Errorf("unknown frame style %q", a.Frame)
 	}

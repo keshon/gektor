@@ -268,6 +268,10 @@ func (m *Controls) HeaderTop() int {
 	if m.Header.Global {
 		return 1
 	}
+	if m.Props.BadgeRow > 0 {
+		rows := min(len(m.HeaderItems()), max(m.Props.Height-m.FooterRows()-5, 1))
+		return max(m.Props.BadgeRow-rows-2, 1)
+	}
 	return 3
 }
 
@@ -305,7 +309,9 @@ func (m *Controls) VisibleMenus() []Menu {
 }
 
 // ActionBarVisible reports whether terminal dimensions leave room for the shortcut row.
-func (m *Controls) ActionBarVisible() bool { return m.Props.Width >= 40 && m.Props.Height >= 14 }
+func (m *Controls) ActionBarVisible() bool {
+	return !m.Props.Modern && m.Props.Width >= 40 && m.Props.Height >= 14
+}
 
 // ActionBarRows returns the number of terminal rows occupied by shortcuts.
 func (m *Controls) ActionBarRows() int {

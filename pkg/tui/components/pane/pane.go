@@ -53,6 +53,8 @@ type Props struct {
 	Width, Height, FooterHeight int
 	LeftInset, RightInset       int
 	Outlined, BottomEdge, Close bool
+	Quiet                       bool
+	Headerless                  bool
 }
 
 type Layout struct {
@@ -80,11 +82,15 @@ func Measure(p Props) Layout {
 	}
 
 	foot := max(p.FooterHeight, 1)
-	body := max(p.Height-3-1-foot-bottom, 0)
+	top := 3
+	if p.Headerless {
+		top = 1
+	}
+	body := max(p.Height-top-1-foot-bottom, 0)
 	l := Layout{
 		Props:  p,
 		Header: Rect{p.LeftInset, 1, inner, 1},
-		Body:   Rect{p.LeftInset, 3, inner, body},
+		Body:   Rect{p.LeftInset, top, inner, body},
 	}
 	l.FooterDivider = l.Body.Y + body
 	l.Footer = Rect{p.LeftInset, l.FooterDivider + 1, inner, foot}
@@ -112,6 +118,9 @@ func Render(l Layout, title, body string, footer []string, styles Styles, focuse
 	}
 
 	rows = append(rows, strings.Repeat("─", inner))
+	if l.Headerless {
+		rows = rows[:1]
+	}
 	if l.Body.Height > 0 {
 		rows = append(rows, strings.Split(cell.Frame(body, inner, l.Body.Height), "\n")...)
 	}
@@ -123,7 +132,14 @@ func Render(l Layout, title, body string, footer []string, styles Styles, focuse
 	}
 
 	for i, row := range rows {
-		rule := i == 0 || i == 2 || i == l.FooterDivider || (l.BottomEdge && i == len(rows)-1)
+		rule := i == 0 || (!l.Headerless && i == 2) || i == l.FooterDivider || (l.BottomEdge && i == len(rows)-1)
+		if l.Quiet && !l.Outlined {
+			if rule {
+				row = strings.Repeat(" ", inner)
+			}
+			rows[i] = strings.Repeat(" ", l.LeftInset) + cell.Line(row, inner) + strings.Repeat(" ", l.RightInset)
+			continue
+		}
 		if rule && !l.Outlined {
 			rows[i] = border.Render(strings.Repeat("─", l.Width))
 			continue
@@ -136,8 +152,12 @@ func Render(l Layout, title, body string, footer []string, styles Styles, focuse
 			switch i {
 			case 0:
 				left, right = "┌", "┐"
-			case 2, l.FooterDivider:
+			case l.FooterDivider:
 				left, right = "├", "┤"
+			case 2:
+				if !l.Headerless {
+					left, right = "├", "┤"
+				}
 			case len(rows) - 1:
 				if l.BottomEdge {
 					left, right = "└", "┘"

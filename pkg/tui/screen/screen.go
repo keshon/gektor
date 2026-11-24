@@ -110,7 +110,9 @@ type ControlProps struct {
 	Width, Height     int
 	Area              pane.Rect
 	Inset             int
+	BadgeRow          int
 	Ready, Blocked    bool
+	Modern            bool
 	Palette           *Palette
 	ColorProfile      colorprofile.Profile
 	Identity          string

@@ -14,6 +14,7 @@ type Surface struct {
 	Area                              pane.Rect
 	Inset, SplitWidth, InspectorWidth int
 	Outlined, BottomEdge              bool
+	Quiet                             bool
 	HeaderFocused                     bool
 	Styles                            SurfaceStyles
 }
@@ -44,7 +45,7 @@ func (s Surface) Layout(width int, close bool) pane.Layout {
 	return pane.Measure(pane.Props{
 		Width: width, Height: s.Area.Height, FooterHeight: 1,
 		LeftInset: s.Inset, RightInset: s.Inset,
-		Outlined: s.Outlined, BottomEdge: s.BottomEdge, Close: close,
+		Outlined: s.Outlined, Quiet: s.Quiet && !s.Outlined, BottomEdge: s.BottomEdge, Close: close,
 	})
 }
 

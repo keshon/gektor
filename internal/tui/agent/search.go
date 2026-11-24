@@ -31,7 +31,7 @@ func (m *Model) searchGeometry() searchGeometry {
 	width := popup.ModalWidth(m.termW-2, 0)
 	count := min(m.sessVisible(), max(len(m.sessions.entries), 1))
 	height := m.sessChrome() + 4*count
-	top := paneTop + max((m.transcript.Viewport.Height()-height)/2, 0)
+	top := m.transcriptTop() + max((m.transcript.Viewport.Height()-height)/2, 0)
 	noteRow := top + 4 + 4*count
 	if m.sessions.flash != "" {
 		noteRow++

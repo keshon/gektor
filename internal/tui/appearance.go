@@ -38,20 +38,31 @@ func (m *Model) openAppearance() {
 	f.Title = "Appearance"
 	f.Fields = []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
-		{Key: "frame", Label: "Panel frame", Value: m.agent.Appearance().Frame},
+		{Key: "frame", Label: "Borders", Value: m.agent.Appearance().Frame},
+		{Key: "style", Label: "UI style", Value: m.agent.Appearance().Style},
 	}
+
+	f.Choices["style"] = []string{"commander", "modern"}
+	f.Labels["style"] = map[string]string{"commander": "Commander", "modern": "Modern"}
+	f.InlineChoices["style"] = 2
 	f.Choices["frame"] = []string{"outlined", "minimal"}
+	f.Labels["frame"] = map[string]string{"outlined": "Visible", "minimal": "Hidden"}
+	f.InlineChoices["frame"] = 2
 	m.openForm(f, func(values map[string]string) error {
 		theme, frame := values["theme"], values["frame"]
 		if !config.ValidTheme(theme) {
 			return fmt.Errorf("choose a theme from the list")
 		}
 		if frame != "outlined" && frame != "minimal" {
-			return fmt.Errorf("choose an outlined or minimal frame")
+			return fmt.Errorf("choose visible or hidden borders")
 		}
 
 		appearance := m.agent.Appearance()
 		appearance.Frame = frame
+		appearance.Style = values["style"]
+		if err := appearance.Validate(); err != nil {
+			return err
+		}
 		saveErr := m.application.SaveThemeAppearance(theme, appearance)
 		if saveErr != nil {
 			return saveErr

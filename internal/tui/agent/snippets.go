@@ -186,7 +186,11 @@ func toolState(b block) transcript.ActionState {
 }
 
 func toolActionStyles(st styles) transcript.ActionStyles {
-	return transcript.ActionStyles{Secondary: st.Dim, Success: st.Add, Warning: st.Warn, Error: st.Err}
+	success := st.Add
+	if currentPalette().Modern {
+		success = st.Dim
+	}
+	return transcript.ActionStyles{Secondary: st.Dim, Success: success, Warning: st.Warn, Error: st.Err}
 }
 
 func compactTool(b block, st styles, width int) string {
@@ -200,7 +204,11 @@ func compactTool(b block, st styles, width int) string {
 			}
 		}
 	}
-	return (transcript.ActionRow{Action: action, Target: target, Name: name, Failure: failure, State: toolState(b)}).View(width, toolActionStyles(st))
+	if currentPalette().Modern {
+		name = ""
+	}
+	row := transcript.ActionRow{Action: action, Target: target, Name: name, Failure: failure, State: toolState(b)}
+	return row.View(width, toolActionStyles(st))
 }
 
 // receiptText changes presentation only; the original evidence stays in the block.
@@ -300,4 +308,36 @@ func verificationDetails(receipt *conversation.VerificationReceipt) []string {
 		rows = append(rows, "Check error: "+receipt.Error)
 	}
 	return rows
+}
+
+func receiptSummary(b block, st styles, width int) []string {
+	rows := receiptText(b, st, width)
+	if len(rows) == 0 {
+		return nil
+	}
+	summary := rows[:1]
+	for _, field := range []struct{ label, value string }{
+		{"Progress", b.receipt.summary},
+		{"Warning", b.receipt.warnings},
+		{"Remaining", b.receipt.remaining},
+		{"Changes", b.receipt.files},
+		{"Checks", b.receipt.checks},
+	} {
+		if field.value == "" || field.value == "none observed" || field.value == "no current command verdict" {
+			continue
+		}
+		for _, line := range reflow(field.label+": "+field.value, width) {
+			summary = append(summary, st.Dim.Render(line))
+		}
+	}
+	return summary
+}
+
+func (m *Model) latestReceipt() *block {
+	for i := len(m.transcript.blocks) - 1; i >= 0; i-- {
+		if m.transcript.blocks[i].role == roleReceipt {
+			return &m.transcript.blocks[i]
+		}
+	}
+	return nil
 }

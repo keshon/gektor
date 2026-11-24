@@ -4,13 +4,13 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/pkg/tui/components/pane"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
-// screenContent keeps the composer inside the conversation column and the
-// function-key bar outside both panes.
+// screenContent keeps the composer inside the conversation column.
 func (m *Model) screenContent() string {
 	if !m.ready {
 		return "starting..."
@@ -19,6 +19,12 @@ func (m *Model) screenContent() string {
 
 	gated := (m.state == stPermission || m.state == stAsk) && m.gatePopup.Pending()
 	body := m.transcript.Viewport.View()
+	if m.modern && len(m.transcript.blocks) == 0 && m.live == "" && m.state == stDone {
+		width := max(m.transcript.Viewport.Width()-4, 1)
+		heading := cellLine(m.styles.Title.Render("What are we working on?"), width)
+		hint := cellLine(m.styles.Dim.Render("Ask a question or describe a task."), width)
+		body = lipgloss.NewStyle().Padding(2, 2).Render(heading + "\n\n" + hint)
+	}
 	body = m.suggestionView(body)
 	if gated {
 		body = m.gateView(body)

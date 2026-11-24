@@ -24,7 +24,11 @@ type Layout struct {
 	Fields   []int // Visible field indexes, in scroll order.
 	Capacity int
 }
-type Styles struct{ Normal, Title, Muted, Focus, Disabled, Error, Scrollbar lipgloss.Style }
+type Styles struct {
+	Normal, Title, Muted, Focus, Disabled, Error, Scrollbar lipgloss.Style
+	Button                                                  lipgloss.Style
+	FilledButtons                                           bool
+}
 type Props struct {
 	Title, Hint, Error, PrimaryLabel, Choice string
 	Width, Height                            int
@@ -243,9 +247,18 @@ func (f Model) Actions(width, y int, primary string, enabled, destructive bool, 
 	if width < 20 {
 		cancel = "[Esc]"
 	}
+	if styles.FilledButtons {
+		label := "Cancel"
+		if width < 20 {
+			label = "ESC"
+		}
+		cancel = ButtonLabel(label, max(width/2-1, 1), styles)
+	}
 	budget := max(width-lipgloss.Width(cancel)-2, 3)
 	button := "[ " + primary + " ]"
-	if lipgloss.Width(button) > budget {
+	if styles.FilledButtons {
+		button = ButtonLabel(primary, budget, styles)
+	} else if lipgloss.Width(button) > budget {
 		if budget >= 5 {
 			button = "[" + ansi.Truncate(primary, budget-2, "…") + "]"
 		} else {
@@ -266,12 +279,29 @@ func (f Model) Actions(width, y int, primary string, enabled, destructive bool, 
 	return cell.Line(row, width), hits
 }
 
+// ButtonLabel supplies the same shape for drawing and measuring action targets.
+func ButtonLabel(text string, width int, styles Styles) string {
+	if !styles.FilledButtons {
+		return cell.Truncate("[ "+text+" ]", width)
+	}
+	if width < 3 {
+		return cell.Truncate(text, width)
+	}
+	return " " + cell.Truncate(text, width-2) + " "
+}
+
 // Button keeps keyboard focus, availability and destructive intent distinct.
 // The parent owns the action and the hit region.
 func Button(text string, focused, enabled, destructive bool, styles Styles) string {
 	style := styles.Normal
+	if styles.FilledButtons {
+		style = styles.Button
+	}
 	if destructive {
 		style = styles.Error
+		if styles.FilledButtons {
+			style = style.Background(styles.Button.GetBackground())
+		}
 	}
 	if focused && enabled {
 		if !destructive {
@@ -281,6 +311,9 @@ func Button(text string, focused, enabled, destructive bool, styles Styles) stri
 	}
 	if !enabled {
 		style = styles.Disabled
+		if styles.FilledButtons {
+			style = style.Background(styles.Button.GetBackground())
+		}
 	}
 	return style.Render(text)
 }

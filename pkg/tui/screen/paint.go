@@ -12,6 +12,13 @@ import (
 // Paint sets every cell color explicitly while preserving semantic colors within the content.
 func Paint(content string) string { return CurrentPalette().paint(content, colorprofile.Unknown) }
 
+// PaintSurface restores a local surface color when nested text styles reset.
+func PaintSurface(content, background string) string {
+	surface := *CurrentPalette()
+	surface.Background = background
+	return surface.paint(content, colorprofile.Unknown)
+}
+
 func (p *Palette) paint(content string, profile colorprofile.Profile) string {
 	sequence := func(code int, color string) string {
 		r, g, b, _ := lipgloss.Color(color).RGBA()

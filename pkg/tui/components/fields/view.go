@@ -12,7 +12,10 @@ import (
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
-type Styles struct{ Title, Muted, Focus, Disabled, Error, Selected lipgloss.Style }
+type Styles struct {
+	Title, Muted, Focus, Disabled, Error, Selected, Button lipgloss.Style
+	FilledButtons                                          bool
+}
 type Props struct {
 	Width, Height int
 	Left, Top     int
@@ -23,7 +26,7 @@ type Props struct {
 }
 
 func (p Props) formStyles() form.Styles {
-	return form.Styles{Normal: p.Surface.Normal, Title: p.Styles.Title, Disabled: p.Styles.Disabled, Muted: p.Styles.Muted, Focus: p.Styles.Focus, Error: p.Styles.Error, Scrollbar: p.Surface.Normal}
+	return form.Styles{Normal: p.Surface.Normal, Title: p.Styles.Title, Disabled: p.Styles.Disabled, Muted: p.Styles.Muted, Focus: p.Styles.Focus, Error: p.Styles.Error, Scrollbar: p.Surface.Normal, Button: p.Styles.Button, FilledButtons: p.Styles.FilledButtons}
 }
 
 func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {

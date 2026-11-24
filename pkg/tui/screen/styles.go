@@ -66,7 +66,7 @@ func (p *Palette) Styles() Styles {
 		Gate:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorWarning))).Bold(true),
 		Status:   lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))),
 		User:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorUser))).Bold(true),
-		Think:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))).Italic(true),
+		Think:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))).Italic(!p.Modern),
 		Err:      lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorError))).Bold(true),
 		Warn:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorWarning))),
 	}
@@ -77,7 +77,11 @@ func PopupStyles() (normal, border, selected lipgloss.Style) { return CurrentPal
 
 func (p *Palette) PopupStyles() (lipgloss.Style, lipgloss.Style, lipgloss.Style) {
 	normal := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))).Background(lipgloss.Color(p.Color(ColorPopupBackground)))
-	border := normal.Foreground(lipgloss.Color(p.Color(ColorPopupBorder)))
+	borderColor := p.Color(ColorPopupBorder)
+	if p.Modern {
+		borderColor = p.Color(ColorPopupBackground)
+	}
+	border := normal.Foreground(lipgloss.Color(borderColor))
 	selected := normal.Foreground(lipgloss.Color(p.Color(ColorSelectedText))).Background(lipgloss.Color(p.Color(ColorSelectedBackground))).Bold(true)
 	return normal, border, selected
 }
@@ -85,6 +89,7 @@ func (p *Palette) PopupStyles() (lipgloss.Style, lipgloss.Style, lipgloss.Style)
 // Palette is an immutable theme snapshot shared by both screens.
 type Palette struct {
 	Name       string
+	Modern     bool
 	Background string
 	colors     map[string]string
 }
@@ -155,7 +160,27 @@ func CurrentPalette() *Palette {
 }
 
 // SetTheme atomically replaces the shared palette, falling back to dark for unknown names.
-func SetTheme(name string) { selectedPalette.Store(paletteFor(name)) }
+func SetTheme(name string) {
+	p := paletteFor(name)
+	applyModern(p, CurrentPalette().Modern)
+	selectedPalette.Store(p)
+}
+
+// SetModern changes surface treatment without changing the selected color theme.
+func SetModern(modern bool) {
+	p := paletteFor(CurrentPalette().Name)
+	applyModern(p, modern)
+	selectedPalette.Store(p)
+}
+
+func applyModern(p *Palette, modern bool) {
+	p.Modern = modern
+	if modern && p.Name == "dark" {
+		p.colors[ColorPopupBorder] = "#526273"
+		p.colors[ColorPopupBackground] = "#1D2731"
+		p.colors[ColorSelectedBackground] = "#334A5B"
+	}
+}
 
 // Color resolves a semantic role and returns unrecognized color tokens unchanged.
 func Color(token string) string { return CurrentPalette().Color(token) }

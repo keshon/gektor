@@ -291,6 +291,9 @@ func (m *Model) fitInput() {
 		// the composer grows, keeping earlier lines visible after a newline.
 		m.input.SetWidth(max(m.mainWidth()-m.promptOffset()-5, 1))
 		m.input.Placeholder = ""
+		if m.modern {
+			m.input.Placeholder = "Ask anything…"
+		}
 		if m.state == stRunning {
 			m.input.Placeholder = "Send another message…"
 		}

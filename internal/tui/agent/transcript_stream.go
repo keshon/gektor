@@ -67,8 +67,17 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 		for _, b := range assistantBlocks("<think>"+props.liveThink+"</think>", "") {
 			b.at = time.Time{}
 			b.speaker = props.speaker
-			part := renderBlock(b, props.styles, opts, width)
-			if len(parts) == 0 && !props.hideNames {
+			bodyOpts := opts
+			bodyOpts.labels = opts.labels && !props.modern
+			bodyOpts.modern = props.modern
+			renderWidth := width
+			if props.modern {
+				renderWidth = messageWidth(b.role, width)
+			}
+			part := renderBlock(b, props.styles, bodyOpts, renderWidth)
+			if props.modern {
+				part = presentMessage(part, b, props, width, len(parts) == 0 && !props.hideNames)
+			} else if len(parts) == 0 && !props.hideNames {
 				part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
 			}
 			parts = append(parts, part)
@@ -80,8 +89,17 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 		}
 		b.at = time.Time{}
 		b.speaker = props.speaker
-		part := renderBlock(b, props.styles, opts, width)
-		if len(parts) == 0 && !props.hideNames {
+		bodyOpts := opts
+		bodyOpts.labels = opts.labels && !props.modern
+		bodyOpts.modern = props.modern
+		renderWidth := width
+		if props.modern {
+			renderWidth = messageWidth(b.role, width)
+		}
+		part := renderBlock(b, props.styles, bodyOpts, renderWidth)
+		if props.modern {
+			part = presentMessage(part, b, props, width, len(parts) == 0 && !props.hideNames)
+		} else if len(parts) == 0 && !props.hideNames {
 			part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
 		}
 		parts = append(parts, part)

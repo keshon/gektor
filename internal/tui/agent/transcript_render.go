@@ -22,6 +22,7 @@ type renderedBlock struct {
 	block     block
 	width     int
 	expanded  bool
+	modern    bool
 	labels    bool
 	hideTools bool
 	text      string
@@ -56,7 +57,8 @@ func (t *transcriptState) refresh(props transcriptProps) {
 	}
 	opts := renderOpts{
 		expand:    !t.compact,
-		labels:    props.labels,
+		labels:    props.labels && !props.modern,
+		modern:    props.modern,
 		hideTools: props.hideTools || props.toolNamesOnly,
 	}
 	parts := make([]string, 0, len(t.blocks))
@@ -98,17 +100,22 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		rendered := t.renderBlock(i, b, props.styles, opts, width)
 		cache[i] = rendered
 		part := rendered.text
-		if systemBlock(b.role) {
-			part = railText(part, props.styles, width)
-		} else if b.role == roleUser && props.hideNames {
-			part = lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorPopupBackground))).Render(part)
-		}
-		if name := speakerLabel(b, props); name != prevSpeaker {
-			if !props.hideNames {
+		name := speakerLabel(b, props)
+		showName := !props.hideNames && name != prevSpeaker
+		if props.modern {
+			part = presentMessage(part, b, props, width, showName)
+		} else {
+			if systemBlock(b.role) {
+				part = railText(part, props.styles, width)
+			} else if b.role == roleUser && props.hideNames {
+				part = lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorPopupBackground))).Render(part)
+			}
+			if showName {
 				part = speakerRow(name, b.role, props.styles, width) + "\n" + part
 			}
-			prevSpeaker = name
 		}
+		prevSpeaker = name
+
 		if b.role == roleTool && b.callID != "" && b.callID == props.selectedCall {
 			part = lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorPopupBackground))).Bold(true).Render(part)
 		}
@@ -135,10 +142,17 @@ func (t *transcriptState) refresh(props transcriptProps) {
 	}
 	if props.prefill != nil && !props.hideSYS {
 		progressWidth := max(width-2, 1)
+		if props.modern {
+			progressWidth = messageWidth(roleStatus, width)
+		}
 		progress := historyProgressText(*props.prefill, props.styles, progressWidth, props.progressFrame)
-		progress = railText(progress, props.styles, width)
-		if !props.hideNames {
-			progress = speakerRow(systemSpeaker, roleStatus, props.styles, width) + "\n" + progress
+		if props.modern {
+			progress = presentMessage(progress, block{role: roleStatus}, props, width, !props.hideNames)
+		} else {
+			progress = railText(progress, props.styles, width)
+			if !props.hideNames {
+				progress = speakerRow(systemSpeaker, roleStatus, props.styles, width) + "\n" + progress
+			}
 		}
 		if tail != "" {
 			tail += "\n\n"
@@ -169,7 +183,9 @@ func (t *transcriptState) renderBlock(index int, b block, st styles, opts render
 	}
 
 	renderWidth := width
-	if systemBlock(b.role) {
+	if opts.modern {
+		renderWidth = messageWidth(b.role, width)
+	} else if systemBlock(b.role) {
 		renderWidth = max(width-2, 1)
 	}
 	text := renderBlock(b, st, opts, renderWidth)
@@ -177,6 +193,7 @@ func (t *transcriptState) renderBlock(index int, b block, st styles, opts render
 		block:     b,
 		width:     width,
 		expanded:  opts.expand,
+		modern:    opts.modern,
 		labels:    opts.labels,
 		hideTools: opts.hideTools,
 		text:      text,
@@ -184,7 +201,7 @@ func (t *transcriptState) renderBlock(index int, b block, st styles, opts render
 }
 
 func (b renderedBlock) matches(value block, opts renderOpts, width int) bool {
-	return b.block == value && b.width == width && b.expanded == opts.expand &&
+	return b.modern == opts.modern && b.block == value && b.width == width && b.expanded == opts.expand &&
 		b.labels == opts.labels && b.hideTools == opts.hideTools
 }
 
@@ -198,6 +215,8 @@ func (r *transcriptRenderState) recordToolHit(partIndex int, b block, part strin
 	// and wrapped output rows. Coordinates are terminal cells, not UTF-8 bytes.
 	rows := strings.Split(ansi.Strip(part), "\n")
 	for row, line := range rows {
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		line = strings.TrimLeft(line, " ")
 		status := strings.HasPrefix(line, "· ") || strings.HasPrefix(line, "– ") || strings.HasPrefix(line, "✓ ") || strings.HasPrefix(line, "… ") || strings.HasPrefix(line, "✕ ") || strings.HasPrefix(line, "× ")
 		if !status {
 			continue
@@ -205,7 +224,7 @@ func (r *transcriptRenderState) recordToolHit(partIndex int, b block, part strin
 		actionWidth := ansi.StringWidth(action)
 		available := max(ansi.StringWidth(line)-2, 0)
 		width := min(actionWidth, available)
-		r.toolHits[partIndex] = toolNameHit{row: row, start: 2, end: 2 + width}
+		r.toolHits[partIndex] = toolNameHit{row: row, start: indent + 2, end: indent + 2 + width}
 		return
 	}
 }
@@ -214,6 +233,9 @@ func (r *transcriptRenderState) recordToolHit(partIndex int, b block, part strin
 func (t *transcriptState) appendToolName(part *string, partIndex, index int, b block, props transcriptProps, width int) {
 	name, _, _ := toolSummary(b.text)
 	background := lipgloss.Color(themeColor(colorPopupBackground))
+	if props.modern {
+		background = lipgloss.Color(currentPalette().Background)
+	}
 	glyphStyles := toolActionStyles(props.styles)
 	glyphStyles.Secondary = glyphStyles.Secondary.Background(background)
 	glyphStyles.Success = glyphStyles.Success.Background(background)
@@ -223,7 +245,14 @@ func (t *transcriptState) appendToolName(part *string, partIndex, index int, b b
 	glyph := transcript.ActionGlyph(state, glyphStyles)
 	plainGlyph := ansi.Strip(glyph)
 	text := plainGlyph + name
-	fragments := reflow(text, max(width, 1))
+	if props.modern {
+		text = plainGlyph + " " + name
+	}
+	wrapWidth := width
+	if props.modern && width >= 6 {
+		wrapWidth -= 2
+	}
+	fragments := reflow(text, max(wrapWidth, 1))
 	badgeStyle := lipgloss.NewStyle().Background(background)
 	if b.callID == props.selectedCall && b.callID != "" {
 		badgeStyle = badgeStyle.Bold(true)
@@ -232,6 +261,10 @@ func (t *transcriptState) appendToolName(part *string, partIndex, index int, b b
 		rows := strings.Split(*part, "\n")
 		row := len(rows) - 1
 		column := ansi.StringWidth(rows[row])
+		if props.modern && column == 0 && width >= 6 {
+			*part += "  "
+			column = 2
+		}
 		separator := ""
 		if column > 0 {
 			separator = " "
@@ -239,6 +272,10 @@ func (t *transcriptState) appendToolName(part *string, partIndex, index int, b b
 				separator = "\n"
 				row++
 				column = 0
+				if props.modern && width >= 6 {
+					separator += "  "
+					column = 2
+				}
 			} else {
 				column++
 			}

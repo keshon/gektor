@@ -16,6 +16,7 @@ type transcriptState struct {
 
 // The GEKTOR renderer receives presentation values, never the application model.
 type transcriptProps struct {
+	modern              bool
 	speaker, user, live string
 	selectedCall        string
 	// liveThink is streamed deliberation, rendered above live so the turn
@@ -87,7 +88,7 @@ func (m *Model) refreshContent() {
 		m.transcript.render.dirty = true
 		return
 	}
-	props := transcriptProps{
+	props := transcriptProps{modern: m.modern,
 		speaker:       m.speakerName(),
 		user:          m.userName(),
 		styles:        m.styles,

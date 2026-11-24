@@ -108,6 +108,9 @@ func (m *Controls) LayoutDialog() DialogLayout {
 	if len(d.Shortcuts) > 0 && !d.Help {
 		hint = popup.Shortcuts(inner, m.ShortcutStyles(), d.Shortcuts...)
 	}
+	if d.Secret != nil && m.Props.Modern {
+		hint, _ = m.secretButtons(inner)
+	}
 	capacity := max(availH-2-len(rows)-3, 1)
 	// Reserve an extra row for the scroll-position indicator when needed.
 	if len(lines) > capacity {
@@ -230,8 +233,7 @@ func (m *Controls) TableProps() table.Props {
 	_, _, width, height := m.Area()
 	return table.Props{Title: m.dialog.Title, Description: d.Description, EmptyMessage: d.EmptyMessage, Width: width, Height: height, DefaultAction: "details", PreferredWidth: m.dialogWidth(width), List: d.List,
 		Columns: d.Columns, Actions: d.Actions, Surface: m.popupSurface(),
-		Styles: form.Styles{Normal: m.popupSurface().Normal, Title: m.Props.Styles.Title, Muted: m.Props.Styles.Dim,
-			Focus: m.Props.Styles.Focus, Disabled: m.Props.Styles.Disabled, Error: m.Props.Styles.Err}}
+		Styles: m.formStyles()}
 }
 
 // TableInput handles table navigation, filtering, and stable-ID activation.

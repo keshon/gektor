@@ -7,7 +7,9 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
+	"github.com/keshon/gektor/pkg/tui/components/form"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
@@ -109,3 +111,15 @@ func (m *Controls) refreshSecret() {
 
 func (s *secretState) String() string   { return "[masked secret input]" }
 func (s *secretState) GoString() string { return "[masked secret input]" }
+
+// secretButtons keeps the masked editor's actions inside its own modal.
+func (m *Controls) secretButtons(width int) (string, int) {
+	styles := m.formStyles()
+	label := "Save encrypted"
+	if width < 32 {
+		label = "Save"
+	}
+	save := form.Button(form.ButtonLabel(label, width, styles), true, true, false, styles)
+	cancel := form.Button(form.ButtonLabel("Cancel", width, styles), false, true, false, styles)
+	return save + "  " + cancel, lipgloss.Width(save) + 2
+}

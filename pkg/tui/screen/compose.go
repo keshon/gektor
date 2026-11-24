@@ -22,6 +22,9 @@ func (m *Controls) Compose(view tea.View) tea.View {
 	}
 	content := strings.Join(rows, "\n")
 	if m.dialog != nil {
+		if m.Props.Modern {
+			content = m.palette().Styles().Dim.Render(ansi.Strip(content))
+		}
 		content = m.overlayContent(content)
 		view.Cursor = nil
 	}
