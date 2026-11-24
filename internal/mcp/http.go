@@ -19,14 +19,15 @@ import (
 // is already independent, and an expired session is renewed inline.
 // Calls may run concurrently; finish them before closing the session.
 type HTTP struct {
-	server  string
-	url     string
-	http    *http.Client
-	mu      sync.Mutex // guards sequence and session
-	seq     int
-	session string
-	headers map[string]string
-	renew   sync.Mutex // serializes session renewal
+	instructions string // guarded by mu; server-provided usage guidance
+	server       string
+	url          string
+	http         *http.Client
+	mu           sync.Mutex // guards sequence and session
+	seq          int
+	session      string
+	headers      map[string]string
+	renew        sync.Mutex // serializes session renewal
 }
 
 func (c *HTTP) nextID() int {
@@ -240,4 +241,16 @@ func (c *HTTP) notify(ctx context.Context, msg map[string]any) error {
 	_, _, err = c.post(notificationCtx, body, false, 0)
 
 	return err
+}
+
+func (c *HTTP) setInstructions(text string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.instructions = text
+}
+
+func (c *HTTP) Instructions() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.instructions
 }

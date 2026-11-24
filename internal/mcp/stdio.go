@@ -14,6 +14,7 @@ import (
 // Stdio owns request dispatch and its server process. Calls may run concurrently.
 // Close stops the process and joins all response readers; it is safe to repeat.
 type Stdio struct {
+	instructions           string // guarded by mu; server-provided usage guidance
 	server                 string
 	source                 transportSource
 	backoff                time.Duration
@@ -128,4 +129,16 @@ func (c *Stdio) Call(ctx context.Context, method string, params any, out any) er
 		return fmt.Errorf("%s: %v (server restart: %v)", method, err, restartErr)
 	}
 	return c.callOnce(ctx, request, method, out)
+}
+
+func (c *Stdio) setInstructions(text string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.instructions = text
+}
+
+func (c *Stdio) Instructions() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.instructions
 }

@@ -11,10 +11,16 @@ type session interface {
 }
 
 func initialize(ctx context.Context, c session) ([]ToolDefinition, error) {
-	var result any
+	var result struct {
+		Instructions string `json:"instructions"`
+	}
 	err := c.Call(ctx, "initialize", initialization(), &result)
 	if err != nil {
 		return nil, fmt.Errorf("initialize: %w", err)
+	}
+
+	if receiver, ok := c.(interface{ setInstructions(string) }); ok {
+		receiver.setInstructions(result.Instructions)
 	}
 
 	// Older servers may reject this notification after accepting initialize.

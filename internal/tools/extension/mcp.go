@@ -156,3 +156,12 @@ func (s *Session) bindHeaders(store credentials.Store, origin string, refs, head
 		return nil
 	}
 }
+
+// Instructions returns server guidance with configured credentials removed.
+func (s *Session) Instructions() string {
+	source, ok := s.transport.(interface{ Instructions() string })
+	if !ok {
+		return ""
+	}
+	return redactCredentials(source.Instructions(), s.secrets)
+}

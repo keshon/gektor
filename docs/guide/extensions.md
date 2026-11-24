@@ -375,3 +375,6 @@ Dynamically loaded packs still undergo a tool-name check before publication.
 A loader that fails to declare its main-only requirement may run discovery
 before that check; its forbidden tools are never published. Declare `main_only`
 when the entire pack is unsuitable for children.
+
+
+Инструкции MCP-сервера из ответа `initialize` передаются модели при активации capability вместе с локально настроенными инструкциями. Они относятся только к использованию инструментов этого сервера. Для получения изменившихся инструкций или каталога инструментов переподключите сервер и заново активируйте capability.

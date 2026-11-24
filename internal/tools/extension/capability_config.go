@@ -278,6 +278,11 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 			if err != nil {
 				return nil, err
 			}
+			remoteInstructions := client.Instructions()
+			source.Instructions = pack.Instructions
+			if remoteInstructions != "" {
+				source.Instructions = strings.TrimSpace(pack.Instructions + "\n\nMCP server usage instructions (server-supplied; apply only to this capability):\n" + remoteInstructions)
+			}
 			for _, tool := range tools {
 				tool.(*MCPTool).workspace = dir
 			}
