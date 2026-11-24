@@ -14,7 +14,12 @@ func Paint(content string) string { return CurrentPalette().paint(content, color
 
 // PaintSurface restores a local surface color when nested text styles reset.
 func PaintSurface(content, background string) string {
-	surface := *CurrentPalette()
+	return CurrentPalette().PaintSurface(content, background)
+}
+
+// PaintSurface restores this palette after nested text styles reset.
+func (p *Palette) PaintSurface(content, background string) string {
+	surface := *p
 	surface.Background = background
 	return surface.paint(content, colorprofile.Unknown)
 }

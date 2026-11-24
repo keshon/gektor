@@ -32,7 +32,13 @@ func (m *Model) inspectorTabs() pane.TabLayout {
 	view := m.viewSurface()
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	return pane.Tabs(labels, active, width, m.inspect && !view.HeaderFocused,
-		pane.TabStyles{Normal: view.Styles.Muted, Active: view.Styles.Panels.Title, Focus: view.Styles.Panels.Focus})
+		view.Styles.Tabs)
+}
+
+func (m *Model) inspectorCapacity() int {
+	view := m.viewSurface()
+	layout := view.Layout(view.Panes(true).Side.Width, true)
+	return max(layout.Body.Height-len(m.inspectorTabs().Rows)-1, 1)
 }
 
 func (m *Model) focusPort(key string, output bool) {

@@ -75,7 +75,7 @@ func workflowValue(raw json.RawMessage) string {
 func (m *Model) page(key string) {
 	_, height := m.canvasSize()
 	if m.inspect {
-		height = max(1, height-2)
+		height = m.inspectorCapacity()
 		switch key {
 		case "home":
 			m.offset = 0
@@ -158,7 +158,7 @@ func (m *Model) content() string {
 		width := regions.Side.Width
 		content := m.inspectorContent()
 		tabs := m.inspectorTabs()
-		capacity := max(1, ch-len(tabs.Rows)-1)
+		capacity := m.inspectorCapacity()
 		m.offset = min(m.offset, max(0, len(content)-capacity))
 		visible := content[m.offset:min(len(content), m.offset+capacity)]
 		inner := view.Layout(width, true).Body.Width

@@ -5,7 +5,10 @@ import (
 	"github.com/keshon/gektor/pkg/tui/components/cell"
 )
 
-type TabStyles struct{ Normal, Active, Focus lipgloss.Style }
+type TabStyles struct {
+	Normal, Active, Focus lipgloss.Style
+	Filled                bool
+}
 
 type TabLayout struct {
 	Rows []string
@@ -19,9 +22,14 @@ func Tabs(labels []string, active, width int, focused bool, styles TabStyles) Ta
 	l := TabLayout{Hits: make([]Rect, len(labels))}
 	row, x, y := "", 0, 0
 	for i, label := range labels {
+		if styles.Filled {
+			label = " " + label + " "
+		}
 		style := styles.Normal
 		if i == active {
-			label = "[" + label + "]"
+			if !styles.Filled {
+				label = "[" + label + "]"
+			}
 			style = styles.Active
 			if focused {
 				style = styles.Focus

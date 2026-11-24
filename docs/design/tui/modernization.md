@@ -119,8 +119,8 @@ uses the recovered rows for history. Commander retains its header.
 
 The shared pane measures a headerless layout for the Modern conversation.
 Transcript scrolling, tool hit targets, search, suggestions and cursor placement
-use those measured bounds. The Agent inspector keeps its title, omits the footer region and indicates focus
-through color. Borderless inspectors use the input surface color to separate
+use those measured bounds. Agent and workflow inspectors keep their titles,
+omit the footer region and indicate focus through color. Borderless inspectors use the input surface color to separate
 them from the conversation. Modern inspection
 renders string arguments literally, including embedded newlines, while preserving
 all argument fields and their saved values.
@@ -155,3 +155,10 @@ The application routes timer messages without changing focus. Copy confirmations
 use notices; errors retain their existing dialogs. Unified-diff rendering lives
 in a reusable component with supplied styles and no filesystem access. Agent
 uses it for returned tool output, including the inspector.
+
+Workflow surfaces carry an immutable palette snapshot so frame, footer,
+background and tab styles stay together. Modern workflow inspectors omit their
+footer, use a separate background without borders, and use filled tabs without
+brackets. Commander retains its footer and bracketed active tab. Inspector
+paging and mouse scrolling use the inspector body height, including wrapped tab
+rows, rather than borrowing the canvas height.

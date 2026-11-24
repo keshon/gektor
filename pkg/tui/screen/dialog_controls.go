@@ -91,7 +91,7 @@ func (m *Controls) LayoutDialog() DialogLayout {
 			labels[i] = section.Title
 		}
 		if len(sections) > 1 {
-			tabs = pane.Tabs(labels, page, inner, true, pane.TabStyles{Normal: m.Props.Styles.Dim, Active: m.Props.Styles.Title, Focus: m.Props.Styles.Focus})
+			tabs = pane.Tabs(labels, page, inner, true, m.palette().TabStyles())
 			rows = append(rows, tabs.Rows...)
 		}
 

@@ -91,7 +91,8 @@ func (m *Model) workflowSurface() screen.Surface {
 		inset = 1
 	}
 	bottom := inset > 0
-	return screen.Surface{Area: pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-1-m.chrome.ActionBarRows(), 1)}, Quiet: m.agent.Appearance().Style == "modern", Inset: inset, SplitWidth: screen.SidePaneWidth, Outlined: m.outlined && inset > 0, BottomEdge: bottom, HeaderFocused: m.chrome.Header.Focused, Styles: screen.DefaultSurfaceStyles()}
+	palette := screen.CurrentPalette()
+	return screen.Surface{Palette: palette, Area: pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-1-m.chrome.ActionBarRows(), 1)}, Quiet: m.agent.Appearance().Style == "modern", Inset: inset, SplitWidth: screen.SidePaneWidth, Outlined: m.outlined && inset > 0, BottomEdge: bottom, HeaderFocused: m.chrome.Header.Focused, Styles: palette.SurfaceStyles()}
 }
 
 // View composes either feature with shared controls and terminal modes.

@@ -18,6 +18,7 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	regions := view.Panes(m.inspectorOpen)
 	canvasLayout := view.Layout(regions.Main.Width, false)
 	sideLayout := view.Layout(regions.Side.Width, true)
+	sideY := mouse.Y - regions.Side.Y - sideLayout.Body.Y
 	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
 	inspectorHeader := len(m.inspectorTabs().Rows) + 1
 	inInspector := m.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
@@ -27,7 +28,7 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		track = popup.ScrollTrack{
 			X:      regions.Side.X + sideLayout.Body.X + sideLayout.Body.Width - 1,
 			Y:      regions.Side.Y + sideLayout.Body.Y + inspectorHeader,
-			Height: max(1, ch-inspectorHeader),
+			Height: m.inspectorCapacity(),
 			Total:  len(m.inspectorContent()),
 			Offset: m.offset,
 		}
@@ -45,7 +46,7 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 	if inInspector && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		tabs := m.inspectorTabs()
-		if tab := tabs.Hit(mouse.X-regions.Side.X-sideLayout.Body.X, y); tab >= 0 {
+		if tab := tabs.Hit(mouse.X-regions.Side.X-sideLayout.Body.X, sideY); tab >= 0 {
 			m.setInspectorTab(tab)
 			m.inspect = true
 			return m, nil
@@ -72,7 +73,7 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.last = graph.Point{X: x, Y: y}
 		return m, nil
 	}
-	if y < 0 || y >= ch {
+	if (inInspector && (sideY < 0 || sideY >= sideLayout.Body.Height)) || (!inInspector && (y < 0 || y >= ch)) {
 		return m, nil
 	}
 	wheel := mouse.Button == tea.MouseWheelDown || mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight
@@ -82,7 +83,7 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			delta = -3
 		}
 		if inInspector {
-			if y >= inspectorHeader {
+			if sideY >= inspectorHeader {
 				m.offset = max(0, m.offset+delta)
 			}
 		} else if mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight || mouse.Mod&tea.ModShift != 0 {

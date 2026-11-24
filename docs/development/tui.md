@@ -318,8 +318,8 @@ shows one active pane with a clear way back, rather than squeezing two unreadabl
 panes side by side. The shared layout owns the breakpoint and size calculation.
 
 An inspector footer, when present, is one text row plus its separator and frame
-edge. Modern’s Agent inspector omits that region and uses the recovered rows for
-content. Its borderless surface differs from the conversation background.
+edge. Modern inspectors omit that region and use the recovered rows for
+content. Their borderless surfaces differ from the conversation or canvas background.
 Do not add blank rows above or below the shortcuts. The canvas hint footer uses
 the same compact height. The Agent composer keeps the space needed for its input;
 the neighboring inspector does not inherit that height. Pane outer bounds stay
