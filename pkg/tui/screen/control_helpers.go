@@ -39,7 +39,7 @@ func cleanText(s string) string {
 // NewEditor creates a multiline editor with the shared text and cursor styles.
 func (m *Controls) NewEditor() textarea.Model {
 	editor := textarea.New()
-	editor.Prompt = "> "
+	editor.Prompt = InputPrompt
 	editor.SetVirtualCursor(false)
 	style := m.palette().InputStyles(editor.Styles())
 	style.Cursor.Shape = tea.CursorUnderline

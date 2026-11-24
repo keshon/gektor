@@ -67,3 +67,23 @@ func TestPaneRegionsKeepFooterCompactAndCloseHitOnTitle(t *testing.T) {
 		}
 	}
 }
+
+func TestFooterlessPaneUsesRecoveredRowsForBody(t *testing.T) {
+	for _, outlined := range []bool{false, true} {
+		props := Props{Width: 60, Height: 24, FooterHeight: 1, LeftInset: 1, RightInset: 1, Outlined: outlined, BottomEdge: true, Close: true}
+		before := Measure(props)
+		props.Footerless = true
+		layout := Measure(props)
+		body := strings.Repeat("body\n", layout.Body.Height-1) + "LAST_BODY_ROW"
+		rows := Render(layout, "Inspect", body, []string{"FOOTER_SHOULD_BE_ABSENT"}, Styles{}, false)
+		if layout.Body.Height != before.Body.Height+2 || layout.Footer.Height != 0 || len(rows) != 24 {
+			t.Fatal("footer space was not returned to body", outlined, layout)
+		}
+		if !strings.Contains(ansi.Strip(rows[layout.Body.Y+layout.Body.Height-1]), "LAST_BODY_ROW") || strings.Contains(strings.Join(rows, "\n"), "FOOTER_SHOULD_BE_ABSENT") {
+			t.Fatal("footerless pane lost content or rendered a footer", outlined)
+		}
+		if layout.CloseHit != before.CloseHit {
+			t.Fatal("removing footer moved the close control")
+		}
+	}
+}

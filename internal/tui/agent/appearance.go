@@ -22,7 +22,7 @@ func (m *Model) applyAppearance(a config.Appearance) {
 	if !m.modern {
 		m.input.Unfold()
 	}
-	m.input.Prompt = "❯ "
+	m.input.Prompt = screen.InputPrompt
 	if m.modern {
 		m.input.Prompt = "▎ "
 	}

@@ -170,9 +170,6 @@ func (m *Model) content() string {
 		if m.rawDetails {
 			heading += " / Raw"
 		}
-		if m.inspect {
-			heading += " [focused]"
-		}
 		shortcuts := []popup.Shortcut{{Key: "Tab", Action: "focus inspector"}, {Key: "1–3", Action: "tabs"}}
 		if m.inspect {
 			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "1–3", Action: "tabs"}}

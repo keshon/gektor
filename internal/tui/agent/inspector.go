@@ -150,7 +150,7 @@ func (m *Model) refreshInspector() {
 	for i := range pane.blocks {
 		pane.blocks[i].at = time.Time{}
 	}
-	pane.refresh(transcriptProps{modern: m.modern, speaker: "Subagent", user: m.userName(), styles: m.styles, live: live, liveThink: thinking, hideNames: true, labels: false})
+	pane.refresh(transcriptProps{modern: m.modern, readingInset: 1, speaker: "Subagent", user: m.userName(), styles: m.styles, live: live, liveThink: thinking, hideNames: true, labels: false})
 }
 
 // String arguments stay literal so file content is readable without JSON escapes.
@@ -237,9 +237,6 @@ func (m *Model) composeInspector(content string) string {
 	regions := m.screenPanes(true)
 	width, left := regions.Side.Width, regions.Side.X
 	heading := "Inspect / " + name
-	if m.inspector.focused {
-		heading = "Inspect / " + name + " [focused]"
-	}
 	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "↑↓", Action: "scroll"}}
 	if left == 0 {
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "return to conversation"}, {Key: "↑↓", Action: "scroll"}}
@@ -262,10 +259,16 @@ func (m *Model) composeInspector(content string) string {
 	return strings.Join(base, "\n")
 }
 
-// inspectionRows uses the same frame and one-row footer for both inspectors.
+// inspectionRows uses the same geometry as inspector scrolling and hit testing.
 func (m *Model) inspectionRows(heading, hint, body string, width int, focused, close bool) []string {
 	layout := m.panelGeometry(width, 1, close, false)
-	return pane.Render(layout, heading, body, []string{hint}, m.paneStyles(), focused && !m.chrome.Header.Focused)
+	rows := pane.Render(layout, heading, body, []string{hint}, m.paneStyles(), focused && !m.chrome.Header.Focused)
+	if m.modern && m.minimal {
+		for i, row := range rows {
+			rows[i] = screen.PaintSurface(row, themeColor(colorPopupBackground))
+		}
+	}
+	return rows
 }
 
 func (m *Model) inspectionHints(width int, shortcuts ...popup.Shortcut) string {

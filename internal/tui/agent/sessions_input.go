@@ -4,6 +4,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // sessionsKey routes browser input. Rename owns typing until Enter or Escape;
@@ -194,7 +195,7 @@ func (m *Model) updateSearchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 func newSearchInput(width int) textinput.Model {
 	filter := textinput.New()
 	filter.SetStyles(textInputStyles(filter.Styles()))
-	filter.Prompt = "> "
+	filter.Prompt = screen.InputPrompt
 	filter.SetVirtualCursor(false)
 	style := filter.Styles()
 	style.Cursor.Shape = tea.CursorUnderline

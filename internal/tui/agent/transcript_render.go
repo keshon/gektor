@@ -21,6 +21,7 @@ type transcriptRenderState struct {
 type renderedBlock struct {
 	block     block
 	width     int
+	inset     int
 	expanded  bool
 	modern    bool
 	labels    bool
@@ -56,6 +57,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		}
 	}
 	opts := renderOpts{
+		inset:     props.readingInset,
 		expand:    !t.compact,
 		labels:    props.labels && !props.modern,
 		modern:    props.modern,
@@ -157,7 +159,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 	if props.prefill != nil && !props.hideSYS {
 		progressWidth := max(width-2, 1)
 		if props.modern {
-			progressWidth = messageWidth(roleStatus, width)
+			progressWidth = messageWidth(roleStatus, width, opts.inset)
 		}
 		progress := historyProgressText(*props.prefill, props.styles, progressWidth, props.progressFrame)
 		if props.modern {
@@ -198,13 +200,14 @@ func (t *transcriptState) renderBlock(index int, b block, st styles, opts render
 
 	renderWidth := width
 	if opts.modern {
-		renderWidth = messageWidth(b.role, width)
+		renderWidth = messageWidth(b.role, width, opts.inset)
 	} else if systemBlock(b.role) {
 		renderWidth = max(width-2, 1)
 	}
 	text := renderBlock(b, st, opts, renderWidth)
 	return renderedBlock{
 		block:     b,
+		inset:     opts.inset,
 		width:     width,
 		expanded:  opts.expand,
 		modern:    opts.modern,
@@ -215,7 +218,7 @@ func (t *transcriptState) renderBlock(index int, b block, st styles, opts render
 }
 
 func (b renderedBlock) matches(value block, opts renderOpts, width int) bool {
-	return b.modern == opts.modern && b.block == value && b.width == width && b.expanded == opts.expand &&
+	return b.inset == opts.inset && b.modern == opts.modern && b.block == value && b.width == width && b.expanded == opts.expand &&
 		b.labels == opts.labels && b.hideTools == opts.hideTools
 }
 

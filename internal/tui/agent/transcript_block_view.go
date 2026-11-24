@@ -135,6 +135,7 @@ func thinkSummary(s string, width int) string {
 type renderOpts struct {
 	modern     bool
 	disclosure bool
+	inset      int
 	// expand controls thinking only; tool content has its own preference.
 	expand    bool
 	hideTools bool
@@ -404,8 +405,10 @@ func railText(text string, st styles, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func messageWidth(r role, width int) int {
-	inset := 2
+func messageWidth(r role, width, inset int) int {
+	if inset == 0 {
+		inset = 2
+	}
 	if r == roleUser {
 		inset = 4
 	}
@@ -444,7 +447,7 @@ func presentMessage(body string, b block, props transcriptProps, width int, show
 	if b.role == roleReceipt {
 		heading = ""
 	}
-	inner := messageWidth(b.role, width)
+	inner := messageWidth(b.role, width, opts.inset)
 	if heading != "" {
 		body = cellLine(props.styles.Dim.Render(heading), inner) + "\n" + body
 	}

@@ -19,6 +19,7 @@ type transcriptState struct {
 type transcriptProps struct {
 	modern              bool
 	interactive         bool
+	readingInset        int
 	speaker, user, live string
 	selectedCall        string
 	// liveThink is streamed deliberation, rendered above live so the turn

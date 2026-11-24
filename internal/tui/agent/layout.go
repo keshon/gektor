@@ -37,7 +37,7 @@ func (m *Model) panelGeometry(width, footerHeight int, close, conversation bool)
 	}
 	return pane.Measure(pane.Props{Width: width, Height: max(m.termH-1-m.actionBarRows(), 1), FooterHeight: footerHeight,
 		LeftInset: m.promptOffset(), RightInset: right, Outlined: !m.minimal && m.promptOffset() > 0,
-		BottomEdge: m.promptOffset() > 0, Quiet: m.modern && m.minimal, Headerless: m.modern && conversation, Close: close})
+		BottomEdge: m.promptOffset() > 0, Quiet: m.modern && m.minimal, Headerless: m.modern && conversation, Footerless: m.modern && !conversation, Close: close})
 }
 
 func (m *Model) paneStyles() pane.Styles {

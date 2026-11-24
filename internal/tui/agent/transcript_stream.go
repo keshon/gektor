@@ -72,7 +72,7 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 			bodyOpts.modern = props.modern
 			renderWidth := width
 			if props.modern {
-				renderWidth = messageWidth(b.role, width)
+				renderWidth = messageWidth(b.role, width, bodyOpts.inset)
 			}
 			part := renderBlock(b, props.styles, bodyOpts, renderWidth)
 			if props.modern {
@@ -94,7 +94,7 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 		bodyOpts.modern = props.modern
 		renderWidth := width
 		if props.modern {
-			renderWidth = messageWidth(b.role, width)
+			renderWidth = messageWidth(b.role, width, bodyOpts.inset)
 		}
 		part := renderBlock(b, props.styles, bodyOpts, renderWidth)
 		if props.modern {

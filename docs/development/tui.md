@@ -317,7 +317,9 @@ Closing the inspector returns focus to the item that opened it. A narrow screen
 shows one active pane with a clear way back, rather than squeezing two unreadable
 panes side by side. The shared layout owns the breakpoint and size calculation.
 
-An inspector footer is exactly one text row plus its separator and frame edge.
+An inspector footer, when present, is one text row plus its separator and frame
+edge. Modern’s Agent inspector omits that region and uses the recovered rows for
+content. Its borderless surface differs from the conversation background.
 Do not add blank rows above or below the shortcuts. The canvas hint footer uses
 the same compact height. The Agent composer keeps the space needed for its input;
 the neighboring inspector does not inherit that height. Pane outer bounds stay

@@ -119,7 +119,9 @@ uses the recovered rows for history. Commander retains its header.
 
 The shared pane measures a headerless layout for the Modern conversation.
 Transcript scrolling, tool hit targets, search, suggestions and cursor placement
-use those measured bounds. The inspector keeps its title and omits footer shortcut hints in Modern. Modern inspection
+use those measured bounds. The Agent inspector keeps its title, omits the footer region and indicates focus
+through color. Borderless inspectors use the input surface color to separate
+them from the conversation. Modern inspection
 renders string arguments literally, including embedded newlines, while preserving
 all argument fields and their saved values.
 

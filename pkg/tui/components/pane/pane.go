@@ -55,6 +55,7 @@ type Props struct {
 	Outlined, BottomEdge, Close bool
 	Quiet                       bool
 	Headerless                  bool
+	Footerless                  bool
 }
 
 type Layout struct {
@@ -82,18 +83,25 @@ func Measure(p Props) Layout {
 	}
 
 	foot := max(p.FooterHeight, 1)
+	divider := 1
+	if p.Footerless {
+		foot, divider = 0, 0
+	}
 	top := 3
 	if p.Headerless {
 		top = 1
 	}
-	body := max(p.Height-top-1-foot-bottom, 0)
+	body := max(p.Height-top-divider-foot-bottom, 0)
 	l := Layout{
 		Props:  p,
 		Header: Rect{p.LeftInset, 1, inner, 1},
 		Body:   Rect{p.LeftInset, top, inner, body},
 	}
-	l.FooterDivider = l.Body.Y + body
-	l.Footer = Rect{p.LeftInset, l.FooterDivider + 1, inner, foot}
+	l.FooterDivider = -1
+	if !p.Footerless {
+		l.FooterDivider = l.Body.Y + body
+	}
+	l.Footer = Rect{p.LeftInset, l.Body.Y + body + divider, inner, foot}
 	if p.Close {
 		l.CloseHit = Rect{p.LeftInset + max(inner-3, 0), 1, min(3, inner), 1}
 	}
@@ -125,8 +133,10 @@ func Render(l Layout, title, body string, footer []string, styles Styles, focuse
 		rows = append(rows, strings.Split(cell.Frame(body, inner, l.Body.Height), "\n")...)
 	}
 
-	rows = append(rows, strings.Repeat("─", inner))
-	rows = append(rows, strings.Split(cell.Frame(strings.Join(footer, "\n"), inner, l.Footer.Height), "\n")...)
+	if !l.Footerless {
+		rows = append(rows, strings.Repeat("─", inner))
+		rows = append(rows, strings.Split(cell.Frame(strings.Join(footer, "\n"), inner, l.Footer.Height), "\n")...)
+	}
 	if l.BottomEdge {
 		rows = append(rows, strings.Repeat("─", inner))
 	}

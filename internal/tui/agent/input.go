@@ -23,7 +23,7 @@ func truncate(s string, n int) string { return cell.Truncate(s, n) }
 // Ctrl+O inserts a newline; Shift+Enter also works when the host preserves it.
 func newInput() composer.Model {
 	ta := textarea.New()
-	ta.Prompt = "❯ "
+	ta.Prompt = screen.InputPrompt
 	ta.SetVirtualCursor(false)
 	style := ta.Styles()
 	style.Cursor.Shape = tea.CursorBar

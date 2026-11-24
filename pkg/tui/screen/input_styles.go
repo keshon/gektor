@@ -6,6 +6,9 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// InputPrompt is the standard prompt for unlabeled terminal inputs.
+const InputPrompt = "❯ "
+
 // InputStyles paints the composer.
 //
 // Cursor.Color is not decoration. An unset cursor colour is not "inherit
