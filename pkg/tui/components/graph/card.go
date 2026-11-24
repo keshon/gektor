@@ -50,6 +50,10 @@ func (m Model) card(n Node, styles Styles, incoming, outgoing map[[2]string]bool
 	}
 	rule := border.Render(jl + strings.Repeat(h, inner) + jr)
 	rows := []string{top, line(" "+clean(heading), title), line(" "+clean(n.Label), normal), rule}
+	empty, filled := "○", "●"
+	if styles.SquarePorts {
+		empty, filled = "□", "■"
+	}
 	inputs, outputs := portList(n.Inputs, false), portList(n.Outputs, true)
 	leftWidth := (inner - 2) / 2
 	rightWidth := inner - 2 - leftWidth
@@ -59,7 +63,7 @@ func (m Model) card(n Node, styles Styles, incoming, outgoing map[[2]string]bool
 		if i < len(inputs) {
 			p := inputs[i]
 			left = " " + clean(p.Label)
-			lmark = "○"
+			lmark = empty
 			if p.Key == "@order" {
 				lmark = "◇"
 			}
@@ -67,14 +71,14 @@ func (m Model) card(n Node, styles Styles, incoming, outgoing map[[2]string]bool
 				if p.Key == "@order" {
 					lmark = "◆"
 				} else {
-					lmark = "●"
+					lmark = filled
 				}
 			}
 		}
 		if i < len(outputs) {
 			p := outputs[i]
 			right = clean(p.Label)
-			rmark = "○"
+			rmark = empty
 			if p.Key == "@order" {
 				rmark = "◇"
 			}
@@ -82,7 +86,7 @@ func (m Model) card(n Node, styles Styles, incoming, outgoing map[[2]string]bool
 				if p.Key == "@order" {
 					rmark = "◆"
 				} else {
-					rmark = "●"
+					rmark = filled
 				}
 			}
 			if failed[[2]string{n.ID, p.Key}] {

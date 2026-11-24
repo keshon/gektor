@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -15,6 +16,7 @@ import (
 )
 
 type pickerLayout struct {
+	cursor                   *tea.Cursor
 	rows                     []string
 	hits                     []form.Hit
 	inner, listTop, capacity int
@@ -75,10 +77,15 @@ func (f *Model) layoutPicker(props Props) pickerLayout {
 			p.Search.Prompt = "Folder path: "
 		}
 	}
+	var caret *tea.Cursor
 	searchRow := -1
 	if !p.NoSearch {
 		p.Search.SetWidth(max(inner-cell.Width(p.Search.Prompt)-2, 1))
 		searchRow = len(rows)
+		caret = p.Search.Cursor()
+		if caret != nil {
+			caret.Y += searchRow
+		}
 		rows = append(rows, cell.Line(p.Search.View(), inner))
 	}
 	if p.Folders() {
@@ -140,7 +147,7 @@ func (f *Model) layoutPicker(props Props) pickerLayout {
 	hits = append(hits, actionHits...)
 	rows = append(rows, actions)
 	track := popup.ScrollTrack{X: inner - 1, Y: listTop, Height: len(body), Total: len(p.Filtered), Offset: start}
-	return pickerLayout{rows: rows, hits: hits, inner: inner, listTop: listTop, capacity: capacity, scroll: track}
+	return pickerLayout{cursor: caret, rows: rows, hits: hits, inner: inner, listTop: listTop, capacity: capacity, scroll: track}
 }
 
 func (p *Picker) itemLabel(item string) string {

@@ -374,7 +374,7 @@ func (m *Model) newTask() {
 	m.resetRunFacts()
 	m.state = stDone
 	m.restoreDraft()
-	m.appendBlock(markerBlock("New task · type a task to begin"))
+	m.appendBlock(markerBlock("New task" + screen.Separator() + "type a task to begin"))
 	m.transcript.Follow = true
 	m.transcript.Viewport.GotoBottom()
 }

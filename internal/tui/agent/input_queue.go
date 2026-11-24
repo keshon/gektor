@@ -71,7 +71,7 @@ func (m *Model) queueSummary() string {
 	if m.modern {
 		return strings.Join(labels, " ▪ ") + " ▪ " + preview
 	}
-	return strings.Join(labels, " · ") + " · Latest: " + preview
+	return strings.Join(labels, screen.Separator()) + screen.Separator() + "Latest: " + preview
 }
 
 func (m *Model) openInputQueue() {
@@ -181,16 +181,16 @@ func (m *Model) refreshInputQueue(q *inputQueue) {
 			status = "Next run"
 		}
 		if input.Received {
-			status = "Received by agent · read only"
+			status = "Received by agent" + screen.Separator() + "read only"
 			received++
 		} else if input.missing {
-			status = "No longer queued · read only"
+			status = "No longer queued" + screen.Separator() + "read only"
 			missing++
 		} else {
 			queued++
 		}
 		if len(input.Message.Images) > 0 {
-			status += fmt.Sprintf(" · %d image", len(input.Message.Images))
+			status += fmt.Sprintf(screen.Separator()+"%d image", len(input.Message.Images))
 			if len(input.Message.Images) > 1 {
 				status += "s"
 			}
@@ -201,12 +201,12 @@ func (m *Model) refreshInputQueue(q *inputQueue) {
 		}
 		rows = append(rows, table.Row{ID: id, Cells: []string{fmt.Sprintf("%d  %s", n+1, text)}, Detail: status})
 	}
-	description := fmt.Sprintf("%d queued · oldest first", queued)
+	description := fmt.Sprintf("%d queued"+screen.Separator()+"oldest first", queued)
 	if queued == 0 && received+missing > 0 {
 		description = "No messages waiting. These rows are read only."
 	}
 	if received > 0 && queued > 0 {
-		description += fmt.Sprintf(" · %d received", received)
+		description += fmt.Sprintf(screen.Separator()+"%d received", received)
 	}
 	if m.chrome.UpdateTable(dialog, description, rows, nil) {
 		m.chrome.SetTableActions(dialog, m.inputQueueActions(q))

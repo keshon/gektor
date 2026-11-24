@@ -62,7 +62,7 @@ func New(styles textinput.Styles) *Model {
 	search.SetStyles(styles)
 	search.Prompt = "Filter: "
 	search.Placeholder = "/ to filter"
-	search.SetVirtualCursor(true)
+	search.SetVirtualCursor(false)
 
 	return &Model{Search: search}
 }

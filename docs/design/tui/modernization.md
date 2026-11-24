@@ -168,4 +168,12 @@ combinations. Modern graph selection uses accent color with single-line card
 borders; Commander retains double-line selection. Card borders and connection
 ports remain visible when pane borders are hidden because they describe the graph.
 The Modern empty canvas omits shortcut instructions. Native single-line and
-multiline inputs share a blinking bar caret through the palette's input styles.
+multiline inputs share the persisted caret shape through the palette's input
+styles. Shared forms, pickers, table filters and secret inputs use native carets;
+their measured layouts supply cursor positions to screen composition. Inactive
+fields and buttons hide the caret.
+
+Modern uses square metadata separators, list bullets, activity markers and graph
+ports. Commander keeps its round markers. Styling replaces only UI-generated
+symbols; punctuation in message text, code, filenames and numeric values is
+preserved.

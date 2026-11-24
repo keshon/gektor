@@ -126,12 +126,15 @@ func (m *Model) content() string {
 	canvas.Nodes = append([]graph.Node(nil), canvas.Nodes...)
 	for i := range canvas.Nodes {
 		canvas.Nodes[i].Detail, canvas.Nodes[i].DetailTone = CardDetail(canvas.Nodes[i].Detail)
+		if view.Styles.Graph.SquarePorts && strings.HasPrefix(canvas.Nodes[i].Detail, "○ ") {
+			canvas.Nodes[i].Detail = "□ " + strings.TrimPrefix(canvas.Nodes[i].Detail, "○ ")
+		}
 	}
 	left := canvas.View(cw, ch, view.Styles.Graph)
 	if len(canvas.Nodes) == 0 {
 		empty := "No workflow open."
 		if !view.Quiet {
-			empty += "\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal"
+			empty += "\nCtrl+O opens a recipe" + screen.Separator() + "H saved runs\nA adds a node" + screen.Separator() + "I requests an AI proposal"
 		}
 		left = cellFrame(empty, cw, ch)
 	}

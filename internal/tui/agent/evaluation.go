@@ -47,7 +47,7 @@ func (m *Model) refreshEvaluation() {
 		"Scope: " + p.Scope,
 		p.Request,
 		p.Stage,
-		fmt.Sprintf("Step %d/%d · elapsed %s", p.Step, p.Steps, formatElapsed(time.Since(j.started))),
+		fmt.Sprintf("Step %d/%d"+screen.Separator()+"elapsed %s", p.Step, p.Steps, formatElapsed(time.Since(j.started))),
 		fmt.Sprintf("Archive: inspected %d of %d messages (excerpts may be partial)", p.Read, p.Total),
 		"", "Keep this window open until the evaluation finishes.",
 		"Closing it cancels the evaluation. The original task remains unchanged.",
@@ -116,7 +116,7 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 		m.chrome.Open("No lesson to save", []string{"Nothing reusable was supported by this review. No project files changed.", "", r.Summary})
 		return
 	}
-	rows := []string{r.Scope, fmt.Sprintf("Archive: messages %d–%d · inspected %d of %d", r.Start, r.End, r.Read, r.End-r.Start+1), "", "MODEL ASSESSMENT", r.Summary}
+	rows := []string{r.Scope, fmt.Sprintf("Archive: messages %d–%d"+screen.Separator()+"inspected %d of %d", r.Start, r.End, r.Read, r.End-r.Start+1), "", "MODEL ASSESSMENT", r.Summary}
 	if r.Partial > 0 {
 		rows = append(rows, fmt.Sprintf("Coverage warning: %d inspected messages were only partially read.", r.Partial))
 	}
@@ -126,9 +126,9 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 	if len(r.Memory) == 0 {
 		rows = append(rows, "", "MEMORY", "No supported reusable observation.")
 	} else {
-		rows = append(rows, "", "PROPOSED LESSON · not saved")
+		rows = append(rows, "", "PROPOSED LESSON"+screen.Separator()+"not saved")
 		for _, memory := range r.Memory {
-			rows = append(rows, "", memory.When, memory.Lesson, fmt.Sprintf("Evidence: messages %v · %s", memory.Evidence, memory.Quote))
+			rows = append(rows, "", memory.When, memory.Lesson, fmt.Sprintf("Evidence: messages %v"+screen.Separator()+"%s", memory.Evidence, memory.Quote))
 		}
 	}
 	if r.Saved != "" {
@@ -257,7 +257,7 @@ func (m *Model) saveLesson(r retrospective.Result, when, procedure string) error
 	}
 	if lesson.Created {
 		m.lastLesson, m.lessonRoot = lesson, root
-		m.appendBlock(markerBlock("Lesson saved: " + filepath.Join(root, lesson.Path) + " · Available through skill discovery on your next task. /learn undo disables it. Review before sharing in Git."))
+		m.appendBlock(markerBlock("Lesson saved: " + filepath.Join(root, lesson.Path) + screen.Separator() + "Available through skill discovery on your next task. /learn undo disables it. Review before sharing in Git."))
 	} else {
 		m.appendBlock(markerBlock("This lesson is already saved; no duplicate created."))
 	}

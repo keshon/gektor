@@ -27,6 +27,7 @@ func (m *Model) applyAppearance(a config.Appearance) {
 		m.input.Prompt = "▎ "
 	}
 	screen.SetModern(m.modern)
+	screen.SetCaret(a.Caret)
 	m.minimal = a.Frame != "outlined"
 	m.hideNames, m.hideLabels = a.HideNames, a.HideLabels
 	m.hideSYS, m.hideTools = a.HideSystem, a.HideTools
@@ -40,6 +41,7 @@ func (m *Model) applyAppearance(a config.Appearance) {
 
 func (m *Model) currentAppearance() config.Appearance {
 	a := config.Appearance{
+		Caret:          screen.CurrentPalette().Caret,
 		Frame:          "outlined",
 		HideNames:      m.hideNames,
 		HideLabels:     m.hideLabels,
@@ -121,24 +123,24 @@ func prefillText(p llm.Progress, st styles, width int) string {
 	width = max(width, 1)
 	total := max(p.PromptTokens, 0)
 	processed := min(max(p.ProcessedTokens, 0), total)
-	label := fmt.Sprintf("Cached unknown · Prompt %d/%d", processed, total)
+	label := fmt.Sprintf("Cached unknown"+screen.Separator()+"Prompt %d/%d", processed, total)
 	if width < lipgloss.Width(label) {
-		label = fmt.Sprintf("Prompt %d/%d · Cached ?", processed, total)
+		label = fmt.Sprintf("Prompt %d/%d"+screen.Separator()+"Cached ?", processed, total)
 	}
 	filled := 0
 	// llama.cpp processed includes cache; only the suffix is new work.
 	if p.CacheKnown && p.CachedTokens >= 0 && p.CachedTokens <= processed {
 		cached := p.CachedTokens
 		work, done := total-cached, processed-cached
-		label = fmt.Sprintf("Cached %s · Processing %d/%d", kTokens(cached), done, work)
+		label = fmt.Sprintf("Cached %s"+screen.Separator()+"Processing %d/%d", kTokens(cached), done, work)
 		if work == 0 {
-			label = fmt.Sprintf("Cached %s · No new input to process", kTokens(cached))
+			label = fmt.Sprintf("Cached %s"+screen.Separator()+"No new input to process", kTokens(cached))
 			filled = width
 		} else {
 			filled = int(float64(done) * float64(width) / float64(work))
 		}
 		if width < lipgloss.Width(label) {
-			label = fmt.Sprintf("Cached %s · New %s/%s", kTokens(cached), kTokens(done), kTokens(work))
+			label = fmt.Sprintf("Cached %s"+screen.Separator()+"New %s/%s", kTokens(cached), kTokens(done), kTokens(work))
 		}
 	} else if total > 0 {
 		filled = int(float64(processed) * float64(width) / float64(total))

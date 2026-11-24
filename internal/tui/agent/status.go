@@ -25,7 +25,7 @@ func (m *Model) statusLine() string {
 
 	hint := m.actionHint()
 	if m.state == stRunning && m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
-		hint = m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}) + "  " + m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted))
+		hint = m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}) + "  " + m.progress.Detail + screen.Separator() + formatElapsed(time.Since(m.progressStarted))
 	}
 	if m.state == stStopping {
 		hint += "  Stopping… draft preserved"
@@ -102,4 +102,14 @@ func kTokens(n int) string {
 		return fmt.Sprintf("%.1fk", float64(n)/1000)
 	}
 	return fmt.Sprintf("%d", n)
+}
+
+func (m *Model) activitySymbol() string {
+	if m.modern {
+		if m.spinnerFrame%2 == 0 {
+			return "▪"
+		}
+		return "▫"
+	}
+	return string(activityFrames[m.spinnerFrame%len(activityFrames)])
 }

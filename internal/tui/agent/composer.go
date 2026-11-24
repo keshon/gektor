@@ -77,7 +77,7 @@ func (m *Model) syncComposerHeight() {
 func (m *Model) composerStatus() string {
 	if m.state == stRunning && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
 		if m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
-			return m.styles.Dim.Render(m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)))
+			return m.styles.Dim.Render(m.progress.Detail + screen.Separator() + formatElapsed(time.Since(m.progressStarted)))
 		}
 		if !m.modern {
 			return ""
@@ -102,7 +102,7 @@ func (m *Model) composerQueueMouse(msg tea.MouseMsg) bool {
 		y++
 	}
 	// The count is an entry point; the preview remains plain text.
-	label := strings.Split(m.queueSummary(), " · ")[0]
+	label := strings.Split(m.queueSummary(), screen.Separator())[0]
 	x := layout.Footer.X
 	if m.modern {
 		label = cellLine(m.queueSummary(), m.transcript.Viewport.Width())

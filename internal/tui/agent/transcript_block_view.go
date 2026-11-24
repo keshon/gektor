@@ -11,6 +11,7 @@ import (
 	"github.com/keshon/gektor/pkg/tui/components/cell"
 	diffview "github.com/keshon/gektor/pkg/tui/components/diff"
 	"github.com/keshon/gektor/pkg/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // roleLabel names optional message metadata in the transcript.
@@ -187,7 +188,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 			body = receiptText(b, st, width)
 		}
 	case b.role == roleResult && opts.hideTools:
-		body = []string{st.Dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
+		body = []string{st.Dim.Render(cellLine(fmt.Sprintf("Tool result"+screen.Separator()+"%d bytes", len(b.text)), width))}
 	case opts.modern && b.role == roleResult:
 		if view, ok := diffview.Render(raw, width, diffStyles(st)); ok {
 			body = strings.Split(view, "\n")

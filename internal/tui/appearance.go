@@ -36,12 +36,20 @@ func (m *Model) openTheme() {
 func (m *Model) openAppearance() {
 	f := themeChoiceForm()
 	f.Title = "Appearance"
+	caret := m.agent.Appearance().Caret
+	if caret == "" {
+		caret = "bar"
+	}
 	f.Fields = []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
 		{Key: "frame", Label: "Borders", Value: m.agent.Appearance().Frame},
 		{Key: "style", Label: "UI style", Value: m.agent.Appearance().Style},
+		{Key: "caret", Label: "Caret", Value: caret},
 	}
 
+	f.Choices["caret"] = []string{"block", "bar", "underline"}
+	f.Labels["caret"] = map[string]string{"block": "Block", "bar": "Vertical bar", "underline": "Underline"}
+	f.InlineChoices["caret"] = 3
 	f.Choices["style"] = []string{"commander", "modern"}
 	f.Labels["style"] = map[string]string{"commander": "Commander", "modern": "Modern"}
 	f.InlineChoices["style"] = 2
@@ -60,6 +68,7 @@ func (m *Model) openAppearance() {
 		appearance := m.agent.Appearance()
 		appearance.Frame = frame
 		appearance.Style = values["style"]
+		appearance.Caret = values["caret"]
 		if err := appearance.Validate(); err != nil {
 			return err
 		}

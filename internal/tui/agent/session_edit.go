@@ -64,7 +64,7 @@ func (m *Model) deleteActive() {
 }
 
 func (m *Model) inspectConnection() {
-	m.chrome.Open("Model connection", []string{"Model: " + nonEmpty(m.modelName), "Protocol: " + nonEmpty(m.backendKind), "Endpoint: " + nonEmpty(m.backendURL), fmt.Sprintf("Context: %d tokens · response: %d tokens", m.limit, m.responseCap), "Coding connection changes currently require restarting the application."})
+	m.chrome.Open("Model connection", []string{"Model: " + nonEmpty(m.modelName), "Protocol: " + nonEmpty(m.backendKind), "Endpoint: " + nonEmpty(m.backendURL), fmt.Sprintf("Context: %d tokens"+screen.Separator()+"response: %d tokens", m.limit, m.responseCap), "Coding connection changes currently require restarting the application."})
 }
 
 func (m *Model) inspectAgentInstructions() {

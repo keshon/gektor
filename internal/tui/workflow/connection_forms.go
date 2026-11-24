@@ -29,7 +29,7 @@ func (m *Model) queueConnection(edit workflowConnectionEdit) {
 func (m *Model) connections() {
 	links := m.editor.Connections(m.graph.Selected)
 	if len(links) == 0 {
-		m.setNotice(pane.NoticeInfo, "No connections for this node · C creates one")
+		m.setNotice(pane.NoticeInfo, "No connections for this node"+screen.Separator()+"C creates one")
 		return
 	}
 	choices := make([]string, len(links))
@@ -225,7 +225,7 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 		return
 	}
 	if edit.Draft != m.editor.Source() {
-		m.setNotice(pane.NoticeWarning, "Draft changed · reopen connections")
+		m.setNotice(pane.NoticeWarning, "Draft changed"+screen.Separator()+"reopen connections")
 		return
 	}
 	if edit.Remove {
@@ -336,7 +336,7 @@ func portLabelForDisplay(pointer string) string {
 
 func (m *Model) connectionChanged() {
 	m.graph = m.buildGraph(m.graph)
-	m.setNotice(pane.NoticeSuccess, "Connection changed · V validates the draft")
+	m.setNotice(pane.NoticeSuccess, "Connection changed"+screen.Separator()+"V validates the draft")
 	// Required-argument errors are visible immediately, without running a node.
 	for _, s := range m.editor.Definition.Steps {
 		node, err := m.registry.Node(s.Tool)

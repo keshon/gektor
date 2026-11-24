@@ -3,6 +3,7 @@ package agent
 import (
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/pkg/tui/components/markdown"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func baseStyle(r role, st styles) lipgloss.Style {
@@ -36,6 +37,9 @@ func renderMdBlock(b block, raw string, st styles, width int) []string {
 			Keyword: base, String: base, Number: base, Comment: base,
 			Added: base, Deleted: base,
 		}
+	}
+	if screen.CurrentPalette().Modern {
+		palette.Bullet = "▪"
 	}
 	return markdown.Render(raw, width, palette)
 }

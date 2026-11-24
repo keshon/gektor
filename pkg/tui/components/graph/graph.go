@@ -48,6 +48,7 @@ type Model struct {
 
 // Styles are supplied by the host so graph drawing does not choose a palette.
 type Styles struct {
+	SquarePorts bool
 	// SingleBorder uses color rather than double lines to mark selection.
 	SingleBorder                                            bool
 	Normal, Title, Focus, Success, Warning, Error, Disabled lipgloss.Style

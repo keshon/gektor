@@ -377,7 +377,7 @@ func (m *Model) commandStepLimit(arg string) (tea.Model, tea.Cmd) {
 func (m *Model) commandMode(arg string) (tea.Model, tea.Cmd) {
 	mode := strings.ToLower(strings.TrimSpace(arg))
 	if mode == "" {
-		m.appendBlock(markerBlock("Mode: " + m.modeName() + " · /mode plan previews changes · /mode act executes them"))
+		m.appendBlock(markerBlock("Mode: " + m.modeName() + screen.Separator() + "/mode plan previews changes" + screen.Separator() + "/mode act executes them"))
 		return m, nil
 	}
 	if mode != "plan" && mode != "act" {

@@ -121,7 +121,7 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	if formSnapshot(m).Picker.Search != "open" || !reflect.DeepEqual(formSnapshot(m).Picker.Filtered, []string{"openai"}) {
 		t.Fatal("picker paste did not update search and filtered options")
 	}
-	if formSnapshot(m).EditorValue != before || formSnapshot(m).EditorFocused || m.View().Cursor != nil {
+	if formSnapshot(m).EditorValue != before || formSnapshot(m).EditorFocused || m.View().Cursor == nil {
 		t.Fatal("picker paste reached an inactive editor")
 	}
 	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})

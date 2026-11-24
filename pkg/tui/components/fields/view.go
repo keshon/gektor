@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/pkg/tui/components/cell"
@@ -145,4 +146,29 @@ func (f *Model) Overlay(background string, props Props) string {
 
 func (f *Model) fieldLabel(field form.Field) string {
 	return f.FieldLabels[field.Key]
+}
+
+// Cursor shares the rendered field or picker origin with pointer hit testing.
+func (f *Model) Cursor(props Props) *tea.Cursor {
+	if f.FeedbackOpen {
+		return nil
+	}
+	var caret *tea.Cursor
+	if f.Picker != nil {
+		picker := f.Picker
+		if picker.Control != 0 || picker.NoSearch {
+			return nil
+		}
+		layout := f.layoutPicker(props)
+		caret = layout.cursor
+	} else {
+		caret = f.plainLayout(props).Cursor
+	}
+	if caret == nil {
+		return nil
+	}
+	x, y := f.Origin(props)
+	caret.X += x
+	caret.Y += y
+	return caret
 }

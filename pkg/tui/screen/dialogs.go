@@ -75,7 +75,9 @@ func (m *Controls) FormDetailRequest(id DialogID) (fieldform.DetailRequest, bool
 	if id.owner != m || id.dialog == nil || m.dialog != id.dialog || m.dialog.Form == nil {
 		return fieldform.DetailRequest{}, false
 	}
-	return m.dialog.Form.TakeDetailRequest()
+	request, ok := m.dialog.Form.TakeDetailRequest()
+	request.Square = m.Props.Modern
+	return request, ok
 }
 
 // AcceptFormDetail lets the controls reject results for replaced picker requests.

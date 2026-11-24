@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/keshon/gektor/pkg/tui/components/cell"
 	"github.com/keshon/gektor/pkg/tui/components/form"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
@@ -59,12 +60,15 @@ func (m *Controls) PresentSecret(title, hint string) {
 	editor.SetStyles(m.palette().TextInputStyles(editor.Styles()))
 	editor.EchoMode = textinput.EchoPassword
 	editor.EchoCharacter = '•'
+	if m.Props.Modern {
+		editor.EchoCharacter = '▪'
+	}
 	editor.CharLimit = 0
 	editor.Prompt = "Secret: "
-	editor.SetVirtualCursor(true)
+	editor.SetVirtualCursor(false)
 	// Terminal bracketed paste is accepted; no asynchronous clipboard read may outlive this overlay.
 	editor.KeyMap.Paste.SetEnabled(false)
-	_ = editor.Focus() // A steady virtual caret needs no blink command.
+	_ = editor.Focus() // The terminal owns the native caret.
 	m.dialog.Secret = &secretState{editor: editor, Hint: hint}
 	m.dialog.Shortcuts = []popup.Shortcut{{Key: "Ctrl+S", Action: "save encrypted"}, {Key: "Esc", Action: "cancel"}}
 	m.refreshSecret()
@@ -90,7 +94,7 @@ func (m *Controls) SecretInput(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	s.Error = ""
-	s.editor, _ = s.editor.Update(msg) // Clipboard commands are disabled; cursor blink does not own secret input.
+	s.editor, _ = s.editor.Update(msg) // Clipboard commands are disabled; the terminal owns caret blinking.
 	if len(s.editor.Value()) > 16384 {
 		s.editor.Reset()
 		s.Error = "Secret exceeds 16384 bytes; input cleared. Enter it again."
@@ -102,7 +106,7 @@ func (m *Controls) SecretInput(msg tea.Msg) tea.Cmd {
 func (m *Controls) refreshSecret() {
 	s := m.dialog.Secret
 	_, _, width, _ := m.Area()
-	s.editor.SetWidth(max(popup.ModalWidth(width, 0)-14, 8))
+	s.editor.SetWidth(max(popup.ModalWidth(width, 0)-5-cell.Width(s.editor.Prompt), 1))
 	m.dialog.Lines = []string{s.Hint, "", s.editor.View()}
 	if s.Error != "" {
 		m.dialog.Lines = append(m.dialog.Lines, "", s.Error)

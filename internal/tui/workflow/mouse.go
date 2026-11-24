@@ -8,6 +8,7 @@ import (
 	"github.com/keshon/gektor/pkg/tui/components/graph"
 	"github.com/keshon/gektor/pkg/tui/components/pane"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
@@ -131,7 +132,7 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 				if output {
 					m.connectFrom = id
 					m.connectPort = port
-					m.setNotice(pane.NoticeInfo, "Choose an input port · Esc cancels")
+					m.setNotice(pane.NoticeInfo, "Choose an input port"+screen.Separator()+"Esc cancels")
 				} else if m.connectFrom != "" {
 					if (port == "@order") != (m.connectPort == "@order") {
 						m.setNotice(pane.NoticeWarning, "Connect data ports together, or then → after for execution order")
@@ -158,7 +159,7 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 					m.connectFrom = ""
 					m.connectionEdit(edit)
 				} else {
-					m.setNotice(pane.NoticeWarning, "Choose an output port first · C connects by keyboard")
+					m.setNotice(pane.NoticeWarning, "Choose an output port first"+screen.Separator()+"C connects by keyboard")
 				}
 				return m, nil
 			}

@@ -26,7 +26,7 @@ func (m *Controls) Compose(view tea.View) tea.View {
 			content = m.palette().Styles().Dim.Render(ansi.Strip(content))
 		}
 		content = m.overlayContent(content)
-		view.Cursor = nil
+		view.Cursor = m.dialogCursor()
 	}
 	if m.Header.Menu != "" {
 		content = m.OverlayHeader(content)

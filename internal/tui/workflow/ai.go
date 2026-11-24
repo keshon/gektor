@@ -44,7 +44,7 @@ func (m *Model) propose(prompt string) tea.Cmd {
 		ContextLimit:     m.config.ContextLimit,
 		Temperature:      m.config.Temperature,
 	}
-	m.setNotice(pane.NoticeInfo, "AI drafting a proposal · Esc cancels")
+	m.setNotice(pane.NoticeInfo, "AI drafting a proposal"+screen.Separator()+"Esc cancels")
 	return m.startOperation(func(operationCtx context.Context) tea.Msg {
 		proposal, requestErr := authoring.Propose(operationCtx, client, request)
 		return workflowProposal{before: before, source: proposal.Source, note: proposal.Note, err: requestErr}
@@ -66,7 +66,7 @@ func (m *Model) acceptProposal(p workflowProposal) {
 		m.dialogs.PresentDialog(screen.Dialog{Title: "Invalid AI proposal", Lines: []string{err.Error(), p.source}})
 		return
 	}
-	lines := []string{"Proposal only · no files saved or operations executed.", ""}
+	lines := []string{"Proposal only" + screen.Separator() + "no files saved or operations executed.", ""}
 	if p.note != "" {
 		lines = append(lines, p.note, "")
 	}
@@ -110,6 +110,6 @@ func (m *Model) applyProposal() error {
 	}
 	m.editor.Replace(d)
 	m.graph = m.buildGraph(m.graph)
-	m.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
+	m.setNotice(pane.NoticeSuccess, "Proposal applied to draft"+screen.Separator()+"Ctrl+S saves")
 	return nil
 }

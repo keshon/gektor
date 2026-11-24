@@ -57,3 +57,44 @@ func TestAppearanceStylesSwitchWithoutChangingTheConversation(t *testing.T) {
 		}
 	}
 }
+
+func TestCaretChoicePersistsAcrossScreensAndThemes(t *testing.T) {
+	previous := screen.CurrentPalette()
+	defer func() {
+		screen.SetTheme(previous.Name)
+		screen.SetModern(previous.Modern)
+		screen.SetCaret(previous.Caret)
+	}()
+	for _, workflow := range []bool{false, true} {
+		m := sizeModelTo(t, settingsModel(t), 120, 30)
+		if workflow {
+			m.openWorkflows()
+		}
+		before := snapshotOf(m)
+		for _, caret := range []string{"block", "underline", "bar"} {
+			m.runAction("appearance")
+			values := formSnapshot(m).Values()
+			values["caret"] = caret
+			values["theme"] = "light"
+			err := m.applyValues(values)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.chrome.Close()
+			m.settleControls()
+			loaded, err := config.LoadPreferences(m.application.PreferencePath)
+			if err != nil || loaded.Appearance.Caret != caret || m.agent.Appearance().Caret != caret || screen.CurrentPalette().Caret != caret {
+				t.Fatal("caret selection not persisted/applied", workflow, caret, err)
+			}
+			m.runAction("appearance")
+			if formSnapshot(m).Values()["caret"] != caret {
+				t.Fatal("appearance lost caret choice", caret)
+			}
+			m.chrome.Close()
+			after := snapshotOf(m)
+			if after.Draft != before.Draft || !reflect.DeepEqual(after.History, before.History) {
+				t.Fatal("caret changed conversation")
+			}
+		}
+	}
+}

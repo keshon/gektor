@@ -159,6 +159,12 @@ func (f *Model) scrollMouse(msg tea.MouseMsg, props Props) bool {
 		limit := len(fields) - capacity
 		start := (offset*limit + (track.Total-track.Height)/2) / max(track.Total-track.Height, 1)
 		index := min(start+capacity/2, len(fields)-1)
+		if offset == 0 {
+			index = 0
+		}
+		if offset >= track.Total-track.Height {
+			index = len(fields) - 1
+		}
 		f.Focus(fields[index], f.FieldVisible)
 	}
 

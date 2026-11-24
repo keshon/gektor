@@ -34,7 +34,7 @@ func (m *Model) headerBadges() []screen.Badge {
 		case "checkpoint":
 			phase = "COMPACT"
 		}
-		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " " + phase
+		activity = m.activitySymbol() + " " + phase
 	case stPermission, stAsk:
 		activity = "WAIT"
 	case stStopping:
@@ -45,7 +45,7 @@ func (m *Model) headerBadges() []screen.Badge {
 		}
 	}
 	if m.evaluation != nil {
-		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " EVAL"
+		activity = m.activitySymbol() + " EVAL"
 	}
 	ctx := kTokens(m.tokens)
 	if m.tokensEst {

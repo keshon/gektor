@@ -135,7 +135,7 @@ func (m *Model) savedConnectionForm() {
 		}
 	}
 	if len(options) == 1 && step.Tool != "http_request" {
-		m.setNotice(pane.NoticeInfo, "No active saved SSH connections · add one in Agent Settings")
+		m.setNotice(pane.NoticeInfo, "No active saved SSH connections"+screen.Separator()+"add one in Agent Settings")
 		return
 	}
 	if selected == "" {

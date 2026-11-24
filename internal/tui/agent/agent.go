@@ -354,7 +354,7 @@ func New(ctx context.Context, cfg Config) (model *Model, err error) {
 	default:
 		m.state = stDone
 		m.stateFile = ""
-		m.appendBlock(markerBlock("New task · type a task to begin\n/mode plan previews changes · /mode act executes them\n@path attaches workspace files or images"))
+		m.appendBlock(markerBlock("New task" + screen.Separator() + "type a task to begin\n/mode plan previews changes" + screen.Separator() + "/mode act executes them\n@path attaches workspace files or images"))
 		m.input.Focus()
 	}
 

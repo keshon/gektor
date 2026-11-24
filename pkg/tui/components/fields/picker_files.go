@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/pkg/tui/components/cell"
 )
 
 // ScanDirectory starts a new request with a copied extension filter; execute the
@@ -56,11 +57,12 @@ func (f *Model) DetailCommand() tea.Cmd {
 type DetailRequest struct {
 	ID          RequestID
 	Field, Path string
+	Square      bool
 }
 
 // Command reads generic file metadata outside the update loop.
 func (r DetailRequest) Command() tea.Cmd {
-	scan := detailScan{ID: r.ID, Path: r.Path}
+	scan := detailScan{ID: r.ID, Path: r.Path, Square: r.Square}
 	return scan.run
 }
 
@@ -179,8 +181,9 @@ func (s driveScan) run() tea.Msg {
 }
 
 type detailScan struct {
-	ID   RequestID
-	Path string
+	Square bool
+	ID     RequestID
+	Path   string
 }
 
 func (s detailScan) run() tea.Msg {
@@ -189,7 +192,7 @@ func (s detailScan) run() tea.Msg {
 	if err != nil {
 		text = "Unavailable: " + err.Error()
 	} else if !info.IsDir() {
-		text = fmt.Sprintf("%.2f GiB · %s", float64(info.Size())/(1<<30), text)
+		text = fmt.Sprintf("%.2f GiB"+cell.Separator(s.Square)+"%s", float64(info.Size())/(1<<30), text)
 	}
 	return DetailMsg{ID: s.ID, Path: s.Path, Text: text}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -18,6 +19,7 @@ type Hit struct {
 }
 
 type Layout struct {
+	Cursor   *tea.Cursor
 	Rows     []string
 	Hits     []Hit
 	Scroll   popup.ScrollTrack
@@ -130,6 +132,7 @@ func (f Model) Layout(props Props) Layout {
 	start := max(min(position-capacity/2, len(indexes)-capacity), 0)
 	end := min(start+capacity, len(indexes))
 
+	var caret *tea.Cursor
 	hits := []Hit{{Index: len(f.Fields) + 1, Y0: 0, Y1: 1, X0: max(inner-3, 0), X1: inner}}
 	for _, i := range indexes[start:end] {
 		field := f.Fields[i]
@@ -176,6 +179,12 @@ func (f Model) Layout(props Props) Layout {
 				rows = append(rows, cell.Line("[ "+props.Choice+" ]  Enter to choose", inner))
 			}
 		case i == f.Index && editable:
+			if !field.ReadOnly {
+				caret = f.Editor.Cursor()
+				if caret != nil {
+					caret.Y += len(rows)
+				}
+			}
 			rows = append(rows, strings.Split(f.Editor.View(), "\n")...)
 		default:
 			rows = append(rows, cell.Line(value, inner))
@@ -201,7 +210,7 @@ func (f Model) Layout(props Props) Layout {
 		// Capped like every other row here. It was not, so a form with
 		// more fields than fit pushed its own frame wider than the pane and
 		// clipped its own right-hand border.
-		rows = append(rows, props.Styles.Muted.Render(cell.Line(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(indexes)), inner)))
+		rows = append(rows, props.Styles.Muted.Render(cell.Line(fmt.Sprintf("Fields %d–%d / %d"+cell.Separator(props.Styles.FilledButtons)+"Tab moves through all fields", start+1, end, len(indexes)), inner)))
 	}
 	rows = append(rows, feedback...)
 	shortcuts := props.Shortcuts
@@ -245,7 +254,7 @@ func (f Model) Layout(props Props) Layout {
 	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Destructive, props.Styles)
 	rows = append(rows, action)
 	hits = append(hits, actionHits...)
-	return Layout{Rows: rows, Hits: hits, Scroll: track, Fields: indexes, Capacity: capacity}
+	return Layout{Cursor: caret, Rows: rows, Hits: hits, Scroll: track, Fields: indexes, Capacity: capacity}
 }
 func (f Model) Actions(width, y int, primary string, enabled, destructive bool, styles Styles) (string, []Hit) {
 	cancel := "[ Cancel ]"

@@ -132,10 +132,10 @@ func (m *Model) refreshInspector() {
 	}
 	state := "Running"
 	if b.returned {
-		state = "Returned · awaiting result processing"
+		state = "Returned" + screen.Separator() + "awaiting result processing"
 	}
 	if b.open && strings.HasPrefix(b.text, "delegate_task ") && m.child(b.callID).phase != "" {
-		state += " · " + m.child(b.callID).phase
+		state += screen.Separator() + m.child(b.callID).phase
 	}
 	if !b.open {
 		state = "Completed"

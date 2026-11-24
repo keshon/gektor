@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // sessionText is one searchable message and its index in the source history.
@@ -60,13 +61,13 @@ func (m *Model) searchView() string {
 	if s.currentOnly {
 		scope = "Current workspace"
 	}
-	title := "Open session · " + scope + " · CTRL+F filter"
+	title := "Open session" + screen.Separator() + scope + screen.Separator() + "CTRL+F filter"
 	if inner < 55 {
 		scope = "All"
 		if s.currentOnly {
 			scope = "Current"
 		}
-		title = "Sessions · " + scope + " · ^F"
+		title = "Sessions" + screen.Separator() + scope + screen.Separator() + "^F"
 	}
 	header := popup.Header(title, inner, m.styles.Title)
 	rows := []string{line(styles.Normal, header[0]), line(styles.Normal, s.filter.View()), rule}
@@ -96,9 +97,9 @@ func (m *Model) searchView() string {
 		metadata := "Date unavailable"
 		if !e.updated.IsZero() {
 			days := max(int(time.Since(e.updated).Hours()/24), 0)
-			metadata = fmt.Sprintf("%s · %dd ago", e.updated.Local().Format("2006-01-02 15:04"), days)
+			metadata = fmt.Sprintf("%s"+screen.Separator()+"%dd ago", e.updated.Local().Format("2006-01-02 15:04"), days)
 		}
-		metadata += fmt.Sprintf(" · %d messages", e.msgs)
+		metadata += fmt.Sprintf(screen.Separator()+"%d messages", e.msgs)
 		muted := style
 		if i != s.Cursor {
 			muted = muted.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
@@ -109,7 +110,7 @@ func (m *Model) searchView() string {
 		}
 		rows = append(rows, line(muted, "  "+path))
 
-		text := metadata + " · " + e.preview
+		text := metadata + screen.Separator() + e.preview
 		if e.matchText != "" {
 			text = e.matchText
 		}
@@ -128,7 +129,7 @@ func (m *Model) searchView() string {
 	}
 	switch s.mode {
 	case sessRename:
-		rows = append(rows, line(styles.Normal, "Rename session · ENTER save · ESC back"), line(styles.Normal, s.rename.View()))
+		rows = append(rows, line(styles.Normal, "Rename session"+screen.Separator()+"ENTER save"+screen.Separator()+"ESC back"), line(styles.Normal, s.rename.View()))
 	case sessReassign:
 		destination := m.wsRoot
 		if s.reassign != nil {
@@ -143,7 +144,7 @@ func (m *Model) searchView() string {
 		if len(s.entries) > 0 {
 			title = s.entries[s.Cursor].title
 		}
-		rows = append(rows, line(styles.Normal, "Delete "+title+"? Y delete · N cancel"))
+		rows = append(rows, line(styles.Normal, "Delete "+title+"? Y delete"+screen.Separator()+"N cancel"))
 	}
 	hintWidth, count := inner, ""
 	if len(s.entries) > 0 {

@@ -234,7 +234,7 @@ func (r *transcriptRenderState) recordToolHit(partIndex int, b block, part strin
 	for row, line := range rows {
 		indent := len(line) - len(strings.TrimLeft(line, " "))
 		line = strings.TrimLeft(line, " ")
-		status := strings.HasPrefix(line, "· ") || strings.HasPrefix(line, "– ") || strings.HasPrefix(line, "✓ ") || strings.HasPrefix(line, "… ") || strings.HasPrefix(line, "✕ ") || strings.HasPrefix(line, "× ")
+		status := (strings.HasPrefix(line, "· ") || strings.HasPrefix(line, "▪ ")) || strings.HasPrefix(line, "– ") || strings.HasPrefix(line, "✓ ") || strings.HasPrefix(line, "… ") || strings.HasPrefix(line, "✕ ") || strings.HasPrefix(line, "× ")
 		if !status {
 			continue
 		}

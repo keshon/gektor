@@ -43,7 +43,7 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 			return nil
 		}
 		if in.Draft != m.editor.Source() || m.run != nil {
-			m.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
+			m.setNotice(pane.NoticeWarning, "Draft changed"+screen.Separator()+"reopen run inputs")
 			return nil
 		}
 		if a.action == "input-form" {
@@ -239,7 +239,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 	m.finishPermission()
 	if r.err != nil {
 		if r.action == "open-path" {
-			m.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
+			m.setNotice(pane.NoticeWarning, "Recipe was not opened"+screen.Separator()+"Ctrl+O choose a file")
 			if m.active {
 				m.recipePath("open", r.path)
 				message := "Could not open recipe: " + r.err.Error()
@@ -256,7 +256,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 			rows = append(rows, r.text)
 		}
 		if r.outcome.RunID != "" {
-			rows = append(rows, "Run: "+r.outcome.RunID+" · "+r.outcome.Status)
+			rows = append(rows, "Run: "+r.outcome.RunID+screen.Separator()+r.outcome.Status)
 		}
 		m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow failed", Lines: rows})
 		return nil
@@ -314,7 +314,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		}
 		m.setNotice(level, "Run: "+r.outcome.Status+" / H opens saved runs")
 	} else if r.outcome.Valid {
-		m.setNotice(pane.NoticeSuccess, "Recipe valid · "+r.outcome.Scope)
+		m.setNotice(pane.NoticeSuccess, "Recipe valid"+screen.Separator()+r.outcome.Scope)
 	} else if r.text != "" {
 		m.setNotice(pane.NoticeInfo, r.text)
 	}

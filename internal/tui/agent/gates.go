@@ -16,6 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 	"github.com/keshon/gektor/pkg/tui/components/gate"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // gateStage is the permission overlay stage: permit, always-confirm,
@@ -50,7 +51,7 @@ func newNote() textinput.Model {
 func (m *Model) gateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.fitBottom()
 	if msg.String() == "f4" && m.gatePreview != "" {
-		m.chrome.Open("Full proposal · Esc returns to approval", strings.Split(m.gatePreview, "\n"))
+		m.chrome.Open("Full proposal"+screen.Separator()+"Esc returns to approval", strings.Split(m.gatePreview, "\n"))
 		return m, nil
 	}
 	if msg.String() == "ctrl+q" {

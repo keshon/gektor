@@ -55,7 +55,7 @@ func (m *Model) replaceRecipe(d workflow.Definition, draft string) error {
 		m.editor.Replace(d)
 		m.graph = m.buildGraph(m.graph)
 	}
-	m.setNotice(pane.NoticeSuccess, "Recipe updated · V validates the draft")
+	m.setNotice(pane.NoticeSuccess, "Recipe updated"+screen.Separator()+"V validates the draft")
 	return nil
 }
 
@@ -120,7 +120,7 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 		return
 	}
 	if m.editor.Source() != edit.Draft {
-		m.setNotice(pane.NoticeWarning, "Draft changed · reopen recipe settings")
+		m.setNotice(pane.NoticeWarning, "Draft changed"+screen.Separator()+"reopen recipe settings")
 		return
 	}
 	d := m.editor.Clone()

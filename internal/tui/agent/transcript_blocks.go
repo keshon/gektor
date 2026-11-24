@@ -8,6 +8,7 @@ import (
 
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // role names the kind of a transcript block. Every role maps to one
@@ -117,7 +118,7 @@ func contextBlock(msg llm.Message) block {
 	if msg.Request > 0 {
 		state = fmt.Sprintf("included in request %d", msg.Request)
 	}
-	b.text += fmt.Sprintf("\n[role=%s · %s]", msg.Role, state)
+	b.text += fmt.Sprintf("\n[role=%s"+screen.Separator()+"%s]", msg.Role, state)
 	// Completion notifications are tool evidence even though the harness sends
 	// them as context. Use the same compact/inspect presentation as tool results.
 	header, _, notification := strings.Cut(strings.TrimPrefix(msg.Content, harnessPrefix), ". Historical command output:\n")

@@ -4,6 +4,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/providers"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func CatalogDetail(key, path string) string {
@@ -13,16 +14,16 @@ func CatalogDetail(key, path string) string {
 			return err.Error()
 		}
 		if preset.ID == "custom" {
-			return "Custom · Uses your base prompt without adding a response-style preset."
+			return "Custom" + screen.Separator() + "Uses your base prompt without adding a response-style preset."
 		}
-		return preset.Name + " · " + preset.Instruction
+		return preset.Name + "" + screen.Separator() + "" + preset.Instruction
 	}
 	if key == "load-profile" {
 		p, err := config.Load(path)
 		if err != nil {
 			return "Unavailable profile: " + err.Error()
 		}
-		return p.Provider.Kind + " · " + p.Provider.Model + " · " + path
+		return p.Provider.Kind + "" + screen.Separator() + "" + p.Provider.Model + "" + screen.Separator() + "" + path
 	}
 	return path
 }

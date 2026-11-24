@@ -142,6 +142,10 @@ Commander keeps the bottom hotkey strip. Modern uses controls inside dialogs
 and beside the draft instead. In Modern, mode, model and context sit below the
 input. **Borders > Visible / Hidden** controls panel outlines independently of
 the UI style. Existing preferences default to Commander.
+**Caret > Block / Vertical bar / Underline** selects the blinking native terminal
+caret for all editable inputs, including pickers and filters. It defaults to
+Vertical bar, applies in both UI styles, and persists as `appearance.caret`
+(`block`, `bar`, or `underline`). The terminal controls the blink rate.
 Press `F1` for help.
 Press `F12`, or open **Help > Actions…**, to search the enabled menu commands for
 the current screen. Type to filter and press Enter to run the selected action.

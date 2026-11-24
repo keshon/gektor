@@ -91,8 +91,20 @@ func (m *Controls) resume(dialog *dialogState) {
 
 // Prepare updates editor styles on the update loop, before presentation reads.
 func (m *Controls) Prepare() {
+	if m.dialog != nil && m.dialog.Form != nil {
+		f := m.dialog.Form
+		f.Editor.SetStyles(m.palette().InputStyles(f.Editor.Styles()))
+		if f.Picker != nil {
+			f.Picker.Search.SetStyles(m.palette().TextInputStyles(f.Picker.Search.Styles()))
+		}
+	}
+
 	if m.dialog != nil && m.dialog.Secret != nil {
 		m.dialog.Secret.editor.SetStyles(m.palette().TextInputStyles(m.dialog.Secret.editor.Styles()))
+		m.dialog.Secret.editor.EchoCharacter = '•'
+		if m.Props.Modern {
+			m.dialog.Secret.editor.EchoCharacter = '▪'
+		}
 		m.refreshSecret()
 	}
 	if m.dialog != nil && m.dialog.Table != nil {

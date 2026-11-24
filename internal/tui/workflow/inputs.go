@@ -38,7 +38,7 @@ func (m *Model) inputForm(in workflowInvocation) {
 		return
 	}
 	if in.Draft != m.editor.Source() {
-		m.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
+		m.setNotice(pane.NoticeWarning, "Draft changed"+screen.Separator()+"reopen run inputs")
 		return
 	}
 	if in.Action != "run" && in.Action != "validate" && in.Action != "schedule" {

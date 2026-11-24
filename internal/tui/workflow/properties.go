@@ -311,10 +311,10 @@ func workflowAttemptRows(attempts []workflow.Attempt) []string {
 			status += " / " + cleanText(attempt.Failure.Code)
 		}
 
-		line := fmt.Sprintf("#%d %s · %s", attempt.Number, status, attempt.Started.UTC().Format(time.RFC3339))
+		line := fmt.Sprintf("#%d %s"+screen.Separator()+"%s", attempt.Number, status, attempt.Started.UTC().Format(time.RFC3339))
 		if attempt.Finished != nil {
 			duration := attempt.Finished.Sub(attempt.Started)
-			line += fmt.Sprintf(" · %dms", duration.Milliseconds())
+			line += fmt.Sprintf(screen.Separator()+"%dms", duration.Milliseconds())
 		}
 		rows = append(rows, line)
 

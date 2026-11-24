@@ -152,7 +152,7 @@ func (m *Controls) OpenForm(title, hint, applyLabel string, fields []form.Field)
 	m.Open(title, nil)
 	f := &formState{Model: fieldform.NewModel(fields, m.NewEditor())}
 	f.Hint, f.ApplyLabel = hint, applyLabel
-	f.Editor.SetVirtualCursor(true)
+	f.Editor.SetVirtualCursor(false)
 	f.Editor.DynamicHeight = false
 	f.Editor.Prompt = ""
 	f.Editor.CharLimit = 65536

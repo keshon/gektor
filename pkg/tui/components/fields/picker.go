@@ -77,7 +77,7 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 	search := textinput.New()
 	search.SetStyles(props.SearchStyles)
 	search.Prompt = "Search: "
-	search.SetVirtualCursor(true)
+	search.SetVirtualCursor(false)
 	search.Focus()
 	search.SetWidth(max(props.Width-14, 12))
 

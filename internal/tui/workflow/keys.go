@@ -164,7 +164,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "pgup", "pgdown", "home", "end":
 		m.page(key)
 	case "f1":
-		m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow keys", Lines: strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · G locks positions · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · 1/2/3 inspector tabs · Ctrl+J raw data\nInspector E edits properties/code · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n")})
+		m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow keys", Lines: strings.Split("Ctrl+O open"+screen.Separator()+"Ctrl+N new"+screen.Separator()+"Ctrl+S save\nA add"+screen.Separator()+"Enter edit/inspect"+screen.Separator()+"Delete delete\nC connect"+screen.Separator()+"B connections"+screen.Separator()+"E node behavior"+screen.Separator()+"J complete recipe JSON\nM recipe name"+screen.Separator()+"U inputs"+screen.Separator()+"O outputs\nArrows select"+screen.Separator()+"Shift+arrows move"+screen.Separator()+"G locks positions"+screen.Separator()+"Alt+arrows pan\nDrag background to pan"+screen.Separator()+"Shift+wheel horizontal\nClick output then input to connect"+screen.Separator()+"Ctrl+T inspector\nTab pane focus"+screen.Separator()+"1/2/3 inspector tabs"+screen.Separator()+"Ctrl+J raw data\nInspector E edits properties/code"+screen.Separator()+"Esc closes focused inspector\nF compact overview"+screen.Separator()+"L auto-layout"+screen.Separator()+"Ctrl+Z undo"+screen.Separator()+"Ctrl+Y redo\nV validate"+screen.Separator()+"R run"+screen.Separator()+"H saved runs"+screen.Separator()+"P review\nD editable draft"+screen.Separator()+"I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu"+screen.Separator()+"Ctrl+Q quit", "\n")})
 		return m, nil
 	}
 	if strings.HasPrefix(key, "shift+") {
@@ -172,7 +172,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if action != "" {
 		if m.run != nil && (action == "ai" || action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe") {
-			m.setNotice(pane.NoticeInfo, "Viewing a frozen run · D returns to the editable draft")
+			m.setNotice(pane.NoticeInfo, "Viewing a frozen run"+screen.Separator()+"D returns to the editable draft")
 			return m, nil
 		}
 		return m, m.command(action)

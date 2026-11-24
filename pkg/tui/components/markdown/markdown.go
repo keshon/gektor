@@ -20,6 +20,7 @@ import (
 )
 
 type Styles struct {
+	Bullet                                 string
 	Text, Muted, Accent                    lipgloss.Style
 	Code, Keyword, String, Number, Comment lipgloss.Style
 	Added, Deleted                         lipgloss.Style
@@ -87,7 +88,11 @@ func (r renderer) block(node ast.Node, width int) []string {
 		var rows []string
 		number := n.Start
 		for item := n.FirstChild(); item != nil; item = item.NextSibling() {
-			prefix := "• "
+			prefix := r.styles.Bullet
+			if prefix == "" {
+				prefix = "•"
+			}
+			prefix += " "
 			if n.IsOrdered() {
 				prefix = strconv.Itoa(number) + ". "
 				number++

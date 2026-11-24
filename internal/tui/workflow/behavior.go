@@ -48,7 +48,7 @@ func (m *Model) behaviorForm() tea.Cmd {
 
 func (m *Model) editBehavior(edit behaviorEdit) {
 	if m.run != nil || m.editor.Source() != edit.Draft {
-		m.setNotice(pane.NoticeWarning, "Draft changed · reopen node behavior")
+		m.setNotice(pane.NoticeWarning, "Draft changed"+screen.Separator()+"reopen node behavior")
 		return
 	}
 	d := m.editor.Clone()

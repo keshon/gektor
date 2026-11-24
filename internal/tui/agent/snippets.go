@@ -14,6 +14,7 @@ import (
 
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/pkg/tui/components/transcript"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func compactToolText(text string) string {
@@ -190,7 +191,7 @@ func toolActionStyles(st styles) transcript.ActionStyles {
 	if currentPalette().Modern {
 		success = st.Dim
 	}
-	return transcript.ActionStyles{Secondary: st.Dim, Success: success, Warning: st.Warn, Error: st.Err}
+	return transcript.ActionStyles{ReturnedGlyph: strings.TrimSpace(screen.Separator()), Secondary: st.Dim, Success: success, Warning: st.Warn, Error: st.Err}
 }
 
 func compactTool(b block, st styles, width int) string {
@@ -299,7 +300,7 @@ func verificationDetails(receipt *conversation.VerificationReceipt) []string {
 	}
 	if receipt.ExitCode != nil {
 		duration := time.Duration(receipt.DurationMS) * time.Millisecond
-		rows = append(rows, fmt.Sprintf("Exit: %d · Duration: %s", *receipt.ExitCode, duration))
+		rows = append(rows, fmt.Sprintf("Exit: %d"+screen.Separator()+"Duration: %s", *receipt.ExitCode, duration))
 	} else if receipt.DurationMS > 0 {
 		duration := time.Duration(receipt.DurationMS) * time.Millisecond
 		rows = append(rows, "Duration: "+duration.String())

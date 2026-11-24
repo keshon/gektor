@@ -54,11 +54,11 @@ func (m *Model) command(action string) tea.Cmd {
 	}
 
 	if m.busy && action != "stop" {
-		m.setNotice(pane.NoticeInfo, "Operation in progress · Esc stops it")
+		m.setNotice(pane.NoticeInfo, "Operation in progress"+screen.Separator()+"Esc stops it")
 		return nil
 	}
 	if m.run != nil && workflowRequiresDraft(action) {
-		m.setNotice(pane.NoticeInfo, "Frozen run · D returns to the editable draft")
+		m.setNotice(pane.NoticeInfo, "Frozen run"+screen.Separator()+"D returns to the editable draft")
 		return nil
 	}
 	if action == "chat" {
@@ -301,7 +301,7 @@ func (m *Model) edit() {
 	draft := m.editor.Source()
 	m.openForm(screen.Form{
 		Title:      s.ID + " / " + s.Tool,
-		Hint:       n.Description + " · * required. Use JSON objects for references.",
+		Hint:       n.Description + screen.Separator() + "* required. Use JSON objects for references.",
 		ApplyLabel: "Apply",
 		Fields:     schema.Fields(s.Args),
 		Choices:    schema.Choices(),

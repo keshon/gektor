@@ -19,6 +19,7 @@ const (
 )
 
 type ActionStyles struct {
+	ReturnedGlyph                      string
 	Secondary, Success, Warning, Error lipgloss.Style
 }
 
@@ -32,7 +33,11 @@ func actionState(state ActionState, styles ActionStyles) (glyph, label string, s
 	case ActionRunning:
 		return "…", "Running", styles.Warning
 	case ActionReturned:
-		return "·", "Returned", styles.Secondary
+		glyph := styles.ReturnedGlyph
+		if glyph == "" {
+			glyph = "·"
+		}
+		return glyph, "Returned", styles.Secondary
 	case ActionSkipped:
 		return "–", "Skipped for input", styles.Secondary
 	case ActionFailed:

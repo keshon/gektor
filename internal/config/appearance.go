@@ -4,6 +4,7 @@ import "fmt"
 
 // Appearance changes rendering only, independently of session/model settings.
 type Appearance struct {
+	Caret          string `json:"caret,omitempty"`
 	Style          string `json:"style,omitempty"`
 	Frame          string `json:"frame,omitempty"`
 	HideNames      bool   `json:"hide_names,omitempty"`
@@ -24,6 +25,9 @@ func (a Appearance) Validate() error {
 		return fmt.Errorf("unknown frame style %q", a.Frame)
 	}
 
+	if a.Caret != "" && a.Caret != "bar" && a.Caret != "block" && a.Caret != "underline" {
+		return fmt.Errorf("unknown caret shape %q", a.Caret)
+	}
 	return nil
 }
 

@@ -3,6 +3,7 @@ package agent
 import (
 	"path/filepath"
 
+	"github.com/keshon/gektor/pkg/tui/components/cell"
 	"github.com/keshon/gektor/pkg/tui/components/pane"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
@@ -24,10 +25,7 @@ func (m *Model) controlProps() screen.ControlProps {
 			props.Help = append(props.Help, screen.HelpSection{Title: section.title, Rows: section.rows})
 		}
 	}
-	separator := " · "
-	if m.modern {
-		separator = " ▪ "
-	}
+	separator := cell.Separator(m.modern)
 	identity := m.activeSessionTitle()
 	if m.stateFile != "" {
 		identity = filepath.Base(filepath.Dir(m.stateFile)) + separator + identity

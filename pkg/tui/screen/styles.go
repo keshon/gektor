@@ -88,6 +88,7 @@ func (p *Palette) PopupStyles() (lipgloss.Style, lipgloss.Style, lipgloss.Style)
 
 // Palette is an immutable theme snapshot shared by both screens.
 type Palette struct {
+	Caret      string
 	Name       string
 	Modern     bool
 	Background string
@@ -162,6 +163,7 @@ func CurrentPalette() *Palette {
 // SetTheme atomically replaces the shared palette, falling back to dark for unknown names.
 func SetTheme(name string) {
 	p := paletteFor(name)
+	p.Caret = CurrentPalette().Caret
 	applyModern(p, CurrentPalette().Modern)
 	selectedPalette.Store(p)
 }
@@ -169,6 +171,7 @@ func SetTheme(name string) {
 // SetModern changes surface treatment without changing the selected color theme.
 func SetModern(modern bool) {
 	p := paletteFor(CurrentPalette().Name)
+	p.Caret = CurrentPalette().Caret
 	applyModern(p, modern)
 	selectedPalette.Store(p)
 }
@@ -200,4 +203,11 @@ func (m *Controls) palette() *Palette {
 		return m.Props.Palette
 	}
 	return CurrentPalette()
+}
+
+// SetCaret replaces the shared snapshot without changing colors or surface style.
+func SetCaret(name string) {
+	p := *CurrentPalette()
+	p.Caret = name
+	selectedPalette.Store(&p)
 }

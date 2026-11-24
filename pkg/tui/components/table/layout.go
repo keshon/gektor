@@ -1,6 +1,7 @@
 package table
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"strings"
 
 	"github.com/keshon/gektor/pkg/tui/components/cell"
@@ -15,6 +16,7 @@ type Hit struct {
 }
 
 type Layout struct {
+	Cursor                               *tea.Cursor
 	Rows                                 []string
 	Hits                                 []Hit
 	Width, Capacity, BodyTop, BodyHeight int
@@ -59,6 +61,12 @@ func (m Model) Layout(p Props) Layout {
 			X1:     inner,
 			Action: "filter",
 		})
+		if m.Focus == 1 && !m.MoreOpen {
+			l.Cursor = m.Search.Cursor()
+			if l.Cursor != nil {
+				l.Cursor.Y += len(l.Rows)
+			}
+		}
 		l.Rows = append(l.Rows, cell.Line(m.Search.View(), inner))
 		labels := []string{}
 
@@ -99,7 +107,7 @@ func (m Model) Layout(p Props) Layout {
 		for i := m.Offset; i < min(m.Offset+l.Capacity, len(rows)); i++ {
 			style, mark := p.Surface.Normal, "  "
 			if i == m.Cursor {
-				style, mark = p.Styles.Muted.Inherit(p.Surface.Normal), "· "
+				style, mark = p.Styles.Muted.Inherit(p.Surface.Normal), strings.TrimSpace(cell.Separator(p.Styles.FilledButtons))+" "
 				if m.Focus == 0 && !m.MoreOpen {
 					style, mark = p.Surface.Selected, "› "
 				}

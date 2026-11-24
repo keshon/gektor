@@ -13,6 +13,7 @@ import (
 	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
 	"github.com/keshon/gektor/pkg/tui/components/form"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 type EditSession struct {
@@ -212,7 +213,7 @@ func (f *Model) note() string {
 	case f.EditSession.Section == "generation":
 		return "Temperature: default uses " + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64)
 	case f.EditSession.Section == "profiles":
-		return "Ctrl+D saves a copy · Apply selects this profile for subsequent requests and launches"
+		return "Ctrl+D saves a copy" + screen.Separator() + "Apply selects this profile for subsequent requests and launches"
 	case f.EditSession.PersistCurrent:
 		return "Apply saves the current launch settings"
 	case f.Dirty():
