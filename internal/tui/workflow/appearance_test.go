@@ -38,6 +38,13 @@ func TestWorkflowInspectorStyleMatrixKeepsTabsAndScrollingAligned(t *testing.T) 
 				}
 				surface := screen.Surface{Palette: palette, Area: pane.Rect{Y: 1, Width: width, Height: height}, Inset: 1, SplitWidth: screen.SidePaneWidth, Outlined: outlined, BottomEdge: true, Quiet: modern, Styles: palette.SurfaceStyles()}
 				w.SetSurface(surface)
+				props := w.Presentation()
+				body := surface.Layout(width, false).Body
+				wantArea := pane.Rect{X: surface.Area.X + body.X, Y: surface.Area.Y + body.Y, Width: body.Width, Height: body.Height}
+				if props.Area != wantArea {
+					t.Fatal("workflow overlays diverged from canvas body", modern, outlined, width, props.Area, wantArea)
+				}
+
 				w.inspectorOpen, w.inspect = true, true
 				w.content()
 				regions := surface.Panes(true)
@@ -51,6 +58,9 @@ func TestWorkflowInspectorStyleMatrixKeepsTabsAndScrollingAligned(t *testing.T) 
 				}
 				rows := strings.Split(w.content(), "\n")
 				view := ansi.Strip(strings.Join(rows, "\n"))
+				if width == 121 && strings.Contains(view, "╔") == modern {
+					t.Fatal("graph selection border does not match the style", modern, outlined)
+				}
 				if len(rows) != height {
 					t.Fatal("pane height changed", modern, outlined, width)
 				}
@@ -108,6 +118,16 @@ func TestWorkflowInspectorStyleMatrixKeepsTabsAndScrollingAligned(t *testing.T) 
 				w.mouse(tea.MouseClickMsg{X: regions.Side.X + layout.CloseHit.X, Y: regions.Side.Y + layout.CloseHit.Y, Button: tea.MouseLeft})
 				if w.inspectorOpen {
 					t.Fatal("close button missed", modern, outlined, width)
+				}
+				empty := workflowRecipe()
+				empty.Steps = nil
+				w.editor.Replace(empty)
+				view = ansi.Strip(w.content())
+				if !strings.Contains(view, "No workflow open.") {
+					t.Fatal("empty canvas lost its message", modern, outlined, width)
+				}
+				if width == 121 && strings.Contains(view, "Ctrl+O") == modern {
+					t.Fatal("empty canvas hints do not match style", modern, outlined)
 				}
 			}
 		}

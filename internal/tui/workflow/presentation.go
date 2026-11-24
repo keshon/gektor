@@ -8,15 +8,15 @@ import (
 // Presentation supplies local controls and overlay bounds for the active screen.
 func (m *Model) Presentation() screen.ControlProps {
 	surface := m.surface
-	_, height := m.canvasSize()
+	layout := surface.Layout(surface.Area.Width, false)
 	props := screen.ControlProps{
 		Ready:  true,
 		Styles: screen.DefaultStyles(),
 		Area: pane.Rect{
-			X:      surface.Inset,
-			Y:      surface.Area.Y + 3,
-			Width:  max(1, surface.Area.Width-2*surface.Inset),
-			Height: height,
+			X:      surface.Area.X + layout.Body.X,
+			Y:      surface.Area.Y + layout.Body.Y,
+			Width:  layout.Body.Width,
+			Height: layout.Body.Height,
 		},
 		Actions: m.footerActions(),
 	}

@@ -162,3 +162,10 @@ footer, use a separate background without borders, and use filled tabs without
 brackets. Commander retains its footer and bracketed active tab. Inspector
 paging and mouse scrolling use the inspector body height, including wrapped tab
 rows, rather than borrowing the canvas height.
+
+Workflow dialog bounds come from the canvas body layout in all four style/frame
+combinations. Modern graph selection uses accent color with single-line card
+borders; Commander retains double-line selection. Card borders and connection
+ports remain visible when pane borders are hidden because they describe the graph.
+The Modern empty canvas omits shortcut instructions. Native single-line and
+multiline inputs share a blinking bar caret through the palette's input styles.

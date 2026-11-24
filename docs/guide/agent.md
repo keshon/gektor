@@ -90,7 +90,7 @@ The latest-message shortcuts still work in the composer: `Ctrl+E` brings the
 latest queued message back to an empty draft; `Ctrl+X` removes it.
 A follow-up marked **Next run** will start after the current turn ends.
 
-**Live steering** in Run, or `/steering on|off`, controls delivery. The header
+**Queue steering** in Run, or `/steering on|off`, controls delivery. The header
 shows `STEER` while it is enabled.
 With steering enabled, new input can withhold tools that have not started.
 With it disabled, the current tool batch finishes first.

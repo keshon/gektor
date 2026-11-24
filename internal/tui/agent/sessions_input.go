@@ -197,9 +197,6 @@ func newSearchInput(width int) textinput.Model {
 	filter.SetStyles(textInputStyles(filter.Styles()))
 	filter.Prompt = screen.InputPrompt
 	filter.SetVirtualCursor(false)
-	style := filter.Styles()
-	style.Cursor.Shape = tea.CursorUnderline
-	filter.SetStyles(style)
 	filter.Placeholder = "Session name or history text"
 	filter.CharLimit = 80
 	filter.SetWidth(width)

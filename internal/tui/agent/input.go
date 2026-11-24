@@ -5,7 +5,6 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/pkg/tui/components/cell"
@@ -26,7 +25,6 @@ func newInput() composer.Model {
 	ta.Prompt = screen.InputPrompt
 	ta.SetVirtualCursor(false)
 	style := ta.Styles()
-	style.Cursor.Shape = tea.CursorBar
 	ta.SetStyles(inputStyles(style))
 	ta.MaxHeight = 6
 	ta.DynamicHeight = true

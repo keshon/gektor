@@ -29,7 +29,9 @@ func (m Model) card(n Node, styles Styles, incoming, outgoing map[[2]string]bool
 	h, v, tl, tr, bl, br, jl, jr := "─", "│", "┌", "┐", "└", "┘", "├", "┤"
 	if n.ID == m.Selected {
 		border = styles.Focus.Bold(true)
-		h, v, tl, tr, bl, br, jl, jr = "═", "║", "╔", "╗", "╚", "╝", "╠", "╣"
+		if !styles.SingleBorder {
+			h, v, tl, tr, bl, br, jl, jr = "═", "║", "╔", "╗", "╚", "╝", "╠", "╣"
+		}
 	}
 	clean := func(s string) string {
 		return strings.NewReplacer("\n", " ", "\r", " ", "\t", " ").Replace(ansi.Strip(s))

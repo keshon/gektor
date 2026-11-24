@@ -42,7 +42,6 @@ func (m *Controls) NewEditor() textarea.Model {
 	editor.Prompt = InputPrompt
 	editor.SetVirtualCursor(false)
 	style := m.palette().InputStyles(editor.Styles())
-	style.Cursor.Shape = tea.CursorUnderline
 	editor.SetStyles(style)
 	editor.MaxHeight = 6
 	editor.DynamicHeight = true

@@ -175,7 +175,7 @@ and quits the application. A checkmark shows the active mode.
 |---|---|---|
 | Session / Recipe | New, open, rename and delete sessions; compact saved history | New, open and save recipes; edit recipe settings |
 | Node | | Add, edit, connect and delete nodes; add schedule triggers |
-| Run | Plan or Act; Ask permission or Full access; Live steering, message queue and background processes; permissions, MCP, stop and retry | Validate, run and stop; Ask permission or Full access; inspect run history and set up schedules |
+| Run | Plan or Act; Ask permission or Full access; Queue steering, message queue and background processes; permissions, MCP, stop and retry | Validate, run and stop; Ask permission or Full access; inspect run history and set up schedules |
 | View | Show transcript details and jump to the latest message | Show the inspector and arrange the canvas |
 | Settings | Appearance, model connection, response settings, launch profiles, identity and persona, agent instructions | The same shared settings |
 | Help | Searchable actions, keyboard shortcuts, commands, agent instruction preview and About | Searchable actions, keyboard shortcuts for Workflows and About |

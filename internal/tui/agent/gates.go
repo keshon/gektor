@@ -39,9 +39,6 @@ func newNote() textinput.Model {
 	ti := textinput.New()
 	ti.SetStyles(textInputStyles(ti.Styles()))
 	ti.SetVirtualCursor(false)
-	style := ti.Styles()
-	style.Cursor.Shape = tea.CursorUnderline
-	ti.SetStyles(style)
 	ti.Prompt = "note> "
 	ti.CharLimit = 240
 	return ti

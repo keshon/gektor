@@ -107,7 +107,7 @@ func (p *Palette) SurfaceStyles() SurfaceStyles {
 		Tabs:      p.TabStyles(),
 		Panels:    pane.Styles{Border: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupBorder))), Title: s.Title, Focus: s.Focus},
 		Shortcuts: popup.ShortcutStyles{Key: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))).Bold(true), Action: s.Dim},
-		Graph:     graph.Styles{Normal: surface.Normal.Background(background), Title: surface.Selected, Focus: s.Focus.Background(background), Success: s.Add.Background(background), Warning: s.Warn.Background(background), Error: s.Err.Background(background), Disabled: s.Disabled.Background(background)},
+		Graph:     graph.Styles{SingleBorder: p.Modern, Normal: surface.Normal.Background(background), Title: surface.Selected, Focus: s.Focus.Background(background), Success: s.Add.Background(background), Warning: s.Warn.Background(background), Error: s.Err.Background(background), Disabled: s.Disabled.Background(background)},
 		Notice:    pane.NoticeStyles{Info: s.Dim, Success: s.Add, Warning: s.Warn, Error: s.Err},
 		Muted:     s.Dim, Accent: s.Hunk, Error: s.Err,
 	}

@@ -3,6 +3,7 @@ package screen
 import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
@@ -30,6 +31,8 @@ func (p *Palette) InputStyles(Styles textarea.Styles) textarea.Styles {
 	state.Selection = selected
 	Styles.Focused = state
 	Styles.Blurred = state
+	Styles.Cursor.Shape = tea.CursorBar
+	Styles.Cursor.Blink = true
 	Styles.Cursor.Color = lipgloss.Color(p.Color(ColorAccent))
 	return Styles
 }
@@ -43,6 +46,8 @@ func (p *Palette) TextInputStyles(Styles textinput.Styles) textinput.Styles {
 	state := textinput.StyleState{Text: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))), Prompt: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorAccent))), Placeholder: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))), Suggestion: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim)))}
 	Styles.Focused = state
 	Styles.Blurred = state
+	Styles.Cursor.Shape = tea.CursorBar
+	Styles.Cursor.Blink = true
 	Styles.Cursor.Color = lipgloss.Color(p.Color(ColorAccent))
 	return Styles
 }

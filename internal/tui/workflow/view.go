@@ -129,7 +129,11 @@ func (m *Model) content() string {
 	}
 	left := canvas.View(cw, ch, view.Styles.Graph)
 	if len(canvas.Nodes) == 0 {
-		left = cellFrame("No workflow open.\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal", cw, ch)
+		empty := "No workflow open."
+		if !view.Quiet {
+			empty += "\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal"
+		}
+		left = cellFrame(empty, cw, ch)
 	}
 	title := m.editor.Definition.Name
 	if m.editor.Dirty() {
@@ -143,7 +147,7 @@ func (m *Model) content() string {
 		mode += " / AUTO"
 	}
 	if m.positionsLocked {
-		mode += " [positions locked]"
+		mode += " / Positions locked"
 	}
 	regions := view.Panes(m.inspectorOpen)
 	split := m.inspectorOpen && !regions.Covered
