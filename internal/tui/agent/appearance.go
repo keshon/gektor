@@ -152,9 +152,9 @@ func (m *Model) thinkingLabel() string {
 		return "Hidden"
 	}
 	if m.transcript.compact {
-		return "Short"
+		return "Collapsed"
 	}
-	return "Full"
+	return "Expanded"
 }
 
 func (m *Model) toolsLabel() string {

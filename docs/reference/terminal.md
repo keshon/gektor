@@ -238,7 +238,7 @@ For example, `Ctrl+O` inserts a new line in Agent but opens a recipe in Workflow
 | Open sessions | Ctrl+P |
 | Switch Plan / Act | F5 while idle, or the Run menu |
 | Inspect tools | Ctrl+T |
-| Cycle short, full and hidden thinking | Ctrl+G |
+| Cycle collapsed, expanded and hidden thinking | Ctrl+G |
 | Latest message | Ctrl+End |
 | Help / menus | F1 / F9 |
 | Retry failed turn | /retry |

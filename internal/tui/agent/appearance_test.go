@@ -163,7 +163,7 @@ func TestThinkingModesHideHistoryAndStreamingWithoutChangingBlocks(t *testing.T)
 	m.liveThink = "SECRET_STREAM"
 	m.live = "<think>SECRET_INLINE</think>LIVE_ANSWER"
 	before := append([]block(nil), m.transcript.blocks...)
-	for _, want := range []string{"Full", "Hidden", "Short"} {
+	for _, want := range []string{"Expanded", "Hidden", "Collapsed"} {
 		m.toggleThinking()
 		if m.thinkingLabel() != want {
 			t.Fatalf("thinking mode = %s, want %s", m.thinkingLabel(), want)

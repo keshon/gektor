@@ -228,7 +228,7 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.chrome.Header.Menu = "view"
 	items := m.testControls().HeaderItems()
-	want := []string{"Thinking: Short", "Tool calls: Expanded", "", "System messages", "", "Speaker names", "Message labels", "", "Jump to latest"}
+	want := []string{"Thinking: Collapsed", "Tool calls: Expanded", "", "System messages", "", "Speaker names", "Message labels", "", "Jump to latest"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
 	}
@@ -344,10 +344,7 @@ func TestCheckmarkUsesTheLabelIndent(t *testing.T) {
 	}
 }
 
-// The mark never reserves a column. Ticking rows must not widen the
-// popup, and the popup must stay at its natural width: the longest
-// label-plus-shortcut pair ("Truncate AI reply" + "Ctrl+G") plus the
-// frame. A reserved mark column would make it 32 instead of 30.
+// A checked row must not add a separate mark column to the menu.
 func TestMarkCostsNoWidth(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.chrome.Header.Menu = "view"
@@ -358,7 +355,7 @@ func TestMarkCostsNoWidth(t *testing.T) {
 	if plain != ticked {
 		t.Fatalf("ticking rows changed menu width: %d -> %d", plain, ticked)
 	}
-	const want = 29
+	const want = 32
 	if ticked != want {
 		t.Fatalf("menu width %d, want %d — a mark column is being reserved", ticked, want)
 	}

@@ -73,7 +73,7 @@ func helpSections() []helpSection {
 		{"Navigate", [][2]string{
 			{"F1", "Open or close help"},
 			{"F2 / Ctrl+P", "Search session names and history"},
-			{"F3 / Ctrl+G", "Cycle short, full and hidden thinking"},
+			{"F3 / Ctrl+G", "Cycle collapsed, expanded and hidden thinking"},
 			{"Ctrl+R / Ctrl+D", "Rename / delete the selected session in Open session"},
 			{"PgUp / PgDn", "Scroll the transcript; mouse wheel also works"},
 			{"F7 / Ctrl+End", "Jump to the latest message"},

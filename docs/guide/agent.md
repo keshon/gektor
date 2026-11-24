@@ -43,13 +43,13 @@ The **View** menu controls how history looks:
 
 | Option | Display |
 |---|---|
-| Thinking | Full text, short summary or hidden; click to cycle |
+| Thinking | Expanded text, collapsed summary or hidden; click to cycle |
 | Tool calls | Expanded details, one tool per line or name badges packed into wrapped lines; click to cycle |
 | System messages | Show system notices |
 | Speaker names | Show participant names |
 | Message labels | Show tags such as THINKING and RESPONSE |
 
-`Ctrl+G` cycles short, full and hidden thinking. It does not shorten the normal reply.
+`Ctrl+G` cycles collapsed, expanded and hidden thinking. It does not shorten the normal reply.
 Tool names remain clickable in every mode. View choices and the theme are saved. Hidden content remains in saved history.
 
 Settings > Appearance offers Dark, Light, One Half Dark, One Half Light, Solarized
