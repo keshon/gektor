@@ -2,8 +2,13 @@
 package composer
 
 import (
+	"fmt"
+	"strings"
+
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/pkg/tui/components/cell"
 )
 
 const HistoryLimit = 50
@@ -18,9 +23,11 @@ type Snapshot struct {
 // Enter is owned by the parent; Shift+Enter and Ctrl+O insert a newline.
 type Model struct {
 	textarea.Model
-	history []string
-	index   int
-	draft   string
+	history       []string
+	index         int
+	draft         string
+	CompactPastes bool
+	foldedLines   int
 }
 
 func New(editor textarea.Model) Model {
@@ -28,10 +35,75 @@ func New(editor textarea.Model) Model {
 	return Model{Model: editor}
 }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	if _, ok := msg.(tea.KeyPressMsg); ok {
+		m.foldedLines = 0
+	}
+	paste, pasted := msg.(tea.PasteMsg)
+	if pasted {
+		paste.Content = normalizePaste(paste.Content)
+		msg = paste
+	}
 	var cmd tea.Cmd
 	m.Model, cmd = m.Model.Update(msg)
+	if pasted && m.Model.Focused() {
+		m.foldPaste(paste.Content)
+	}
 	return m, cmd
 }
+
+// Paste keeps the original text in the editor; folding is presentation only.
+func (m *Model) Paste(text string) {
+	text = normalizePaste(text)
+	m.Model.InsertString(text)
+	m.foldPaste(text)
+}
+
+func normalizePaste(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	return strings.ReplaceAll(text, "\r", "\n")
+}
+
+func (m *Model) foldPaste(text string) {
+	m.foldedLines = 0
+	if m.CompactPastes && (strings.Count(text, "\n") >= 2 || len([]rune(text)) > 150) {
+		m.foldedLines = strings.Count(m.Model.Value(), "\n") + 1
+	}
+}
+
+func (m Model) Folded() bool { return m.foldedLines > 0 && m.CompactPastes }
+func (m *Model) Unfold()     { m.foldedLines = 0 }
+func (m *Model) SetValue(text string) {
+	m.foldedLines = 0
+	m.Model.SetValue(text)
+}
+func (m *Model) Reset() {
+	m.foldedLines = 0
+	m.Model.Reset()
+}
+func (m Model) Height() int {
+	if m.Folded() {
+		return 1
+	}
+	return m.Model.Height()
+}
+func (m Model) Cursor() *tea.Cursor {
+	if m.Folded() {
+		return nil
+	}
+	return m.Model.Cursor()
+}
+func (m Model) View() string {
+	if !m.Folded() {
+		return m.Model.View()
+	}
+	lines := m.foldedLines
+	unit := "lines"
+	if lines == 1 {
+		unit = "line"
+	}
+	return cell.Line(m.Prompt+fmt.Sprintf("Pasted text (%d %s)", lines, unit), m.Width())
+}
+
 func (m *Model) Push(line string) {
 	if line == "" {
 		return

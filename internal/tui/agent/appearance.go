@@ -13,7 +13,15 @@ import (
 )
 
 func (m *Model) applyAppearance(a config.Appearance) {
+	thinkingExpanded := !m.transcript.compact
+	if thinkingExpanded != a.ExpandThinking || m.hideThinking != a.HideThinking || m.hideTools != a.HideTools || m.toolNamesOnly != a.ToolNamesOnly {
+		m.transcript.expanded = nil
+	}
 	m.modern = a.Style == "modern"
+	m.input.CompactPastes = m.modern
+	if !m.modern {
+		m.input.Unfold()
+	}
 	m.input.Prompt = "❯ "
 	if m.modern {
 		m.input.Prompt = "▎ "

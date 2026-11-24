@@ -32,6 +32,7 @@ func (m *Controls) Compose(view tea.View) tea.View {
 		content = m.OverlayHeader(content)
 		view.Cursor = nil
 	}
+	content = m.overlayNotification(content)
 	view.Content = m.palette().paint(content, m.Props.ColorProfile)
 	return view
 }

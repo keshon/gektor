@@ -269,10 +269,10 @@ the terminal guide and must not leak into ordinary multiline form fields.
 
 During a run, show one summary row above the draft: queued count, received count
 when present, and the latest message preview. The count and ALT+Q open the queue.
-The composer keeps Stop and Queue visible at 40 columns during a run, even when
+Commander keeps Stop and Queue visible at 40 columns during a run, even when
 the queue is empty. Run > Message queue provides the same entry point. Help, Send
-and Newline remain available by keyboard. Modern idle inputs show no routine shortcut
-row; F1, menus and the action search provide discovery. Commander retains its
+and Newline remain available by keyboard. Modern inputs show no routine shortcut
+row, including during a run; F1, menus and the action search provide discovery. Commander retains its
 bottom action strip and original transcript treatment.
 
 The queue uses the table component's list layout: main text, a detail row and
@@ -402,6 +402,16 @@ output remain available in the detailed view.
 The packed-badge mode keeps adjacent calls on one row when they fit. Each badge
 retains its own call identity and inspection target after wrapping. Keep this
 mode alongside per-line summaries and expanded output.
+
+Modern per-block expansion belongs to the Agent transcript, separately from
+saved blocks and global appearance preferences. The Agent routes disclosure
+clicks and the History blocks list; shared components do not know session IDs.
+
+`components/composer` retains pasted text in its textarea and folds only its
+presentation. `components/diff` renders supplied unified diffs with line-number
+columns; it performs no file reads. `screen.Controls.Notify` returns an expiry
+command, and the parent routes its messages through `UpdateNotification`.
+Notification state stays with its controls owner and does not take input focus.
 
 Conversation Markdown uses the shared renderer in `components/markdown`.
 Unmatched inline markers remain visible while streaming. Code fences preserve

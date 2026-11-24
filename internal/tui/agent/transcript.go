@@ -9,14 +9,16 @@ import (
 
 type transcriptState struct {
 	transcript.Model
-	blocks  []block
-	compact bool
-	render  transcriptRenderState
+	blocks   []block
+	compact  bool
+	expanded map[int]bool
+	render   transcriptRenderState
 }
 
 // The GEKTOR renderer receives presentation values, never the application model.
 type transcriptProps struct {
 	modern              bool
+	interactive         bool
 	speaker, user, live string
 	selectedCall        string
 	// liveThink is streamed deliberation, rendered above live so the turn
@@ -88,7 +90,7 @@ func (m *Model) refreshContent() {
 		m.transcript.render.dirty = true
 		return
 	}
-	props := transcriptProps{modern: m.modern,
+	props := transcriptProps{modern: m.modern, interactive: true,
 		speaker:       m.speakerName(),
 		user:          m.userName(),
 		styles:        m.styles,

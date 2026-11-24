@@ -70,6 +70,7 @@ type Model struct {
 	returnDialogs                              map[screen.DialogID]dialogReturn
 	queueDialogs                               map[screen.DialogID]*inputQueue
 	processDialog, permissionDialog, mcpDialog screen.DialogID
+	blockDialog                                screen.DialogID
 	lessonDialogs                              map[screen.DialogID]retrospective.Result
 
 	processTable, permissionTable screen.TableID

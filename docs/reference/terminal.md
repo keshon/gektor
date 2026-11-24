@@ -151,6 +151,21 @@ area; press it again to restore the normal width. In a form, `Ctrl+E` opens the
 complete error details. Arrow keys and Page Up/Down scroll; Escape returns to the
 same draft and field.
 
+In Modern, click a thinking heading to expand that block. Click a tool's status
+symbol to expand its output; click its name to open the inspector. **View >
+History blocks** provides the same per-block controls from the keyboard. Global
+thinking and tool display settings reset these local choices.
+
+Large pastes appear as a compact input summary in Modern. The editor retains the
+full draft. Press `Alt+V`, choose **View > Expand pasted text**, or begin editing
+to unfold it. Enter submits the original text. Windows paste line endings are
+normalized to newlines; summary text is never sent to the model.
+
+Successful clipboard copies show a temporary notice in Modern. Copy errors
+remain visible in a dialog. Returned unified diffs show old/new line numbers in
+expanded tool output and the inspector; narrow panes keep readable diff prefixes
+when line-number columns cannot fit.
+
 ### Menus
 
 The GEKTOR menu switches between Agent and Workflows, changes the workspace,

@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
@@ -83,8 +82,7 @@ func (m *Model) composerStatus() string {
 		if !m.modern {
 			return ""
 		}
-		hints := []popup.Shortcut{{Key: "Esc", Action: "stop"}, {Key: "Alt+Q", Action: "Queue"}}
-		return m.controlHints(hints...)
+		return ""
 	}
 	if m.modern && m.state == stDone && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
 		return ""

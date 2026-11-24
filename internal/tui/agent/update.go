@@ -59,6 +59,9 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	}
 	switch msg := msg.(type) {
 	case sessionCopiedMsg:
+		if msg.err == nil && m.modern {
+			return m, m.chrome.Notify(msg.label + " copied")
+		}
 		if m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.state != stAsk && m.state != stPermission {
 			if msg.err != nil {
 				m.chrome.Open("Cannot copy session", []string{msg.err.Error()})

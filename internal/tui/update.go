@@ -14,6 +14,9 @@ import (
 // Update routes screen results and application input on one update loop.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	if m.chrome.UpdateNotification(msg) {
+		return m, nil
+	}
 	switch value := msg.(type) {
 	case toolsetChanged:
 		m.acceptToolsetChange(value)

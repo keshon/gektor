@@ -62,6 +62,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		switch msg.String() {
+		case "alt+v":
+			m.input.Unfold()
+			m.fitInput()
+			m.fitBottom()
+			return m, m.input.Focus()
 		case "alt+q":
 			if m.state != stAsk {
 				m.openInputQueue()

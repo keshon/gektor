@@ -98,6 +98,7 @@ func (m *Model) activateSavedSession(cur sessionEntry, snapshot conversation.Sna
 	m.restoreDraft()
 
 	blocks, boundary := renderHistoryAt(history)
+	m.transcript.expanded = nil
 	m.transcript.blocks = append([]block{markerBlock("- opened " + cur.title + " -")}, blocks...)
 	m.appendSavedRun(snapshot)
 	m.restoreContext(history)

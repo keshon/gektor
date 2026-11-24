@@ -369,6 +369,7 @@ func (m *Model) newTask() {
 	m.saveDraft()
 	m.cancel()
 	m.sess, m.stateFile, m.transcript.blocks = nil, "", nil
+	m.transcript.expanded = nil
 	m.sessionTitle = ""
 	m.resetRunFacts()
 	m.state = stDone
@@ -476,6 +477,7 @@ func (m *Model) startFreshPrompt(task, display string, images []string) error {
 	m.queued = ""
 	m.queuedImages = nil
 	m.transcript.blocks = nil
+	m.transcript.expanded = nil
 	m.appendBlock(markerBlock("- new task -"))
 	m.appendBlock(userBlock(display + imageSuffix(images)))
 	seed := append([]llm.Message(nil), m.seedHistory...)

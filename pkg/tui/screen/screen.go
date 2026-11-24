@@ -16,10 +16,12 @@ import (
 // The shell drains events after input and coordinates focus with their owners.
 // Controls must not be copied after first use; IDs belong to this owner.
 type Controls struct {
-	Props  ControlProps
-	events []Event
-	Header MenuState
-	dialog *dialogState
+	Props         ControlProps
+	events        []Event
+	Header        MenuState
+	notice        *notification
+	noticeVersion uint64
+	dialog        *dialogState
 }
 
 // Open copies the content and replaces the current overlay. Replacement does not

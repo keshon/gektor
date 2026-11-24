@@ -20,8 +20,9 @@ library.
 - Replace the minimal frame's full-width rules with blank rows. Preserve the
   geometry used by inspectors, scrollbars, close buttons and cursor placement.
 - Give the composer a filled surface. Keep its draft visible and omit routine
-  idle shortcut hints. During a run, show Stop and Queue beside the input;
-  keep the scroll position without a permanent Latest or Scrolled up hint.
+  idle shortcut hints. Routine Stop, Queue, Latest and Scrolled up hints stay
+  hidden in Modern.
+  Their shortcuts remain available, and queue counts stay visible.
 - Show a short invitation in an empty conversation.
 
 Outlined frames remain an appearance choice. Other themes retain their semantic
@@ -133,3 +134,22 @@ Modern action buttons use padded text on a filled background. Focus, disabled
 state and destructive intent remain distinct. Forms, pickers, table actions and
 credential dialogs use the same button renderer and measure its displayed label
 for pointer targets. Commander retains bracketed action buttons.
+
+## History interactions
+
+Modern retains per-block display overrides in the Agent transcript. Thinking
+headings toggle one stored thinking block. Tool status symbols toggle output;
+tool names retain their inspector action. The History blocks list supplies a
+keyboard route. Overrides are cleared when loading another session or changing
+global thinking/tool display preferences. Stored history is not edited.
+
+The shared composer can fold a large paste for display. Its textarea keeps the
+full draft, including text entered before the paste. Explicit expansion or
+ordinary editing restores the editor. Submission and input recall use the
+original draft rather than a placeholder token.
+
+Shared controls own temporary notifications and their versioned expiry messages.
+The application routes timer messages without changing focus. Copy confirmations
+use notices; errors retain their existing dialogs. Unified-diff rendering lives
+in a reusable component with supplied styles and no filesystem access. Agent
+uses it for returned tool output, including the inspector.

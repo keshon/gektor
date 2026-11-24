@@ -299,6 +299,9 @@ func (m *Model) inspectorKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 			m.selectTool(-1)
 		case "down":
 			m.selectTool(1)
+		case "space":
+			m.toggleHistoryBlock(m.inspector.selected)
+			return true, nil
 		case "enter":
 			return true, m.openInspector(m.inspector.selected)
 		}

@@ -67,6 +67,9 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	if m.expansionMouse(msg) {
+		return m, nil
+	}
 	if handled, cmd := m.inspectorMouse(msg); handled {
 		return m, cmd
 	}

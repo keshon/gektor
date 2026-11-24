@@ -76,7 +76,7 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 			}
 			part := renderBlock(b, props.styles, bodyOpts, renderWidth)
 			if props.modern {
-				part = presentMessage(part, b, props, width, len(parts) == 0 && !props.hideNames)
+				part = presentMessage(part, b, props, width, len(parts) == 0 && !props.hideNames, bodyOpts)
 			} else if len(parts) == 0 && !props.hideNames {
 				part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
 			}
@@ -98,7 +98,7 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 		}
 		part := renderBlock(b, props.styles, bodyOpts, renderWidth)
 		if props.modern {
-			part = presentMessage(part, b, props, width, len(parts) == 0 && !props.hideNames)
+			part = presentMessage(part, b, props, width, len(parts) == 0 && !props.hideNames, bodyOpts)
 		} else if len(parts) == 0 && !props.hideNames {
 			part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/pkg/tui/components/cell"
+	diffview "github.com/keshon/gektor/pkg/tui/components/diff"
 	"github.com/keshon/gektor/pkg/tui/components/transcript"
 )
 
@@ -132,7 +133,8 @@ func thinkSummary(s string, width int) string {
 // reads differently depending on what the reader has chosen to hide,
 // and nothing about the stored message changed.
 type renderOpts struct {
-	modern bool
+	modern     bool
+	disclosure bool
 	// expand controls thinking only; tool content has its own preference.
 	expand    bool
 	hideTools bool
@@ -185,6 +187,12 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 		}
 	case b.role == roleResult && opts.hideTools:
 		body = []string{st.Dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
+	case opts.modern && b.role == roleResult:
+		if view, ok := diffview.Render(raw, width, diffStyles(st)); ok {
+			body = strings.Split(view, "\n")
+		} else {
+			body = renderRaw(b, raw, st, width)
+		}
 	case b.role == roleTool:
 		body = renderToolCard(b, st, width, opts.modern)
 	case isMdRole(b.role):
@@ -253,7 +261,12 @@ var toolRailWidth = lipgloss.Width(toolRail)
 func renderToolCard(b block, st styles, width int, modern bool) []string {
 	glyph := transcript.ActionGlyph(toolState(b), toolActionStyles(st))
 	var out []string
-	for i, call := range reflow(b.text, max(width-2, 1)) {
+	call := b.text
+	if modern {
+		_, action, target := toolSummary(b.text)
+		call = strings.TrimSpace(action + " " + target)
+	}
+	for i, call := range reflow(call, max(width-2, 1)) {
 		prefix := "  "
 		if i == 0 {
 			prefix = glyph + " "
@@ -265,6 +278,14 @@ func renderToolCard(b block, st styles, width int, modern bool) []string {
 	result := b.result
 	if b.open && result == "" {
 		result = "…"
+	}
+	if modern {
+		if view, ok := diffview.Render(result, max(width-2, 1), diffStyles(st)); ok {
+			for _, line := range strings.Split(view, "\n") {
+				out = append(out, "  "+line)
+			}
+			return out
+		}
 	}
 	lines := strings.Split(result, "\n")
 	// Reflow every output line inside the rail; the closing corner has
@@ -289,6 +310,10 @@ func renderToolCard(b block, st styles, width int, modern bool) []string {
 		out = append(out, st.Dim.Render(toolClose))
 	}
 	return out
+}
+
+func diffStyles(st styles) diffview.Styles {
+	return diffview.Styles{Text: lipgloss.NewStyle(), Muted: st.Dim, Added: st.Add, Removed: st.Del, Header: st.Hunk}
 }
 
 // isMdRole reports whether the role renders Markdown. Tool args
@@ -389,7 +414,7 @@ func messageWidth(r role, width int) int {
 
 // presentMessage is shared by saved turns and streaming parts. The body is
 // already wrapped to messageWidth, so adding its surface never changes tool rows.
-func presentMessage(body string, b block, props transcriptProps, width int, showName bool) string {
+func presentMessage(body string, b block, props transcriptProps, width int, showName bool, opts renderOpts) string {
 	heading := ""
 	if showName {
 		heading = speakerLabel(b, props)
@@ -408,6 +433,13 @@ func presentMessage(body string, b block, props transcriptProps, width int, show
 			heading += " ▪ "
 		}
 		heading += "Thinking"
+	}
+	if b.role == roleThink && opts.disclosure {
+		if opts.expand {
+			heading = "− " + heading
+		} else {
+			heading = "+ " + heading
+		}
 	}
 	if b.role == roleReceipt {
 		heading = ""

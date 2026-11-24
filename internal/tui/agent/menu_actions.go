@@ -27,6 +27,14 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "copy-session-id", "copy-session-path":
 		return m, m.copySession(command)
+	case "expand-paste":
+		m.input.Unfold()
+		m.fitInput()
+		m.fitBottom()
+		return m, m.input.Focus()
+	case "history-blocks":
+		m.openHistoryBlocks()
+		return m, nil
 	case "run-details":
 		if receipt := m.latestReceipt(); receipt != nil {
 			text := strings.Join(receiptText(*receipt, m.styles, max(m.termW-8, 1)), "\n")

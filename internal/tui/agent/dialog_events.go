@@ -63,6 +63,9 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		}
 		switch {
 
+		case dialog == m.blockDialog:
+			m.activateHistoryBlock(event.Row)
+			return nil
 		case m.queueDialogs[dialog] != nil:
 			return m.inputQueueAction(m.queueDialogs[dialog], event.Action, event.Row)
 

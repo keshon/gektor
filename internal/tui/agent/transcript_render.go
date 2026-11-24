@@ -69,6 +69,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 	cache := make([]renderedBlock, len(t.blocks))
 	prevSpeaker := ""
 	previousTool := false
+	previousPacked := false
 
 	for i, b := range t.blocks {
 		b.speaker = props.speaker
@@ -83,8 +84,19 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			continue
 		}
 
-		if props.toolNamesOnly && b.role == roleTool {
-			first := !previousTool
+		blockOpts := opts
+		blockOpts.disclosure = props.interactive && props.modern && b.role == roleThink
+		expanded, overridden := t.expanded[i]
+		if props.modern && overridden {
+			if b.role == roleThink {
+				blockOpts.expand = expanded
+			}
+			if b.role == roleTool {
+				blockOpts.hideTools = !expanded
+			}
+		}
+		if props.toolNamesOnly && b.role == roleTool && !(props.modern && overridden && expanded) {
+			first := !previousPacked
 			partIndex := len(parts) - 1
 			if first {
 				partIndex = len(parts)
@@ -94,16 +106,18 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			}
 			t.appendToolName(&parts[partIndex], partIndex, i, b, props, width)
 			previousTool = true
+			previousPacked = true
 			continue
 		}
 
-		rendered := t.renderBlock(i, b, props.styles, opts, width)
+		previousPacked = false
+		rendered := t.renderBlock(i, b, props.styles, blockOpts, width)
 		cache[i] = rendered
 		part := rendered.text
 		name := speakerLabel(b, props)
 		showName := !props.hideNames && name != prevSpeaker
 		if props.modern {
-			part = presentMessage(part, b, props, width, showName)
+			part = presentMessage(part, b, props, width, showName, blockOpts)
 		} else {
 			if systemBlock(b.role) {
 				part = railText(part, props.styles, width)
@@ -120,7 +134,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			part = lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorPopupBackground))).Bold(true).Render(part)
 		}
 		if b.role == roleTool && b.callID != "" {
-			t.render.recordToolHit(len(parts), b, part, opts)
+			t.render.recordToolHit(len(parts), b, part, blockOpts)
 		}
 
 		gap := 1
@@ -147,7 +161,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		}
 		progress := historyProgressText(*props.prefill, props.styles, progressWidth, props.progressFrame)
 		if props.modern {
-			progress = presentMessage(progress, block{role: roleStatus}, props, width, !props.hideNames)
+			progress = presentMessage(progress, block{role: roleStatus}, props, width, !props.hideNames, opts)
 		} else {
 			progress = railText(progress, props.styles, width)
 			if !props.hideNames {
@@ -207,7 +221,7 @@ func (b renderedBlock) matches(value block, opts renderOpts, width int) bool {
 
 func (r *transcriptRenderState) recordToolHit(partIndex int, b block, part string, opts renderOpts) {
 	name, action, _ := toolSummary(b.text)
-	if !opts.hideTools {
+	if !opts.hideTools && !opts.modern {
 		action = name
 	}
 

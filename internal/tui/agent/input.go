@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"math"
+
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -28,7 +30,8 @@ func newInput() composer.Model {
 	ta.SetStyles(inputStyles(style))
 	ta.MaxHeight = 6
 	ta.DynamicHeight = true
-	ta.MaxContentHeight = 4096
+	// MaxHeight bounds the editor viewport; pasted drafts must not be truncated.
+	ta.MaxContentHeight = math.MaxInt
 	// Line numbers default on in bubbles and render as a phantom "1"
 	// in the empty box — it looks like content but submits nothing.
 	ta.ShowLineNumbers = false

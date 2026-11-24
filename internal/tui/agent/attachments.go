@@ -93,7 +93,7 @@ func (m *Model) acceptClipboard(msg clipboardMsg) {
 		}
 		m.draftImages = images
 	} else if msg.text != "" {
-		m.input.InsertString(msg.text)
+		m.input.Paste(msg.text)
 	}
 	m.fitInput()
 	m.fitBottom()
