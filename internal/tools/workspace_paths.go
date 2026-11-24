@@ -28,6 +28,17 @@ type WorkspacePaths struct{ WS *workspace.Workspace }
 // access. In particular, an absolute spelling cannot bypass a relative rule,
 // and a move must be authorized for its destination as well as its source.
 func (p WorkspacePaths) Resources(tool string, args json.RawMessage) ([]string, error) {
+	if tool == socialcontract.AgentName {
+		operation := socialcontract.Operation{}
+		return operation.Resources(args)
+	}
+	for _, kind := range socialcontract.PageKinds() {
+		operation := socialcontract.PageOperation{Kind: kind}
+		if tool == operation.AgentName() {
+			return operation.Resources(args)
+		}
+	}
+
 	ws := p.WS
 	if ws == nil {
 		return nil, nil
@@ -35,9 +46,6 @@ func (p WorkspacePaths) Resources(tool string, args json.RawMessage) ([]string, 
 
 	// Capability contracts own both membership and canonical resource extraction.
 	switch {
-	case tool == socialcontract.AgentName:
-		operation := socialcontract.Operation{}
-		return operation.Resources(args)
 	case slices.Contains(mediacontract.Names(), tool):
 		operation := mediacontract.Operation{Service: &media.Service{WS: ws}, Kind: tool}
 		return operation.Resources(args)

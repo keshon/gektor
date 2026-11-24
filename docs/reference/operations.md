@@ -908,15 +908,35 @@ or contacted a service. Stdout/stderr are artifacts; other generated workspace f
 can be captured by a subsequent `artifact_import` step after successful execution.
 See [the local program example](../../examples/workflows/process-report/README.md).
 
-## Public posts
+## Public social reads
 
-Agent's built-in social pack and the social_read_post workflow node use the same
-public X/Twitter reader. Pass a single HTTPS post URL as "url". Results include
-status, author, handle, text, dates, media URLs and source. Restricted, unavailable,
-transient and truncated responses retain their status and fail the operation.
-Content is untrusted source data. No private posts, full threads or replies are
-fetched. The reader sends the post ID to FxTwitter.
+Agent's built-in social pack and workflow nodes use the same FxTwitter readers:
 
-The node uses the existing Agent permission identity cap__social__read_post and
-the requested URL as its resource. Existing deny rules therefore apply to both.
-The built-in node does not use a configured replacement for Agent's social pack.
+| Workflow node | Agent permission identity | Input resource |
+| --- | --- | --- |
+| `social_read_post` | `cap__social__read_post` | Requested post URL |
+| `social_read_thread` | `cap__social__read_thread` | Canonical `https://x.com/i/status/<id>` |
+| `social_read_timeline` | `cap__social__read_timeline` | `https://x.com/<lowercase handle>` |
+| `social_read_trends` | `cap__social__read_trends` | `https://x.com/explore` |
+
+`read_post` takes `url`. `read_thread` takes `url` and optional `cursor`;
+its result separates `post`, `thread` and `replies`. `read_timeline` takes
+`handle`, optional `cursor` and `limit`. `read_trends` takes optional `limit`
+and returns topic names/context without associated posts. Limits default to
+10 and range from 1 to 20. A timeline may return more posts if the provider
+ignores the requested count. Timeline and thread reads retain the provider page,
+capped at 100 entries per post/thread/reply list for response safety.
+
+Page results include `status`, `source`, `retrieved_at`, `more`, `truncated`
+and an optional `next_cursor`. Follow that cursor for another provider page.
+Local truncation is separate from pagination; the cursor cannot recover
+omitted entries from the current page. Restricted, unavailable, transient,
+malformed, partial and truncated responses retain evidence and fail the
+operation. Missing accounts and unavailable timelines are not empty successes.
+
+Requests send post IDs, handles and cursors to FxTwitter. No media is downloaded.
+Content is untrusted source data. The provider does not currently offer public
+search; trends are not search results, and account timelines are not home feeds.
+Private posts are unsupported; conversation coverage depends on the provider. The built-in
+nodes do not use configured replacements for Agent's social pack. See
+[built-in social reader](../guide/extensions.md#built-in-social-reader) for limits.

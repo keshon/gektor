@@ -226,13 +226,16 @@ existing enforced boundaries.
 | Files | Downloads and archive operations | Same operations |
 | Images | Inspect, preview, variants and pixel comparison | Same operations on workspace inputs |
 | Media | Status, video metadata/captions/downloads and local media processing | Same operations |
-| Social | Public-post reading | Public-post reading |
+| Social | Public posts, threads/replies, account timelines and trends | Same operations |
 
 The social Agent name remains cap__social__read_post for saved activation
 compatibility. Its node is social_read_post and uses that existing permission
 identity. Their JSON contract and implementation are shared. A configured Agent
 social pack may replace the built-in provider; it does not replace the built-in
-workflow node.
+workflow nodes. The added page operations use a shared contract and bounded v2
+provider reader. Canonical public resources for Agent calls are supplied by
+`WorkspacePaths`, matching node resources. Discovery and activation remain
+network-free. The catalog version changes when its available tools change.
 
 Some Agent tools own session interaction: image attachment grants, displayed
 pixels, questions, history and live background jobs. A workflow does not inherit

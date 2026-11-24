@@ -142,7 +142,7 @@ func MediaDefinitions(svc *media.Service) []workflow.Node {
 
 func SocialDefinitions(s social.Service) []workflow.Node {
 	op := socialcontract.Operation{Service: s}
-	return []workflow.Node{{
+	result := []workflow.Node{{
 		Name:           op.Name(),
 		PermissionName: socialcontract.AgentName,
 		Version:        1,
@@ -155,4 +155,14 @@ func SocialDefinitions(s social.Service) []workflow.Node {
 		Resources:      op.Resources,
 		Execute:        op.Run,
 	}}
+	for _, kind := range socialcontract.PageKinds() {
+		page := socialcontract.PageOperation{Service: s, Kind: kind}
+		result = append(result, workflow.Node{
+			Name: page.Name(), PermissionName: page.AgentName(), Version: 1,
+			Description: page.Description(), ReadOnly: page.ReadOnly(), RetrySafe: page.RetrySafe(),
+			InputSchema: page.Schema(), OutputSchema: page.OutputSchema(),
+			Validate: page.Validate, Resources: page.Resources, Execute: page.Run,
+		})
+	}
+	return result
 }

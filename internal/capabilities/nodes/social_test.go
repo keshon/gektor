@@ -1,6 +1,7 @@
 package nodes_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -43,5 +44,56 @@ func TestPublicPostNodeAndToolExecuteTheSameReader(t *testing.T) {
 	}
 	if requests != 2 {
 		t.Fatal(requests)
+	}
+}
+
+func TestSocialPageNodesAndToolsShareContracts(t *testing.T) {
+	const post = `{"id":"20","text":"fixture","author":{"screen_name":"test"}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/2/conversation/20":
+			fmt.Fprint(w, `{"code":200,"status":`+post+`,"thread":[],"replies":[],"cursor":{"bottom":"next"}}`)
+		case "/2/profile/test/statuses":
+			fmt.Fprint(w, `{"code":200,"results":[`+post+`],"cursor":{"bottom":"next"}}`)
+		case "/2/trends":
+			fmt.Fprint(w, `{"code":200,"trends":[{"name":"topic"}]}`)
+		default:
+			t.Errorf("unexpected request %s", r.URL)
+		}
+	}))
+	defer server.Close()
+	service := social.Service{Client: server.Client(), Endpoint: server.URL}
+	definitions := nodes.SocialDefinitions(service)
+	cases := []struct{ kind, args, resource string }{
+		{social.ReadThread, `{"url":"https://twitter.com/test/status/20"}`, "https://x.com/i/status/20"},
+		{social.ReadTimeline, `{"handle":"@TEST","limit":2}`, "https://x.com/test"},
+		{social.ReadTrends, `{"limit":2}`, "https://x.com/explore"},
+	}
+	for i, tc := range cases {
+		tool := toolsocial.PageOperation{PageOperation: contract.PageOperation{Service: service, Kind: tc.kind}}
+		node := definitions[i+1]
+		args := json.RawMessage(tc.args)
+		if node.PermissionName != tool.Name() || !node.ReadOnly || !node.RetrySafe || string(node.InputSchema) != string(tool.Schema()) {
+			t.Fatal("tool/node contract drift", tc.kind)
+		}
+		for _, resources := range []func(json.RawMessage) ([]string, error){node.Resources, tool.Resources} {
+			got, err := resources(args)
+			if err != nil || len(got) != 1 || got[0] != tc.resource {
+				t.Fatal(got, err)
+			}
+		}
+		for _, execute := range []func(context.Context, json.RawMessage) (string, error){node.Execute, tool.Run} {
+			output, err := execute(t.Context(), args)
+			if err != nil {
+				t.Fatal(output, err)
+			}
+			err = workflow.ValidateJSON(json.RawMessage(output), node.OutputSchema)
+			if err != nil {
+				t.Fatal(output, err)
+			}
+		}
+		if tool.Validate(json.RawMessage(`{"url":"https://x.com/test/status/20","unexpected":true}`)) == nil {
+			t.Fatal("unknown fields accepted")
+		}
 	}
 }

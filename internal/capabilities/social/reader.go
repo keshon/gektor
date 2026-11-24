@@ -88,24 +88,8 @@ func ReadPost(ctx context.Context, client *http.Client, base, raw string) Post {
 		return p
 	}
 	var result struct {
-		Code  int `json:"code"`
-		Tweet *struct {
-			URL       string `json:"url"`
-			Text      string `json:"text"`
-			CreatedAt string `json:"created_at"`
-			Author    struct {
-				Name       string `json:"name"`
-				ScreenName string `json:"screen_name"`
-			} `json:"author"`
-			Media struct {
-				Photos []struct {
-					URL string `json:"url"`
-				} `json:"photos"`
-				Videos []struct {
-					URL string `json:"url"`
-				} `json:"videos"`
-			} `json:"media"`
-		} `json:"tweet"`
+		Code  int           `json:"code"`
+		Tweet *providerPost `json:"tweet"`
 	}
 	if json.Unmarshal(body, &result) != nil {
 		p.Status = "invalid_response"

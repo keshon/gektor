@@ -306,6 +306,26 @@ func TestBuiltinSocialLifecycleIsLazyAndRestorable(t *testing.T) {
 	if !registry.Has("cap__social__read_post") || len(catalog.Save()) != 1 {
 		t.Fatal("activation did not save catalog")
 	}
+
+	for _, kind := range []string{"read_thread", "read_timeline", "read_trends"} {
+		if !registry.Has("cap__social__" + kind) {
+			t.Fatal("social page tool not activated", kind)
+		}
+	}
+	// Built-in public resources are resolved by the same contracts as workflow nodes.
+	ws, _ := testWS(t)
+	resolver := WorkspacePaths{WS: ws}
+	for _, tc := range []struct{ name, args, want string }{
+		{"read_thread", `{"url":"https://twitter.com/test/status/20"}`, "https://x.com/i/status/20"},
+		{"read_timeline", `{"handle":"@TEST"}`, "https://x.com/test"},
+		{"read_trends", `{}`, "https://x.com/explore"},
+	} {
+		name := "cap__social__" + tc.name
+		resources, err := resolver.Resources(name, json.RawMessage(tc.args))
+		if err != nil || len(resources) != 1 || resources[0] != tc.want {
+			t.Fatal(resources, err)
+		}
+	}
 	resumedSources := WithBuiltinCapabilities(nil)
 	resumed := &toolextension.Capabilities{Sources: resumedSources, Registry: agent.NewRegistry()}
 	if err := resumed.Restore(t.Context(), catalog.Save()); err != nil {

@@ -167,6 +167,7 @@ func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
 		"archive_create", "archive_extract", "download_file", "archive_list",
 		"workflow_call", "workflow_join", "workflow_wait", "workflow_wait_callback",
 		"run_program", "artifact_import", "image_variants", "image_optimize",
+		"social_read_post", "social_read_thread", "social_read_timeline", "social_read_trends",
 	}
 	for _, name := range required {
 		if result.Operations[name] == nil {
@@ -178,7 +179,7 @@ func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
 			t.Error("unexpected operation", name)
 		}
 	}
-	if len(result.Operations) != 39 {
+	if len(result.Operations) != 42 {
 		t.Error("unexpected operation count", len(result.Operations))
 	}
 	if !strings.Contains(string(result.Recipe), `"inputs"`) {

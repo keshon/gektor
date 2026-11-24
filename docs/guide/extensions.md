@@ -282,18 +282,37 @@ activation make no network requests. Until activation, its tool schema and
 instructions do not enter the prompt. A configured pack with ID `social`
 replaces the built-in provider.
 
-The reader uses the [FxTwitter Status Fetch API](https://github.com/FxEmbed/FxEmbed/wiki/Status-Fetch-API).
-The requested post ID is sent to that third-party service. Results contain
-canonical URL, author, text, dates, media references and retrieval status.
-Media is not downloaded. Requests have a 20-second deadline and a 2 MiB
-response limit; normalized output is bounded to 40 KiB. Restricted, missing,
-transient, unsupported, malformed and truncated results fail the tool while
-retaining available structured evidence. Cancellation remains cancellation.
+The reader uses the [FxTwitter API](https://docs.fxembed.com/api/introduction/).
+It exposes four reads:
 
-This provider supports public single posts, not Instagram, private posts,
-full threads or replies. It requires no API key. Upstream availability is not
-guaranteed. Older sessions using the standalone example must start a new
-session to adopt the native provider's catalog.
+| Tool | Input | Result |
+| --- | --- | --- |
+| `cap__social__read_post` | `url` | One public post |
+| `cap__social__read_thread` | `url`, optional `cursor` | Focal post, thread and one page of replies, recent first |
+| `cap__social__read_timeline` | `handle`, optional `cursor`, `limit` | One page from a known account |
+| `cap__social__read_trends` | optional `limit` | Provider-selected topic names and context |
+
+Timeline and trend limits request 10 entries by default, with a maximum of 20.
+Timeline providers may ignore that count; the reader retains the provider page
+to avoid skipping posts when following its cursor. Thread reads retain the
+provider's reply page. A safety cap of 100 entries per post/thread/reply list
+still applies. Follow `next_cursor` while
+`more` is true. A cursor advances provider pages; it cannot recover locally
+omitted content when `truncated` is true.
+
+Requests send post IDs, account handles and cursors to FxTwitter. Results retain
+source and retrieval time. Media URLs are returned without downloading media.
+Requests have a 20-second deadline, a 2 MiB response limit and a 40 KiB normalized
+output limit. Access failures, malformed responses, partial conversations and
+truncation fail the operation while retaining available structured evidence.
+An unavailable timeline is not evidence that the account has no posts.
+
+The provider currently documents public post/account search as unavailable.
+Trends do not include matching posts or guarantee regional coverage. Account
+timelines are not personalized home feeds. Private posts and Instagram are not
+supported, and thread/reply coverage depends on the provider. No API key is
+required. Sessions that activated an older social catalog must start a new
+session to use the expanded catalog.
 
 Compiled Go integrations supply a capability loader returning tools through
 the existing agent tool interface. They share activation, persistence,

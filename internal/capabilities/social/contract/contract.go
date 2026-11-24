@@ -27,7 +27,7 @@ func (Operation) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":false}`)
 }
 func (Operation) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"status":{"type":"string"},"url":{"type":"string"},"author":{"type":"string"},"handle":{"type":"string"},"text":{"type":"string"},"created_at":{"type":"string"},"media":{"type":"array","items":{"type":"string"}},"retrieved_at":{"type":"string"},"source":{"type":"string"},"truncated":{"type":"boolean"}},"required":["status","retrieved_at","source","truncated"],"additionalProperties":false}`)
+	return json.RawMessage(postSchema)
 }
 func (o Operation) parse(raw json.RawMessage) (social.Request, error) {
 	var in social.Request
@@ -64,3 +64,5 @@ func (o Operation) Run(ctx context.Context, raw json.RawMessage) (string, error)
 
 	return string(data), runErr
 }
+
+const postSchema = `{"type":"object","properties":{"status":{"type":"string"},"url":{"type":"string"},"author":{"type":"string"},"handle":{"type":"string"},"text":{"type":"string"},"created_at":{"type":"string"},"media":{"type":"array","items":{"type":"string"}},"retrieved_at":{"type":"string"},"source":{"type":"string"},"truncated":{"type":"boolean"}},"required":["status","retrieved_at","source","truncated"],"additionalProperties":false}`

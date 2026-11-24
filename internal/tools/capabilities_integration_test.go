@@ -107,6 +107,9 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 		{"media_frame", `{"inputs":["input.mp4"],"path":"frame.png","format":"png"}`, false, false, false},
 		{"media_merge", `{"inputs":["video.mp4","audio.wav"],"path":"out.mkv","format":"mkv"}`, false, false, false},
 		{"social_read_post", `{"url":"https://x.com/test/status/20"}`, true, true, true},
+		{"social_read_thread", `{"url":"https://x.com/test/status/20"}`, true, true, true},
+		{"social_read_timeline", `{"handle":"test"}`, true, true, true},
+		{"social_read_trends", `{}`, true, true, true},
 		{"record_read", `{"kind":"notes","id":"state","allow_missing":true}`, true, true, true},
 		{"record_write", `{"kind":"notes","id":"state","expected_revision":0,"data":{}}`, false, false, false},
 	} {
