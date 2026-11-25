@@ -9,7 +9,9 @@ import (
 )
 
 func TestNotificationPreservesFocusAndIgnoresStaleExpiry(t *testing.T) {
-	controls := &Controls{Props: ControlProps{Width: 80, Height: 24, Modern: true}}
+	palette := NewPalette("dark")
+	applyModern(palette, true)
+	controls := &Controls{Props: ControlProps{Width: 80, Height: 24, Palette: palette}}
 	cmd := controls.Notify("Session path copied")
 	if cmd == nil {
 		t.Fatal("notification has no expiry command")

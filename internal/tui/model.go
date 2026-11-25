@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/executables"
 	agentui "github.com/keshon/gektor/internal/tui/agent"
 	"github.com/keshon/gektor/internal/tui/settings"
@@ -59,14 +60,17 @@ type Model struct {
 	startWorkflows    bool
 	termW, termH      int
 	colorProfile      colorprofile.Profile
-	outlined          bool
 	quit, pendingQuit bool
 }
 
 func newModel(ctx context.Context, cfg Config) (*Model, error) {
+	theme := screen.CurrentPalette().Name
+	var appearance config.Appearance
 	if cfg.Application != nil {
-		screen.SetTheme(cfg.Application.Preferences.Theme)
+		theme = cfg.Application.Preferences.Theme
+		appearance = cfg.Application.Preferences.Appearance
 	}
+	setAppearance(theme, appearance)
 	controls := &screen.Controls{}
 	agentCfg := cfg.AgentConfig
 	agentCfg.Controls = controls
@@ -81,7 +85,6 @@ func newModel(ctx context.Context, cfg Config) (*Model, error) {
 		profile:        cfg.PreparedProfile,
 		application:    cfg.Application,
 		base:           ctx,
-		outlined:       conversation.Appearance().Frame == "outlined",
 		startWorkflows: cfg.StartScreen == "workflows",
 	}
 

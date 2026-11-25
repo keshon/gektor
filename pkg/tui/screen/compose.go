@@ -22,8 +22,8 @@ func (m *Controls) Compose(view tea.View) tea.View {
 	}
 	content := strings.Join(rows, "\n")
 	if m.dialog != nil {
-		if m.Props.Modern {
-			content = m.palette().Styles().Dim.Render(ansi.Strip(content))
+		if m.palette().Modern {
+			content = DimBackdrop(content, m.palette().Styles())
 		}
 		content = m.overlayContent(content)
 		view.Cursor = m.dialogCursor()
@@ -35,6 +35,11 @@ func (m *Controls) Compose(view tea.View) tea.View {
 	content = m.overlayNotification(content)
 	view.Content = m.palette().paint(content, m.Props.ColorProfile)
 	return view
+}
+
+// DimBackdrop removes surface emphasis behind a Modern modal.
+func DimBackdrop(content string, styles Styles) string {
+	return styles.Dim.Render(ansi.Strip(content))
 }
 
 func (m *Controls) overlayContent(content string) string {

@@ -22,7 +22,7 @@ func (m *Model) blockExpanded(index int) bool {
 }
 
 func (m *Model) toggleHistoryBlock(index int) {
-	if !m.modern || index < 0 || index >= len(m.transcript.blocks) {
+	if !currentPalette().Modern || index < 0 || index >= len(m.transcript.blocks) {
 		return
 	}
 	role := m.transcript.blocks[index].role
@@ -41,7 +41,7 @@ func (m *Model) toggleHistoryBlock(index int) {
 
 func (m *Model) expansionMouse(msg tea.MouseMsg) bool {
 	mouse := msg.Mouse()
-	if !m.modern || !isMouseClick(msg) || mouse.Button != tea.MouseLeft || mouse.X == m.scrollbarX() || mouse.X < m.promptOffset() || mouse.X >= m.mainWidth() || mouse.Y < m.transcriptTop() || mouse.Y >= m.transcriptTop()+m.transcript.Viewport.Height() {
+	if !currentPalette().Modern || !isMouseClick(msg) || mouse.Button != tea.MouseLeft || mouse.X == m.scrollbarX() || mouse.X < m.promptOffset() || mouse.X >= m.mainWidth() || mouse.Y < m.transcriptTop() || mouse.Y >= m.transcriptTop()+m.transcript.Viewport.Height() {
 		return false
 	}
 	m.inspector.selecting = false

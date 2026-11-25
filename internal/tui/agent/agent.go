@@ -228,8 +228,6 @@ type Model struct {
 	hideSYS       bool
 	hideLabels    bool
 	hideNames     bool
-	minimal       bool
-	modern        bool
 	hideTools     bool
 	hideThinking  bool
 	toolNamesOnly bool
@@ -522,10 +520,10 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 	m.baseEnv = env
 	m.mcp = cfg.MCP
 	if cfg.Application != nil {
-		m.applyAppearance(cfg.Application.Preferences.Appearance)
+		m.ApplyHistoryAppearance(cfg.Application.Preferences.Appearance)
 		m.steering = cfg.Application.Preferences.Harness.Steering
 	} else {
-		m.applyAppearance(config.Appearance{})
+		m.ApplyHistoryAppearance(config.Appearance{})
 	}
 
 	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {

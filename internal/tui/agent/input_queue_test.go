@@ -165,7 +165,7 @@ func TestComposerQueueLayoutAndMouse(t *testing.T) {
 		if m.testView().Cursor == nil || m.testView().Cursor.Y != m.termH-m.footerRows()-m.input.Height() {
 			t.Fatal("composer caret moved")
 		}
-		layout := m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true)
+		layout := m.composerLayout().panel
 		m.handleMouse(tea.MouseClickMsg{X: layout.Footer.X, Y: 1 + layout.Footer.Y, Button: tea.MouseLeft})
 		if m.chrome.DialogInfo().Kind == 0 || !testTableOpen(m) {
 			t.Fatal("summary count did not open queue")

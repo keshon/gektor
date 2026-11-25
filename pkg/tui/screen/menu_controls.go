@@ -310,15 +310,19 @@ func (m *Controls) VisibleMenus() []Menu {
 
 // ActionBarVisible reports whether terminal dimensions leave room for the shortcut row.
 func (m *Controls) ActionBarVisible() bool {
-	return !m.Props.Modern && m.Props.Width >= 40 && m.Props.Height >= 14
+	return m.palette().ActionBarRows(m.Props.Width, m.Props.Height) != 0
 }
 
 // ActionBarRows returns the number of terminal rows occupied by shortcuts.
 func (m *Controls) ActionBarRows() int {
-	if !m.ActionBarVisible() {
+	return m.palette().ActionBarRows(m.Props.Width, m.Props.Height)
+}
+
+// ActionBarRows measures the global shortcut bar for a terminal size.
+func (p *Palette) ActionBarRows(width, height int) int {
+	if p.Modern || width < 40 || height < 14 {
 		return 0
 	}
-
 	return 1
 }
 

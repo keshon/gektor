@@ -47,6 +47,15 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.chrome.DialogInfo().Kind == screen.NoDialog && (m.state == stPermission || m.state == stAsk) {
 		if msg.String() == "pgup" || msg.String() == "pgdown" || msg.String() == "ctrl+end" {
+			_, bounds := m.gateLayout()
+			if bounds.Height > 0 {
+				if msg.String() == "ctrl+end" {
+					m.transcript.Viewport.GotoBottom()
+					m.transcript.Follow = true
+					return m, nil
+				}
+				return m.scrollViewport(msg)
+			}
 			var cmd tea.Cmd
 			if msg.String() == "ctrl+end" {
 				m.gateVP.GotoBottom()

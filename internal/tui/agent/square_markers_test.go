@@ -38,7 +38,7 @@ func TestModernMarkersPreserveContentPunctuation(t *testing.T) {
 		if returned != strings.TrimSpace(marker) {
 			t.Fatal("returned marker differs", modern, returned)
 		}
-		model := Model{modern: modern}
+		var model Model
 		for i := 0; i < len(activityFrames); i++ {
 			model.spinnerFrame = i
 			glyph := model.activitySymbol()

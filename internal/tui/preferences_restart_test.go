@@ -25,7 +25,7 @@ func TestPreferenceRestartHelper(t *testing.T) {
 	*m.application = Application{PreferencePath: path, Preferences: p, Temporary: true}
 	m.profile.Profile = p.Profile.Clone()
 	m.applyTheme(p.Theme)
-	m.agent.ApplyAppearance(p.Appearance)
+	m.applyAppearance(screen.CurrentPalette().Name, p.Appearance)
 	phase := os.Getenv("GEKTOR_TEST_PREF_PHASE")
 	if phase == "verify" || phase == "verify-reset" {
 		on := phase == "verify"

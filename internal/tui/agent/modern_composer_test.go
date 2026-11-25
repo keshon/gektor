@@ -21,20 +21,28 @@ func TestModernQueueRowTracksComposerPadding(t *testing.T) {
 		m.testUpdate(tea.WindowSizeMsg{Width: width, Height: 30})
 		m.applyAppearance(config.Appearance{Style: "modern", Frame: "minimal"})
 		before := m.sess.PendingInputs()
-		rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
-		queueY := -1
+		view := m.testView()
+		rows := strings.Split(ansi.Strip(view.Content), "\n")
+		queueY, draftY, badgeY := -1, -1, -1
 		for y, row := range rows {
-			if strings.Contains(row, "Queued 3") {
+			switch {
+			case strings.Contains(row, "Queued 3"):
 				queueY = y
-				break
+			case strings.Contains(row, "unfinished draft"):
+				draftY = y
+			case strings.Contains(row, "Act") && strings.Contains(row, "WAIT"):
+				badgeY = y
 			}
 		}
 		if queueY < 0 || strings.Contains(rows[queueY], "Latest:") {
 			t.Fatal("queue summary is absent or uses the old layout", width)
 		}
-		caret := m.testView().Cursor
-		if caret == nil || caret.X < m.promptOffset() || caret.Y <= queueY {
-			t.Fatal("queue and input caret disagree", width, caret, queueY)
+		caret := view.Cursor
+		if caret == nil || caret.X < m.promptOffset() || caret.Y != draftY || draftY <= queueY {
+			t.Fatal("queue and input caret disagree", width, caret, queueY, draftY)
+		}
+		if badgeY <= draftY || m.chrome.Props.BadgeRow != badgeY {
+			t.Fatal("status menu anchor does not match the rendered badges", width, badgeY)
 		}
 		x := m.promptOffset() + 12
 		m.testUpdate(tea.MouseClickMsg{X: x, Y: queueY, Button: tea.MouseLeft})
@@ -93,9 +101,9 @@ func TestModernBordersReplaceOuterComposerPadding(t *testing.T) {
 	m.applyAppearance(config.Appearance{Style: "modern", Frame: "minimal"})
 	m.input.SetValue("Keep this draft")
 	m.fitBottom()
-	borderless := len(m.composerRows())
+	borderless := len(m.composerLayout().rows)
 	m.applyAppearance(config.Appearance{Style: "modern", Frame: "outlined"})
-	rows := m.composerRows()
+	rows := m.composerLayout().rows
 	if len(rows) != borderless-2 || !strings.Contains(ansi.Strip(rows[0]), "Keep this draft") || !strings.Contains(ansi.Strip(rows[len(rows)-1]), "Act") {
 		t.Fatal("visible borders did not replace the outer padding")
 	}

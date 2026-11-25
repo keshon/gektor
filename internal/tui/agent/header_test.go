@@ -93,7 +93,7 @@ func TestContextBreakdownDistinguishesEstimatesAndMeasuredCounts(t *testing.T) {
 func TestEmptyHeaderShowsZeroMetricsAndTwoSpaceGaps(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 140, 25)
 	m.state, m.limit, m.modelName = stDone, 65536, "model.gguf"
-	line := ansi.Strip(m.badgeLine())
+	line := ansi.Strip(m.badgeLine(m.headerBadges()))
 	if !strings.Contains(line, "ACT  READY  0/65.5k  model.gguf") || !strings.HasSuffix(line, "STEP 0/25  00:00 ") {
 		t.Fatalf("header: %q", line)
 	}
@@ -104,7 +104,7 @@ func TestHeaderModelUsesSpaceAndRunIsRightAligned(t *testing.T) {
 	for _, width := range []int{40, 80, 160} {
 		m := sizeModelTo(t, testModel(), width, 25)
 		m.modelName = name
-		line := ansi.Strip(m.badgeLine())
+		line := ansi.Strip(m.badgeLine(m.headerBadges()))
 		if width == 160 && !strings.Contains(line, name) {
 			t.Fatalf("model truncated despite available space: %q", line)
 		}
@@ -413,7 +413,7 @@ func TestFullAccessVisibleInNarrowHeader(t *testing.T) {
 		m := sizeModelTo(t, testModel(), width, 24)
 		m.approvals.SetFullAccess(true)
 		m.tokens, m.limit = 123000, 128000
-		line := ansi.Strip(m.badgeLine())
+		line := ansi.Strip(m.badgeLine(m.headerBadges()))
 		if !strings.Contains(line, "AUTO") || lipgloss.Width(line) != m.transcript.Viewport.Width() {
 			t.Fatalf("width %d: access hidden or header overflowed: %q", width, line)
 		}

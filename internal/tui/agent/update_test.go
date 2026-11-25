@@ -324,9 +324,9 @@ func TestActivityBadgeAnimatesOnlyWhileRunning(t *testing.T) {
 		}
 	}
 	m.state = stRunning
-	width := lipgloss.Width(m.identityLine())
+	width := lipgloss.Width(m.badgeLine(m.headerBadges()))
 	m.state = stDone
-	if lipgloss.Width(m.identityLine()) != width {
+	if lipgloss.Width(m.badgeLine(m.headerBadges())) != width {
 		t.Fatal("activity moved the header layout")
 	}
 }

@@ -11,33 +11,28 @@ import (
 )
 
 // screenContent keeps the composer inside the conversation column.
-func (m *Model) screenContent() string {
+func (m *Model) screenContent(composer composerLayout) string {
 	if !m.ready {
 		return "starting..."
 	}
-	paneHeader := cellLine(m.identityLine(), m.transcript.Viewport.Width())
+	paneHeader := m.badgeLine(composer.badges)
 
-	gated := (m.state == stPermission || m.state == stAsk) && m.gatePopup.Pending()
 	body := m.transcript.Viewport.View()
-	if m.modern && len(m.transcript.blocks) == 0 && m.live == "" && m.state == stDone {
+	if currentPalette().Modern && len(m.transcript.blocks) == 0 && m.live == "" && m.state == stDone {
 		width := max(m.transcript.Viewport.Width()-4, 1)
 		heading := cellLine(m.styles.Title.Render("What are we working on?"), width)
 		hint := cellLine(m.styles.Dim.Render("Ask a question or describe a task."), width)
 		body = lipgloss.NewStyle().Padding(2, 2).Render(heading + "\n\n" + hint)
 	}
 	body = m.suggestionView(body)
-	if gated {
+	if m.state == stPermission || m.state == stAsk {
 		body = m.gateView(body)
-	} else if m.state == stPermission || m.state == stAsk {
-		body = m.gateVP.View()
 	}
 
 	bodyHeight := m.transcript.Viewport.Height()
 	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)
-	footer := m.composerRows()
-	layout := m.panelGeometry(m.mainWidth(), len(footer), false, true)
 	focused := m.inspectorVisible() && !m.inspector.focused && !m.chrome.Header.Focused
-	rows := pane.Render(layout, paneHeader, body, footer, m.paneStyles(), focused)
+	rows := pane.Render(composer.panel, paneHeader, body, composer.rows, m.paneStyles(), focused)
 	content := "\n" + strings.Join(rows, "\n")
 
 	content = cellFrame(content, max(m.termW, 0), max(m.termH, 0))
@@ -50,7 +45,8 @@ func (m *Model) screenContent() string {
 }
 
 func (m *Model) View() tea.View {
-	v := tea.NewView(m.screenContent())
+	composer := m.composerLayout()
+	v := tea.NewView(m.screenContent(composer))
 	// Theme only the character grid; terminal defaults and margins belong to the host.
 	owner := m.activeInputOwner()
 	if !m.ready || owner == focusDialog || owner == focusHeader {
@@ -75,15 +71,15 @@ func (m *Model) View() tea.View {
 		if m.gstage == gsReject {
 			v.Cursor = m.note.Cursor()
 			if v.Cursor != nil {
-				v.Cursor.X += m.promptOffset()
-				v.Cursor.Y += m.termH - m.footerRows() - 1
+				v.Cursor.X += composer.note.X
+				v.Cursor.Y += composer.note.Y
 			}
 		}
 	} else if owner == focusInput {
 		v.Cursor = m.input.Cursor()
 		if v.Cursor != nil {
-			v.Cursor.X += m.promptOffset()
-			v.Cursor.Y += m.termH - m.footerRows() - m.input.Height()
+			v.Cursor.X += composer.input.X
+			v.Cursor.Y += composer.input.Y
 		}
 	}
 	return v

@@ -59,7 +59,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	}
 	switch msg := msg.(type) {
 	case sessionCopiedMsg:
-		if msg.err == nil && m.modern {
+		if msg.err == nil && currentPalette().Modern {
 			return m, m.chrome.Notify(msg.label + " copied")
 		}
 		if m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.state != stAsk && m.state != stPermission {
@@ -294,7 +294,7 @@ func (m *Model) fitInput() {
 		// the composer grows, keeping earlier lines visible after a newline.
 		m.input.SetWidth(max(m.mainWidth()-m.promptOffset()-5, 1))
 		m.input.Placeholder = ""
-		if m.modern {
+		if currentPalette().Modern {
 			m.input.Placeholder = "Ask anything…"
 		}
 		if m.state == stRunning {
@@ -318,7 +318,7 @@ func (m *Model) fitBottom() {
 	if oldWidth != m.transcript.Viewport.Width() {
 		m.refreshContent()
 	}
-	h := max(m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true).Body.Height, 1)
+	h := max(m.composerLayout().panel.Body.Height, 1)
 	pinned := m.transcript.Follow && m.transcript.Viewport.AtBottom()
 	contentWidth := m.transcript.Viewport.ContentWidth()
 	m.transcript.Viewport.SetHeight(h)

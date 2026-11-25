@@ -45,7 +45,7 @@ func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
 			m.Close()
 			return nil
 		}
-		if m.Props.Modern && m.dialog.Secret != nil && mouse.Y == y+len(rows)-1 {
+		if m.palette().Modern && m.dialog.Secret != nil && mouse.Y == y+len(rows)-1 {
 			buttons, cancel := m.secretButtons(inner)
 			if mouse.X >= x && mouse.X < x+cancel-2 {
 				return m.SecretInput(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})

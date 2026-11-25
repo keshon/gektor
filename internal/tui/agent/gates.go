@@ -15,6 +15,7 @@ import (
 	toolfiles "github.com/keshon/gektor/internal/tools/files"
 	"github.com/keshon/gektor/internal/workspace"
 	"github.com/keshon/gektor/pkg/tui/components/gate"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
@@ -214,34 +215,34 @@ func (m *Model) gateHint(width int) string {
 	return popup.Shortcuts(width, m.shortcutStyles(), hints...)
 }
 
-// gateView draws the gate popup over the bottom of the transcript; the
-// composer and its caret stay put.
-//
-// The popup is sized to leave a band of transcript showing. A gate that
-// filled the pane would answer "what do I do" by hiding "what happened",
-// and the prompt being asked about lives in that transcript.
-func (m *Model) gateView(body string) string {
-	if !m.gatePopup.Pending() {
-		return body
-	}
+// gateLayout places the framed choices in the transcript. An empty layout
+// leaves the gate viewport in control of the compact prompt.
+func (m *Model) gateLayout() (gate.Layout, pane.Rect) {
 	width := min(m.transcript.Viewport.Width(), 78)
-	lines := strings.Split(body, "\n")
-	height := max(len(lines)-gateTranscriptRows, 6)
+	bodyHeight := m.transcript.Viewport.Height()
+	height := min(max(bodyHeight-gateTranscriptRows, 6), bodyHeight)
 	questionText := m.gate
 	if m.state == stPermission && m.gstage == gsAlways {
 		target := permission.Target(m.gateTool, m.gateResource)
 		questionText = fmt.Sprintf("Allow %s on %q for this session?", m.gateTool, target)
 	}
-	question := gate.Wrap(questionText, max(width-4, 1))
-	rows := m.gatePopup.View(width, height, question, m.gateHint(max(width-4, 1)),
+	inner := max(width-4, 1)
+	question := gate.Wrap(questionText, inner)
+	layout := m.gatePopup.Layout(width, height, question, m.gateHint(inner),
 		m.gstage == gsReject, popupSurface())
-	if len(rows) == 0 {
-		return body
+	bounds := pane.Rect{X: m.promptOffset(), Y: m.transcriptTop() + bodyHeight - len(layout.Rows),
+		Width: width, Height: len(layout.Rows)}
+	return layout, bounds
+}
+
+func (m *Model) gateView(body string) string {
+	layout, bounds := m.gateLayout()
+	if bounds.Height == 0 {
+		return m.gateVP.View()
 	}
-	if len(lines) < len(rows) {
-		return body
-	}
-	return strings.Join(append(lines[:len(lines)-len(rows)], rows...), "\n")
+	width, height := m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
+	return popup.Overlay(cellFrame(body, width, height), layout.Rows, 0,
+		bounds.Y-m.transcriptTop(), bounds.Width, width)
 }
 
 // gateTranscriptRows is how much conversation stays visible above a gate.

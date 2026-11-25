@@ -76,7 +76,7 @@ func TestComposerRuleMeetsBothFrameEdges(t *testing.T) {
 
 func TestOutlinedChromeKeepsOuterBoundsOnResize(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 120, 30)
-	m.minimal = false
+	m.setMinimal(false)
 	for _, width := range []int{40, 80, 160, 64, 120} {
 		m.width(tea.WindowSizeMsg{Width: width, Height: 30})
 		rows := strings.Split(ansi.Strip(m.testView().Content), "\n")

@@ -48,7 +48,7 @@ func (m *Model) menuItems(menu string) []screen.MenuItem {
 	case "view":
 		items := []screen.MenuItem{{Text: "Thinking: " + m.thinkingLabel(), Command: "toggle-details", Enabled: true}, {Text: "Tool calls: " + m.toolsLabel(), Command: "toggle-tools", Enabled: true}, sep, {Text: "System messages", Command: "toggle-sys", Enabled: true}, sep,
 			{Text: "Speaker names", Command: "toggle-names", Enabled: true}, {Text: "Message labels", Command: "toggle-labels", Enabled: true}, sep}
-		if m.modern {
+		if currentPalette().Modern {
 			items = append(items, screen.MenuItem{Text: "Expand pasted text", Command: "expand-paste", Enabled: m.input.Folded()}, screen.MenuItem{Text: "History blocks…", Command: "history-blocks", Enabled: true})
 		}
 		return append(items, screen.MenuItem{Text: "Jump to latest", Command: "latest", Enabled: true})

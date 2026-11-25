@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/keshon/gektor/pkg/tui/components/form"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
@@ -129,7 +130,11 @@ func (m *Model) searchView() string {
 	}
 	switch s.mode {
 	case sessRename:
-		rows = append(rows, line(styles.Normal, "Rename session"+screen.Separator()+"ENTER save"+screen.Separator()+"ESC back"), line(styles.Normal, s.rename.View()))
+		label := "Rename session"
+		if !currentPalette().Modern {
+			label += screen.Separator() + "ENTER save" + screen.Separator() + "ESC back"
+		}
+		rows = append(rows, line(styles.Normal, label), line(styles.Normal, s.rename.View()))
 	case sessReassign:
 		destination := m.wsRoot
 		if s.reassign != nil {
@@ -144,7 +149,11 @@ func (m *Model) searchView() string {
 		if len(s.entries) > 0 {
 			title = s.entries[s.Cursor].title
 		}
-		rows = append(rows, line(styles.Normal, "Delete "+title+"? Y delete"+screen.Separator()+"N cancel"))
+		label := "Delete " + title + "?"
+		if !currentPalette().Modern {
+			label += " Y delete" + screen.Separator() + "N cancel"
+		}
+		rows = append(rows, line(styles.Normal, label))
 	}
 	hintWidth, count := inner, ""
 	if len(s.entries) > 0 {
@@ -168,10 +177,34 @@ func (m *Model) searchView() string {
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Y", Action: "delete"}, {Key: "N", Action: "cancel"}}
 	}
 	hint := popup.Shortcuts(hintWidth, m.shortcutStyles(), shortcuts...) + m.styles.Dim.Render(count)
+	if actions, _ := m.sessionButtons(g); actions != "" {
+		hint = actions
+	}
 	for _, row := range popup.Footer(inner, hint, m.styles.Dim) {
 		rows = append(rows, line(styles.Normal, row))
 	}
 	return strings.Join(popup.Frame(rows, g.width, styles), "\n")
+}
+
+// sessionButtons uses the form action row for the browser's mutation prompts.
+func (m *Model) sessionButtons(g searchGeometry) (string, []form.Hit) {
+	if !currentPalette().Modern {
+		return "", nil
+	}
+	var primary string
+	switch m.sessions.mode {
+	case sessRename:
+		primary = "Save"
+	case sessReassign:
+		primary = "Assign"
+	case sessConfirm:
+		primary = "Delete"
+	default:
+		return "", nil
+	}
+	buttons := form.Model{Index: -1}
+	return buttons.Actions(max(g.width-4, 1), g.height-2, primary, true,
+		m.sessions.mode == sessConfirm, m.chrome.FormButtonStyles())
 }
 
 // searchRegex builds the matcher once per frame. Compiling it per visible
@@ -222,5 +255,8 @@ func highlightSearch(text string, re *regexp.Regexp, style lipgloss.Style) strin
 
 func (m *Model) overlaySearch(background string) string {
 	g := m.searchGeometry()
+	if currentPalette().Modern {
+		background = screen.DimBackdrop(background, m.styles)
+	}
 	return popup.Overlay(background, strings.Split(m.searchView(), "\n"), g.x, g.y, g.width, m.termW)
 }

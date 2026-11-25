@@ -10,7 +10,6 @@ import (
 func cellLine(s string, width int) string          { return cell.Line(s, width) }
 func cellFrame(s string, width, height int) string { return cell.Frame(s, width, height) }
 func (m *Model) fitColumns()                       { m.transcript.Viewport.SetWidth(max(m.paneWidth(), 1)) }
-func (m *Model) identityLine() string              { return m.badgeLine() }
 func (m *Model) promptOffset() int {
 	if m.termW < 40 || m.termH < 14 {
 		return 0
@@ -31,13 +30,15 @@ func (m *Model) screenPanes(sideOpen bool) pane.SplitLayout {
 }
 
 func (m *Model) panelGeometry(width, footerHeight int, close, conversation bool) pane.Layout {
-	right := m.promptOffset()
-	if conversation && m.minimal && m.inspectorVisible() && !m.screenPanes(true).Covered {
+	palette := currentPalette()
+	inset := m.promptOffset()
+	right := inset
+	if conversation && !palette.Outlined && m.inspectorVisible() && !m.screenPanes(true).Covered {
 		right = 0
 	}
 	return pane.Measure(pane.Props{Width: width, Height: max(m.termH-1-m.actionBarRows(), 1), FooterHeight: footerHeight,
-		LeftInset: m.promptOffset(), RightInset: right, Outlined: !m.minimal && m.promptOffset() > 0,
-		BottomEdge: m.promptOffset() > 0, Quiet: m.modern && m.minimal, Headerless: m.modern && conversation, Footerless: m.modern && !conversation, Close: close})
+		LeftInset: inset, RightInset: right, Outlined: palette.Outlined && inset > 0,
+		BottomEdge: inset > 0, Quiet: palette.Modern && !palette.Outlined, Headerless: palette.Modern && conversation, Footerless: palette.Modern && !conversation, Close: close})
 }
 
 func (m *Model) paneStyles() pane.Styles {

@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/pkg/tui/components/cell"
+	"github.com/keshon/gektor/pkg/tui/components/pane"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 )
 
@@ -85,41 +86,50 @@ func (s *State) Keypress(msg tea.KeyPressMsg) bool {
 	return true
 }
 
-// View draws the popup framed at the given width, returning the rows.
-// The caller splices them over the bottom of the transcript, so the frame
-// must never grow taller than the area it sits in: height is a hard
-// ceiling, not a hint. question carries the wrapped prompt lines; hint is
-// the single footer row naming the keys.
-//
-// The question head stays pinned: options and hint are always visible, and
-// a long prompt truncates with a count rather than pushing the answers off.
-// The full prompt is also in the transcript behind the popup, so nothing is
-// lost — scroll there for the rest.
+// Layout contains the frame and the visible option rows in frame coordinates.
+type Layout struct {
+	Rows        []string
+	Options     pane.Rect
+	FirstOption int
+}
+
+// Hit returns the option index at a point inside the framed list.
+func (l Layout) Hit(x, y int) (int, bool) {
+	return l.FirstOption + y - l.Options.Y, l.Options.Contains(x, y)
+}
+
+// View draws the framed popup rows.
 func (s *State) View(width, height int, question []string, hint string, note bool, styles popup.Styles) []string {
+	return s.Layout(width, height, question, hint, note, styles).Rows
+}
+
+// Layout fits the prompt and choices within the available transcript rows.
+func (s *State) Layout(width, height int, question []string, hint string, note bool, styles popup.Styles) Layout {
 	if !s.Pending() || width < 24 || height < 4 {
-		return nil
+		return Layout{}
 	}
 
 	inner := max(width-4, 1)
 
-	// Spend the height explicitly. Overshooting is not a cosmetic bug: the
-	// caller splices these rows over a fixed-height body and drops the whole
-	// popup when it does not fit, so a single row too many makes the gate
-	// vanish and leaves a run blocked behind a question nobody can see.
-	//
-	// Two borders, one option and the hint are not negotiable; everything
-	// else is spent in order of what the reader needs: the note row, then
-	// the other options, then the question.
-	base := 2 + 1 + 1
-	// Keep compact terminals usable; add the shared footer divider only
-	// when it will not displace the permission choices.
+	// Keep the first prompt line visible even when only the selected
+	// choice fits. Keyboard navigation can reveal the remaining choices.
+	promptRows := 0
+	if len(question) > 0 {
+		promptRows = 1
+	}
+	base := 2 + 1 + promptRows
+	showHint := height > base
+	if showHint {
+		base++
+	}
+
 	divided := height >= 8
 	if divided {
 		base++
 	}
 
 	if height < base {
-		return nil
+		return Layout{}
 	}
 
 	free := height - base
@@ -131,16 +141,13 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 	count := min(min(maxVisible, 1+free), len(s.Options))
 	free -= count - 1
 
+	free += promptRows
 	qrows := len(question)
 	more := ""
 
 	switch {
 	case qrows <= free:
 		// The whole question fits; nothing to report.
-	case free <= 0:
-		// No room at all. The answers win, and the prompt is in the
-		// transcript behind, which the caller has made scrollable.
-		qrows = 0
 	case free == 1:
 		// Keep the target visible when only one prompt row fits. A generic
 		// truncation notice cannot identify what the user is approving.
@@ -164,6 +171,7 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 		rows = append(rows, more)
 	}
 
+	options := pane.Rect{X: 2, Y: 1 + len(rows), Width: inner, Height: count}
 	for i := offset; i < offset+count; i++ {
 		opt := s.Options[i]
 		mark, style := "  ", styles.Normal
@@ -185,11 +193,11 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 
 	if divided {
 		rows = append(rows, popup.Footer(inner, hint, styles.Normal)...)
-	} else {
+	} else if showHint {
 		rows = append(rows, popup.Row(styles.Normal, hint, inner))
 	}
 
-	return popup.TitledFrame(s.Title, rows, width, styles)
+	return Layout{Rows: popup.TitledFrame(s.Title, rows, width, styles), Options: options, FirstOption: offset}
 }
 
 // maxVisible keeps the list from swallowing the transcript it sits over.

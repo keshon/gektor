@@ -75,35 +75,11 @@ func (m *Model) footerActions() []screen.Action {
 }
 
 func (m *Model) actionBarVisible() bool {
-	m.chrome.Props.Width, m.chrome.Props.Height = m.termW, m.termH
-	m.chrome.Props.Modern = m.modern
-	return m.chrome.ActionBarVisible()
+	return m.actionBarRows() != 0
 }
 
 func (m *Model) actionBarRows() int {
-	m.chrome.Props.Width, m.chrome.Props.Height = m.termW, m.termH
-	m.chrome.Props.Modern = m.modern
-	return m.chrome.ActionBarRows()
-}
-
-// The composer keeps its lower padding independently of the application toolbar.
-func (m *Model) footerRows() int {
-	m.chrome.Props.Width, m.chrome.Props.Height = m.termW, m.termH
-	m.chrome.Props.Modern = m.modern
-	if !m.modern {
-		return m.chrome.FooterRows()
-	}
-	rows := m.actionBarRows()
-	if m.state != stPermission && m.chrome.DialogInfo().Kind == screen.NoDialog {
-		rows += 2
-		if m.minimal {
-			rows++
-		}
-	}
-	if m.promptOffset() > 0 {
-		rows++
-	}
-	return rows
+	return currentPalette().ActionBarRows(m.termW, m.termH)
 }
 
 func (m *Model) toolbarClick(x int) (tea.Model, tea.Cmd) {

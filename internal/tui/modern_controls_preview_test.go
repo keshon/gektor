@@ -16,7 +16,7 @@ func TestModernAppearanceUsesFilledButtons(t *testing.T) {
 	defer screen.SetModern(false)
 	m := sizeModelTo(t, settingsModel(t), 100, 30)
 	m.colorProfile = colorprofile.TrueColor
-	m.agent.ApplyAppearance(config.Appearance{Style: "modern", Frame: "minimal"})
+	m.applyAppearance(screen.CurrentPalette().Name, config.Appearance{Style: "modern", Frame: "minimal"})
 	m.runAction("appearance")
 	m.settleControls()
 	rows, hits, _, _ := m.chrome.FormRows()

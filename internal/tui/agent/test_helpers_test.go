@@ -27,6 +27,7 @@ import (
 )
 
 func testModel() *Model {
+	screen.SetAppearance(screen.Appearance{Name: currentPalette().Name, Outlined: true})
 	m := &Model{
 		chrome:       &screen.Controls{},
 		sessionsRoot: userdirs.Sub("tasks"),

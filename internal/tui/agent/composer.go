@@ -7,69 +7,115 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/keshon/gektor/pkg/tui/components/pane"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
-// composerRows is shared by rendering, viewport measurement and hit testing.
-// Exceptional run details and queue state remain beside the draft.
-func (m *Model) composerRows() []string {
+type composerLayout struct {
+	panel    pane.Layout
+	rows     []string
+	badges   []screen.Badge
+	badgeRow int
+	input    pane.Rect
+	note     pane.Rect
+	queue    pane.Rect
+}
+
+// composerLayout places footer content in display order and measures its
+// terminal coordinates once for rendering, native carets and pointer input.
+func (m *Model) composerLayout() composerLayout {
 	width := m.transcript.Viewport.Width()
-	rows := []string{}
+	palette := currentPalette()
+	layout := composerLayout{badges: m.headerBadges()}
+	blank := strings.Repeat(" ", width)
 	status := m.composerStatus()
 	if status != "" {
-		rows = append(rows, cellLine(status, width))
+		layout.rows = append(layout.rows, cellLine(status, width))
 	}
-	if m.chrome.DialogInfo().Kind != screen.NoDialog {
-		if m.modern {
-			return []string{strings.Repeat(" ", width)}
+
+	switch {
+	case m.chrome.DialogInfo().Kind != screen.NoDialog:
+		if palette.Modern {
+			layout.rows = []string{blank}
+		} else {
+			layout.rows = append(layout.rows, cellLine(m.styles.Dim.Render("Draft preserved"), width))
 		}
-		return append(rows, cellLine(m.styles.Dim.Render("Draft preserved"), width))
+	case m.state == stPermission:
+		bar := m.gateBar()
+		layout.rows = append(layout.rows, strings.Split(cellFrame(bar, width, lipgloss.Height(bar)), "\n")...)
+		if m.gstage == gsReject {
+			layout.note = pane.Rect{Y: len(layout.rows) - 1, Width: width, Height: 1}
+		}
+	default:
+		m.composeDraft(&layout, palette, blank, width)
 	}
-	if m.state == stPermission {
-		return append(rows, strings.Split(cellFrame(m.gateBar(), width, lipgloss.Height(m.gateBar())), "\n")...)
+
+	layout.panel = m.panelGeometry(m.mainWidth(), len(layout.rows), false, true)
+	x, y := layout.panel.Footer.X, 1+layout.panel.Footer.Y
+	for _, region := range []*pane.Rect{&layout.input, &layout.note, &layout.queue} {
+		if region.Height != 0 {
+			region.X += x
+			region.Y += y
+		}
 	}
-	if m.modern && m.minimal {
-		rows = append([]string{strings.Repeat(" ", width)}, rows...)
+	if layout.badgeRow != 0 {
+		layout.badgeRow += y
+	}
+	return layout
+}
+
+func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, blank string, width int) {
+	if palette.Modern && !palette.Outlined {
+		layout.rows = append([]string{blank}, layout.rows...)
 	}
 	if m.state != stAsk {
 		if summary := m.queueSummary(); summary != "" {
-			rows = append(rows, cellLine(summary, width))
+			label, _, _ := strings.Cut(summary, screen.Separator())
+			if palette.Modern {
+				label = summary
+			}
+			layout.queue = pane.Rect{Y: len(layout.rows), Width: min(lipgloss.Width(label), width), Height: 1}
+			layout.rows = append(layout.rows, cellLine(summary, width))
 		}
 		if len(m.draftImages) > 0 || m.clipboardBusy {
-			rows = append(rows, cellLine(m.attachmentLine(), width))
+			layout.rows = append(layout.rows, cellLine(m.attachmentLine(), width))
 		}
 	}
-	input := strings.Split(m.input.View(), "\n")
-	background := currentPalette().Background
-	if m.modern {
-		background = themeColor(colorPopupBackground)
+
+	background := palette.Background
+	if palette.Modern {
+		background = palette.Color(colorPopupBackground)
 	}
 	surface := lipgloss.NewStyle().Background(lipgloss.Color(background))
-	for i := range m.input.Height() {
+	input := strings.Split(m.input.View(), "\n")
+	layout.input = pane.Rect{Y: len(layout.rows), Width: width, Height: m.input.Height()}
+	for i := range layout.input.Height {
 		line := ""
 		if i < len(input) {
 			line = truncate(input[i], width)
 		}
 		padding := strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
-		row := line + surface.Render(padding)
-		rows = append(rows, row)
+		layout.rows = append(layout.rows, line+surface.Render(padding))
 	}
-	if m.modern {
-		rows = append(rows, strings.Repeat(" ", width), m.identityLine())
-		if m.minimal {
-			rows = append(rows, strings.Repeat(" ", width))
-		}
-		for i, row := range rows {
-			rows[i] = screen.PaintSurface(cellLine(row, width), background)
-		}
+	if !palette.Modern {
+		return
 	}
-	return rows
+
+	layout.rows = append(layout.rows, blank)
+	layout.badgeRow = len(layout.rows)
+	layout.rows = append(layout.rows, m.badgeLine(layout.badges))
+	if !palette.Outlined {
+		layout.rows = append(layout.rows, blank)
+	}
+	for i, row := range layout.rows {
+		layout.rows[i] = palette.PaintSurface(cellLine(row, width), background)
+	}
 }
 
 // Queue receipt can happen between UI events. Refit only when the measured
 // footer changes height; ordinary clock ticks should not rebuild the inspector.
 func (m *Model) syncComposerHeight() {
-	if m.ready && m.transcript.Viewport.Height() != max(m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true).Body.Height, 1) {
+	if m.ready && m.transcript.Viewport.Height() != max(m.composerLayout().panel.Body.Height, 1) {
 		m.fitBottom()
 	}
 }
@@ -79,37 +125,22 @@ func (m *Model) composerStatus() string {
 		if m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
 			return m.styles.Dim.Render(m.progress.Detail + screen.Separator() + formatElapsed(time.Since(m.progressStarted)))
 		}
-		if !m.modern {
-			return ""
-		}
 		return ""
 	}
-	if m.modern && m.state == stDone && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
+	if currentPalette().Modern && m.state == stDone && m.transcript.Follow && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
 		return ""
 	}
 	return m.statusLine()
 }
 func (m *Model) composerQueueMouse(msg tea.MouseMsg) bool {
-	if m.chrome.DialogInfo().Kind != screen.NoDialog || m.state == stPermission || m.state == stAsk || m.queueSummary() == "" || !isMouseClick(msg) || msg.Mouse().Button != tea.MouseLeft {
+	mouse := msg.Mouse()
+	if !isMouseClick(msg) || mouse.Button != tea.MouseLeft {
 		return false
 	}
-	layout := m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true)
-	y := 1 + layout.Footer.Y
-	if m.composerStatus() != "" {
-		y++
+	layout := m.composerLayout()
+	if !layout.queue.Contains(mouse.X, mouse.Y) {
+		return false
 	}
-	if m.modern && m.minimal {
-		y++
-	}
-	// The count is an entry point; the preview remains plain text.
-	label := strings.Split(m.queueSummary(), screen.Separator())[0]
-	x := layout.Footer.X
-	if m.modern {
-		label = cellLine(m.queueSummary(), m.transcript.Viewport.Width())
-	}
-	if msg.Mouse().Y == y && msg.Mouse().X >= x && msg.Mouse().X < x+lipgloss.Width(label) {
-		m.openInputQueue()
-		return true
-	}
-	return false
+	m.openInputQueue()
+	return true
 }

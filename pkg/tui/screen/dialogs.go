@@ -76,7 +76,7 @@ func (m *Controls) FormDetailRequest(id DialogID) (fieldform.DetailRequest, bool
 		return fieldform.DetailRequest{}, false
 	}
 	request, ok := m.dialog.Form.TakeDetailRequest()
-	request.Square = m.Props.Modern
+	request.Square = m.palette().Modern
 	return request, ok
 }
 

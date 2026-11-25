@@ -106,7 +106,7 @@ func (m *Model) refreshInspector() {
 	pane.Viewport.SetHeight(max(layout.Body.Height, 1))
 	pane.compact = false
 	arguments := prettyToolArguments(b.text)
-	if m.modern {
+	if currentPalette().Modern {
 		arguments = modernToolArguments(b.text)
 	}
 	pane.blocks = []block{resultBlock("Arguments\n" + arguments)}
@@ -150,7 +150,7 @@ func (m *Model) refreshInspector() {
 	for i := range pane.blocks {
 		pane.blocks[i].at = time.Time{}
 	}
-	pane.refresh(transcriptProps{modern: m.modern, readingInset: 1, speaker: "Subagent", user: m.userName(), styles: m.styles, live: live, liveThink: thinking, hideNames: true, labels: false})
+	pane.refresh(transcriptProps{modern: currentPalette().Modern, readingInset: 1, speaker: "Subagent", user: m.userName(), styles: m.styles, live: live, liveThink: thinking, hideNames: true, labels: false})
 }
 
 // String arguments stay literal so file content is readable without JSON escapes.
@@ -263,7 +263,7 @@ func (m *Model) composeInspector(content string) string {
 func (m *Model) inspectionRows(heading, hint, body string, width int, focused, close bool) []string {
 	layout := m.panelGeometry(width, 1, close, false)
 	rows := pane.Render(layout, heading, body, []string{hint}, m.paneStyles(), focused && !m.chrome.Header.Focused)
-	if m.modern && m.minimal {
+	if currentPalette().Modern && !currentPalette().Outlined {
 		for i, row := range rows {
 			rows[i] = screen.PaintSurface(row, themeColor(colorPopupBackground))
 		}
@@ -272,7 +272,7 @@ func (m *Model) inspectionRows(heading, hint, body string, width int, focused, c
 }
 
 func (m *Model) inspectionHints(width int, shortcuts ...popup.Shortcut) string {
-	if m.modern {
+	if currentPalette().Modern {
 		return ""
 	}
 	inner := m.panelGeometry(width, 1, true, false).Footer.Width

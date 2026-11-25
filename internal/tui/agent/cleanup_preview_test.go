@@ -17,7 +17,7 @@ func TestCompactToolsWithInspectorThemes(t *testing.T) {
 	for _, theme := range []string{"light", "dark"} {
 		for _, minimal := range []bool{false, true} {
 			m := inspectorModel(t, 120)
-			m.minimal = minimal
+			m.setMinimal(minimal)
 			m.applyTheme(theme)
 			m.hideTools = true
 			m.hideNames = true

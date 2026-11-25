@@ -91,7 +91,7 @@ func (m *Model) refreshContent() {
 		m.transcript.render.dirty = true
 		return
 	}
-	props := transcriptProps{modern: m.modern, interactive: true,
+	props := transcriptProps{modern: currentPalette().Modern, interactive: true,
 		speaker:       m.speakerName(),
 		user:          m.userName(),
 		styles:        m.styles,

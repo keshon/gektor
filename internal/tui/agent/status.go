@@ -34,7 +34,7 @@ func (m *Model) statusLine() string {
 		hint = selected
 	}
 	if !m.transcript.Follow && m.state == stDone {
-		if m.modern {
+		if currentPalette().Modern {
 			hint = m.controlHints(popup.Shortcut{Key: "Ctrl+End", Action: "Latest"}) + "  Scrolled up"
 		} else {
 			hint += "  Scrolled up"
@@ -105,7 +105,7 @@ func kTokens(n int) string {
 }
 
 func (m *Model) activitySymbol() string {
-	if m.modern {
+	if currentPalette().Modern {
 		if m.spinnerFrame%2 == 0 {
 			return "▪"
 		}

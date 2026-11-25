@@ -17,7 +17,7 @@ func TestDialogCaretsFollowFocusedEditors(t *testing.T) {
 		SetModern(modern)
 		for name, shape := range map[string]tea.CursorShape{"block": tea.CursorBlock, "bar": tea.CursorBar, "underline": tea.CursorUnderline} {
 			SetCaret(name)
-			controls := Controls{Props: ControlProps{Width: 100, Height: 30, Ready: true, Area: pane.Rect{X: 3, Y: 2, Width: 90, Height: 24}, Modern: modern, Palette: CurrentPalette(), Styles: DefaultStyles()}}
+			controls := Controls{Props: ControlProps{Width: 100, Height: 30, Ready: true, Area: pane.Rect{X: 3, Y: 2, Width: 90, Height: 24}, Palette: CurrentPalette(), Styles: DefaultStyles()}}
 			check := func(text string) {
 				t.Helper()
 				view := controls.Compose(tea.NewView(""))

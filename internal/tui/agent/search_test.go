@@ -11,9 +11,11 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 func TestSearchIndexesConversationAndRanksTitles(t *testing.T) {
@@ -189,5 +191,41 @@ func TestSearchHighlightExcerptKeepsUnicode(t *testing.T) {
 	}
 	if searchRegex("") != nil {
 		t.Fatal("an empty query should not compile a matcher")
+	}
+}
+
+func TestModernSessionButtonsSaveAndCancelFromVisibleRows(t *testing.T) {
+	defer screen.SetModern(false)
+	m := sizeModel(t, testModel())
+	m.applyAppearance(config.Appearance{Style: "modern", Frame: "minimal"})
+	m.wsRoot = t.TempDir()
+	m.sessionsRoot = sessionsRootFor(t, m.wsRoot)
+	dir := writeSessionState(t, m.sessionsRoot, "one", userHistory("Original title"))
+	m.openSessions()
+	finishSessionRefresh(t, m)
+
+	click := func(label string) {
+		t.Helper()
+		rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
+		for y, row := range rows {
+			x := strings.Index(row, " "+label+" ")
+			if x >= 0 && strings.Contains(row, "Cancel") {
+				m.testUpdate(tea.MouseClickMsg{X: ansi.StringWidth(row[:x]) + 1, Y: y, Button: tea.MouseLeft})
+				return
+			}
+		}
+		t.Fatalf("missing %s button", label)
+	}
+
+	m.testUpdate(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	m.sessions.rename.SetValue("Renamed")
+	click("Save")
+	if m.sessions.mode != sessList || conversation.ReadSessionTitle(dir) != "Renamed" {
+		t.Fatal("Save did not rename the session and return to the list")
+	}
+	m.testUpdate(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	click("Cancel")
+	if m.sessions.mode != sessList || conversation.ReadSessionTitle(dir) != "Renamed" {
+		t.Fatal("Cancel did not preserve the session and return to the list")
 	}
 }

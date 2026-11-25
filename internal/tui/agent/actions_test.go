@@ -63,7 +63,7 @@ func TestActionBarCellsAndMouseShareGeometry(t *testing.T) {
 	for _, minimal := range []bool{false, true} {
 		for _, width := range []int{40, 80, 120} {
 			m := sizeModel(t, testModel())
-			m.minimal = minimal
+			m.setMinimal(minimal)
 			m.state = stDone
 			m.width(tea.WindowSizeMsg{Width: width, Height: 24})
 			rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
@@ -108,7 +108,7 @@ func TestFocusAndMetricsHaveDedicatedPlaces(t *testing.T) {
 	if !strings.Contains(rows[2], "STEP 7/25") || strings.Count(strings.Join(rows, "\n"), "STEP 7/25") != 1 {
 		t.Fatal("run metrics must appear once in the top status row")
 	}
-	if strings.Contains(ansi.Strip(m.identityLine()), "HISTORY") {
+	if strings.Contains(ansi.Strip(m.badgeLine(m.headerBadges())), "HISTORY") {
 		t.Fatal("obsolete pane label remains")
 	}
 
@@ -128,7 +128,7 @@ func TestHeaderPrioritizesRunMetricsOnNarrowTerminals(t *testing.T) {
 	m.modelName = "Qwen3.5-9B-Q4_K_M"
 	for _, width := range []int{80, 120} {
 		m.width(tea.WindowSizeMsg{Width: width, Height: 30})
-		line := ansi.Strip(m.identityLine())
+		line := ansi.Strip(m.badgeLine(m.headerBadges()))
 		for _, fact := range []string{"STEP 2/25", "4.1k/16.4k", "00:32"} {
 			if !strings.Contains(line, fact) {
 				t.Fatalf("header at width %d lost %q: %q", width, fact, line)

@@ -49,7 +49,7 @@ func TestRunFailureAppearsOnceAndDoesNotShrinkComposer(t *testing.T) {
 	if m.transcript.Viewport.Height() != height-1 || m.input.Value() != "preserved draft" {
 		t.Fatal("failure changed composer layout or draft")
 	}
-	if !strings.Contains(ansi.Strip(m.badgeLine()), "ERROR") {
+	if !strings.Contains(ansi.Strip(m.badgeLine(m.headerBadges())), "ERROR") {
 		t.Fatal("persistent failure status is missing")
 	}
 }

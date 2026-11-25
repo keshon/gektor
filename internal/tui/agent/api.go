@@ -84,9 +84,6 @@ func (m *Model) Snapshot() (*ModeChange, error) {
 // Appearance returns the current conversation display choices.
 func (m *Model) Appearance() config.Appearance { return m.currentAppearance() }
 
-// ApplyAppearance updates local layout and caches after application settings change.
-func (m *Model) ApplyAppearance(appearance config.Appearance) { m.applyAppearance(appearance) }
-
 // OverlayOpened releases local input while application controls own focus.
 func (m *Model) OverlayOpened(first bool) {
 	if first {

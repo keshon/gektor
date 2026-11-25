@@ -31,7 +31,7 @@ func TestAppearanceStylesSwitchWithoutChangingTheConversation(t *testing.T) {
 			m.syncPresentation()
 			modern := style == "modern"
 			surface := m.workflowSurface()
-			if surface.Palette == nil || surface.Palette.Modern != modern || surface.Styles.Tabs.Filled != modern || (surface.Layout(120, true).Footer.Height == 0) != modern {
+			if surface.Palette != m.chrome.Props.Palette || surface.Palette != screen.CurrentPalette() || surface.Palette.Modern != modern || surface.Styles.Tabs.Filled != modern || (surface.Layout(120, true).Footer.Height == 0) != modern {
 				t.Fatal("workflow inspector did not receive the selected style", workflow, style)
 			}
 			if m.agent.Appearance().Style != style || screen.CurrentPalette().Modern != modern || m.chrome.ActionBarVisible() == modern {

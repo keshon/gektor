@@ -52,11 +52,15 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if mouse.X < m.promptOffset() || mouse.Y < m.transcriptTop() || mouse.Y >= m.transcriptTop()+m.transcript.Viewport.Height() {
 			return m, nil
 		}
-		// The gate popup overlays the transcript rather than replacing it,
-		// so the transcript is what is on screen and what the wheel has to
-		// move. gateVP still backs the narrow terminals where the popup
-		// does not fit and the gate takes the pane outright.
-		if m.gatePopup.Pending() {
+		layout, bounds := m.gateLayout()
+		if bounds.Height > 0 {
+			if bounds.Contains(mouse.X, mouse.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+				if index, hit := layout.Hit(mouse.X-bounds.X, mouse.Y-bounds.Y); hit && m.gstage == gsPermit {
+					m.gatePopup.Selected = index
+					return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+				}
+				return m, nil
+			}
 			if m.scrollbarMouse(msg) {
 				return m, nil
 			}

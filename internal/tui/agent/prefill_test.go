@@ -84,7 +84,7 @@ func TestUnifiedHeaderKeepsActivityAndContext(t *testing.T) {
 		m.state = stRunning
 		m.tokens, m.limit = 56600, 65536
 		m.progress.Phase = "checkpoint"
-		text := ansi.Strip(m.badgeLine())
+		text := ansi.Strip(m.badgeLine(m.headerBadges()))
 		if !strings.Contains(text, "COMPACT  56.6k/65.5k") {
 			t.Fatal(width, text)
 		}
@@ -94,13 +94,13 @@ func TestUnifiedHeaderKeepsActivityAndContext(t *testing.T) {
 			}
 		}
 		m.spinnerFrame++
-		if text == ansi.Strip(m.badgeLine()) {
+		if text == ansi.Strip(m.badgeLine(m.headerBadges())) {
 			t.Fatal("busy indicator did not animate")
 		}
 		m.state = stDone
-		text = ansi.Strip(m.badgeLine())
+		text = ansi.Strip(m.badgeLine(m.headerBadges()))
 		m.spinnerFrame++
-		if text != ansi.Strip(m.badgeLine()) {
+		if text != ansi.Strip(m.badgeLine(m.headerBadges())) {
 			t.Fatal("idle indicator animated")
 		}
 	}

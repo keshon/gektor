@@ -22,12 +22,12 @@ func TestAppearancePersistsWithoutChangingHistory(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.application = &settings.Application{PreferencePath: filepath.Join(t.TempDir(), "application.json"), Preferences: config.Preferences{Version: 1}, Temporary: true}
+	m.setMinimal(true)
 	m.appendBlock(userBlock("request"))
 	m.appendBlock(markerBlock("harness instruction"))
 	m.appendBlock(block{role: roleStatus, text: "local notice"})
 	before := append([]block(nil), m.transcript.blocks...)
 	if err := m.changeAppearance(func(a *config.Appearance) {
-		a.Frame = "minimal"
 		a.HideNames = true
 		a.HideLabels = true
 		a.ExpandThinking = true
@@ -41,7 +41,7 @@ func TestAppearancePersistsWithoutChangingHistory(t *testing.T) {
 	}
 	n := sizeModel(t, testModel())
 	n.applyAppearance(p.Appearance)
-	if !n.minimal || !n.hideNames || !n.hideLabels || n.transcript.compact || !n.hideTools {
+	if currentPalette().Outlined || !n.hideNames || !n.hideLabels || n.transcript.compact || !n.hideTools {
 		t.Fatal("appearance not restored")
 	}
 	if !reflect.DeepEqual(before, m.transcript.blocks) {

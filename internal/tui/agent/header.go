@@ -55,7 +55,7 @@ func (m *Model) headerBadges() []screen.Badge {
 		ctx += "/" + kTokens(m.limit)
 	}
 	width := m.transcript.Viewport.Width()
-	if m.modern {
+	if currentPalette().Modern {
 		return m.composerBadges(mode, activity, ctx, width)
 	}
 	candidates := []screen.Badge{{ID: "mode", Label: mode}, {ID: "activity", Label: activity + "  " + ctx}}
@@ -130,15 +130,14 @@ func (m *Model) composerBadges(mode, activity, context string, width int) []scre
 	return badges
 }
 
-func (m *Model) badgeLine() string {
+func (m *Model) badgeLine(badges []screen.Badge) string {
 	normal := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText)))
 	dim := m.styles.Dim
-	if m.modern {
+	if currentPalette().Modern {
 		background := lipgloss.Color(themeColor(colorPopupBackground))
 		normal = normal.Background(background)
 		dim = dim.Background(background)
 	}
-	badges := m.headerBadges()
 	var out []string
 	x := 0
 	for _, b := range badges {
@@ -168,7 +167,7 @@ func (m *Model) badgeLine() string {
 		}
 		if b.ID == "activity" {
 			phase, context, hasPhase := strings.Cut(b.Label, "  ")
-			if m.modern && !hasPhase {
+			if currentPalette().Modern && !hasPhase {
 				phase, context = "", b.Label
 			}
 			contextStyle := normal
@@ -180,7 +179,7 @@ func (m *Model) badgeLine() string {
 				contextStyle = m.styles.Warn
 			}
 			phaseText := style.Render(" "+phase) + dim.Render("  ")
-			if m.modern && phase == "" {
+			if currentPalette().Modern && phase == "" {
 				phaseText = " "
 			}
 			out = append(out, phaseText+contextStyle.Render(context+" "))

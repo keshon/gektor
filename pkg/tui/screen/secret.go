@@ -60,7 +60,7 @@ func (m *Controls) PresentSecret(title, hint string) {
 	editor.SetStyles(m.palette().TextInputStyles(editor.Styles()))
 	editor.EchoMode = textinput.EchoPassword
 	editor.EchoCharacter = '•'
-	if m.Props.Modern {
+	if m.palette().Modern {
 		editor.EchoCharacter = '▪'
 	}
 	editor.CharLimit = 0
@@ -118,7 +118,7 @@ func (s *secretState) GoString() string { return "[masked secret input]" }
 
 // secretButtons keeps the masked editor's actions inside its own modal.
 func (m *Controls) secretButtons(width int) (string, int) {
-	styles := m.formStyles()
+	styles := m.FormButtonStyles()
 	label := "Save encrypted"
 	if width < 32 {
 		label = "Save"

@@ -36,14 +36,15 @@ func (m *Model) openTheme() {
 func (m *Model) openAppearance() {
 	f := themeChoiceForm()
 	f.Title = "Appearance"
-	caret := m.agent.Appearance().Caret
+	appearance := m.agent.Appearance()
+	caret := appearance.Caret
 	if caret == "" {
 		caret = "bar"
 	}
 	f.Fields = []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
-		{Key: "frame", Label: "Borders", Value: m.agent.Appearance().Frame},
-		{Key: "style", Label: "UI style", Value: m.agent.Appearance().Style},
+		{Key: "frame", Label: "Borders", Value: appearance.Frame},
+		{Key: "style", Label: "UI style", Value: appearance.Style},
 		{Key: "caret", Label: "Caret", Value: caret},
 	}
 
@@ -77,11 +78,24 @@ func (m *Model) openAppearance() {
 			return saveErr
 		}
 
-		m.outlined = frame == "outlined"
-		m.agent.ApplyAppearance(appearance)
-		m.applyTheme(theme)
+		m.applyAppearance(theme, appearance)
 		return nil
 	})
+}
+
+func setAppearance(theme string, appearance config.Appearance) {
+	screen.SetAppearance(screen.Appearance{
+		Name:     theme,
+		Caret:    appearance.Caret,
+		Modern:   appearance.Style == "modern",
+		Outlined: appearance.Frame == "outlined",
+	})
+}
+
+func (m *Model) applyAppearance(theme string, appearance config.Appearance) {
+	setAppearance(theme, appearance)
+	m.agent.ApplyHistoryAppearance(appearance)
+	m.syncPresentation()
 }
 
 func (m *Model) applyTheme(name string) {

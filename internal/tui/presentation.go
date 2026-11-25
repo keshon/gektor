@@ -34,13 +34,12 @@ func (m *Model) syncPresentation() {
 		// Short screens lend the composer and pane chrome to the modal. Keep the
 		// application menu and active action hints outside its paint and hit area.
 		height := m.termH - 2
-		if m.agent.Appearance().Style == "modern" {
+		if screen.CurrentPalette().Modern {
 			height++
 		}
 		props.Area = pane.Rect{Y: 1, Width: m.termW, Height: max(height, 1)}
 	}
 	props.Width, props.Height = m.termW, m.termH
-	props.Modern = m.agent.Appearance().Style == "modern"
 	props.Palette = screen.CurrentPalette()
 	props.ColorProfile = m.colorProfile
 	props.Menus = m.menus(props.Menus)
@@ -92,7 +91,7 @@ func (m *Model) workflowSurface() screen.Surface {
 	}
 	bottom := inset > 0
 	palette := screen.CurrentPalette()
-	return screen.Surface{Palette: palette, Area: pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-1-m.chrome.ActionBarRows(), 1)}, Quiet: m.agent.Appearance().Style == "modern", Inset: inset, SplitWidth: screen.SidePaneWidth, Outlined: m.outlined && inset > 0, BottomEdge: bottom, HeaderFocused: m.chrome.Header.Focused, Styles: palette.SurfaceStyles()}
+	return screen.Surface{Palette: palette, Area: pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-1-palette.ActionBarRows(m.termW, m.termH), 1)}, Quiet: palette.Modern, Inset: inset, SplitWidth: screen.SidePaneWidth, Outlined: palette.Outlined && inset > 0, BottomEdge: bottom, HeaderFocused: m.chrome.Header.Focused, Styles: palette.SurfaceStyles()}
 }
 
 // View composes either feature with shared controls and terminal modes.

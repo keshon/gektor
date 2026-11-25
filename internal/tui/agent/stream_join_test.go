@@ -97,8 +97,8 @@ func TestHTTPStreamShowsThinkingBeforeResponseFinishes(t *testing.T) {
 	if !m.progress.CacheKnown || m.progress.CachedTokens != 600 {
 		t.Fatalf("cache telemetry lost in event delivery: %+v", m.progress)
 	}
-	if m.tokens != 1000 || m.tokensEst || !strings.Contains(m.badgeLine(), "READ") {
-		t.Fatalf("prefill header: %q", m.badgeLine())
+	if m.tokens != 1000 || m.tokensEst || !strings.Contains(m.badgeLine(m.headerBadges()), "READ") {
+		t.Fatalf("prefill header: %q", m.badgeLine(m.headerBadges()))
 	}
 	consumeUntil("reasoning")
 	if !m.liveFlushPending || len(m.pendingCommands) == 0 {

@@ -55,18 +55,19 @@ func (m *Controls) NewEditor() textarea.Model {
 func (m *Controls) FormProps() fieldform.Props {
 	a := m.Props.Area
 	s := m.Props.Styles
-	buttons := m.formStyles()
+	buttons := m.FormButtonStyles()
 	return fieldform.Props{Width: a.Width, Height: a.Height, Left: a.X, Top: a.Y, Title: m.dialog.Title,
 		Styles:  fieldform.Styles{Title: s.Title, Disabled: s.Disabled, Muted: s.Dim, Focus: s.Focus, Error: s.Err, Selected: s.Hunk, Button: buttons.Button, FilledButtons: buttons.FilledButtons},
 		Surface: m.popupSurface(), SearchStyles: m.palette().TextInputStyles(textinput.New().Styles())}
 }
 
-func (m *Controls) formStyles() form.Styles {
+// FormButtonStyles supplies shared modal action styles.
+func (m *Controls) FormButtonStyles() form.Styles {
 	s := m.Props.Styles
 	normal := m.popupSurface().Normal
 	button := normal.Background(lipgloss.Color(m.palette().Color(ColorSelectedBackground)))
 	return form.Styles{Normal: normal, Title: s.Title, Muted: s.Dim, Focus: s.Focus,
-		Disabled: s.Disabled, Error: s.Err, Button: button, FilledButtons: m.Props.Modern}
+		Disabled: s.Disabled, Error: s.Err, Button: button, FilledButtons: m.palette().Modern}
 }
 
 // IsMouseClick distinguishes a press from motion, wheel, and release messages.

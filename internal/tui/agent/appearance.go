@@ -12,36 +12,25 @@ import (
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
-func (m *Model) applyAppearance(a config.Appearance) {
+// ApplyHistoryAppearance updates Agent display options and refreshes the screen.
+func (m *Model) ApplyHistoryAppearance(a config.Appearance) {
 	thinkingExpanded := !m.transcript.compact
 	if thinkingExpanded != a.ExpandThinking || m.hideThinking != a.HideThinking || m.hideTools != a.HideTools || m.toolNamesOnly != a.ToolNamesOnly {
 		m.transcript.expanded = nil
 	}
-	m.modern = a.Style == "modern"
-	m.input.CompactPastes = m.modern
-	if !m.modern {
-		m.input.Unfold()
-	}
-	m.input.Prompt = screen.InputPrompt
-	if m.modern {
-		m.input.Prompt = "▎ "
-	}
-	screen.SetModern(m.modern)
-	screen.SetCaret(a.Caret)
-	m.minimal = a.Frame != "outlined"
 	m.hideNames, m.hideLabels = a.HideNames, a.HideLabels
 	m.hideSYS, m.hideTools = a.HideSystem, a.HideTools
 	m.transcript.compact = !a.ExpandThinking
 	m.hideThinking, m.toolNamesOnly = a.HideThinking, a.ToolNamesOnly
 	m.RefreshTheme()
-	m.transcript.render.cache = nil
 	m.fitBottom()
 	m.refreshContent()
 }
 
 func (m *Model) currentAppearance() config.Appearance {
+	palette := currentPalette()
 	a := config.Appearance{
-		Caret:          screen.CurrentPalette().Caret,
+		Caret:          palette.Caret,
 		Frame:          "outlined",
 		HideNames:      m.hideNames,
 		HideLabels:     m.hideLabels,
@@ -51,10 +40,10 @@ func (m *Model) currentAppearance() config.Appearance {
 		HideThinking:   m.hideThinking,
 		ToolNamesOnly:  m.toolNamesOnly,
 	}
-	if m.minimal {
+	if !palette.Outlined {
 		a.Frame = "minimal"
 	}
-	if m.modern {
+	if palette.Modern {
 		a.Style = "modern"
 	} else {
 		a.Style = "commander"
@@ -69,7 +58,7 @@ func (m *Model) changeAppearance(change func(*config.Appearance)) error {
 	if err != nil {
 		return err
 	}
-	m.applyAppearance(a)
+	m.ApplyHistoryAppearance(a)
 	return nil
 }
 

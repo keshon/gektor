@@ -3,6 +3,7 @@ package agent
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
@@ -64,3 +65,31 @@ func (m *Model) testKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) testControls() *screen.Controls { m.syncControls(); return m.chrome }
+
+func (m *Model) applyAppearance(appearance config.Appearance) {
+	screen.SetAppearance(screen.Appearance{
+		Name:     currentPalette().Name,
+		Caret:    appearance.Caret,
+		Modern:   appearance.Style == "modern",
+		Outlined: appearance.Frame == "outlined",
+	})
+	m.ApplyHistoryAppearance(appearance)
+}
+
+func (m *Model) setMinimal(minimal bool) {
+	appearance := currentPalette().Appearance
+	appearance.Outlined = !minimal
+	screen.SetAppearance(appearance)
+}
+
+// Distance from the bottom to the last input row, including the toolbar.
+func (m *Model) footerRows() int {
+	layout := m.composerLayout()
+	if layout.input.Height > 0 {
+		return m.termH - layout.input.Y - layout.input.Height
+	}
+	if layout.note.Height > 0 {
+		return m.termH - layout.note.Y - layout.note.Height
+	}
+	return m.actionBarRows() + m.promptOffset()
+}

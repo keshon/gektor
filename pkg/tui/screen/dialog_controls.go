@@ -108,7 +108,7 @@ func (m *Controls) LayoutDialog() DialogLayout {
 	if len(d.Shortcuts) > 0 && !d.Help {
 		hint = popup.Shortcuts(inner, m.ShortcutStyles(), d.Shortcuts...)
 	}
-	if d.Secret != nil && m.Props.Modern {
+	if d.Secret != nil && m.palette().Modern {
 		hint, _ = m.secretButtons(inner)
 	}
 	capacity := max(availH-2-len(rows)-3, 1)
@@ -233,7 +233,7 @@ func (m *Controls) TableProps() table.Props {
 	_, _, width, height := m.Area()
 	return table.Props{Title: m.dialog.Title, Description: d.Description, EmptyMessage: d.EmptyMessage, Width: width, Height: height, DefaultAction: "details", PreferredWidth: m.dialogWidth(width), List: d.List,
 		Columns: d.Columns, Actions: d.Actions, Surface: m.popupSurface(),
-		Styles: m.formStyles()}
+		Styles: m.FormButtonStyles()}
 }
 
 // TableInput handles table navigation, filtering, and stable-ID activation.

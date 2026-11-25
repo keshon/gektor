@@ -79,17 +79,17 @@ func TestLongPromptSaysHowMuchIsBehind(t *testing.T) {
 	}
 }
 
-// Too small for a question, the answers still win - but a row that was
-// going to be spent saying so has to actually exist before it is drawn.
-func TestTinyHeightKeepsTheAnswersAndFits(t *testing.T) {
+// A compact popup keeps the first prompt line and selected choice visible.
+func TestTinyHeightKeepsThePromptAndSelectedChoice(t *testing.T) {
 	s := &State{}
 	s.Open("Permission required", threeOptions())
-	rows := s.View(60, 6, []string{"a", "b", "c", "d", "e"}, "hint", false, testStyles())
+	s.Selected = 2
+	rows := s.View(60, 6, []string{"Review this action", "more details"}, "hint", false, testStyles())
 	if len(rows) > 6 {
 		t.Fatalf("drew %d rows into 6", len(rows))
 	}
 	joined := strip(rows)
-	for _, want := range []string{"Allow once", "Allow for this session", "Deny with note"} {
+	for _, want := range []string{"Review this action", "Deny with note"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("lost %q at height 6:\n%s", want, joined)
 		}

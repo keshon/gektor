@@ -137,7 +137,7 @@ func TestCompletionPanelKeepsEvidenceAndFits(t *testing.T) {
 		for _, frame := range []string{"minimal", "outlined"} {
 			for _, width := range []int{20, 40, 80, 120} {
 				m := sizeModelTo(t, testModel(), width, 34)
-				m.minimal = frame == "minimal"
+				m.setMinimal(frame == "minimal")
 				m.applyTheme(theme)
 				m.hideNames, m.hideLabels, m.hideTools = false, true, true
 				m.appendBlock(toolCardBlock("c", `system_info {"group":"skills"}`))

@@ -16,7 +16,6 @@ func (m *Model) controlProps() screen.ControlProps {
 		Area:    pane.Rect{X: left, Y: top, Width: width, Height: height},
 		Inset:   m.promptOffset(),
 		Ready:   m.ready,
-		Modern:  m.modern,
 		Styles:  m.styles,
 		Blocked: m.sessions != nil || m.state == stAsk || m.state == stPermission,
 	}
@@ -25,7 +24,7 @@ func (m *Model) controlProps() screen.ControlProps {
 			props.Help = append(props.Help, screen.HelpSection{Title: section.title, Rows: section.rows})
 		}
 	}
-	separator := cell.Separator(m.modern)
+	separator := cell.Separator(currentPalette().Modern)
 	identity := m.activeSessionTitle()
 	if m.stateFile != "" {
 		identity = filepath.Base(filepath.Dir(m.stateFile)) + separator + identity
@@ -54,13 +53,9 @@ func (m *Model) Presentation() screen.ControlProps {
 		group.Items = m.decorateMenu(m.menuItems(group.ID))
 		props.Menus = append(props.Menus, group)
 	}
-	props.Badges = m.headerBadges()
-	if m.modern {
-		props.BadgeRow = m.termH - m.promptOffset() - 1
-		if m.minimal {
-			props.BadgeRow--
-		}
-	}
+	composer := m.composerLayout()
+	props.Badges = composer.badges
+	props.BadgeRow = composer.badgeRow
 	for _, id := range []string{"mode", "activity", "model", "context", "run", "steering"} {
 		props.BadgeMenus = append(props.BadgeMenus, screen.Menu{ID: id, Items: m.decorateMenu(m.badgeItems(id))})
 	}

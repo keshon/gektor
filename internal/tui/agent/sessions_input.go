@@ -143,6 +143,23 @@ func (m *Model) browserMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if s.mode != sessList {
+		if isMouseClick(msg) && mouse.Button == tea.MouseLeft {
+			_, hits := m.sessionButtons(g)
+			x, y := mouse.X-g.x-2, mouse.Y-g.y
+			for _, hit := range hits {
+				if x < hit.X0 || x >= hit.X1 || y < hit.Y0 || y >= hit.Y1 {
+					continue
+				}
+				key := tea.KeyEscape
+				if hit.Index == 0 {
+					key = 'y'
+					if s.mode == sessRename {
+						key = tea.KeyEnter
+					}
+				}
+				return m.sessionsKey(tea.KeyPressMsg{Code: key})
+			}
+		}
 		return m, nil
 	}
 

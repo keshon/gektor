@@ -1,7 +1,17 @@
 package agent
 
+import "github.com/keshon/gektor/pkg/tui/screen"
+
 // RefreshTheme rebuilds style-dependent caches after the application changes its palette.
 func (m *Model) RefreshTheme() {
+	modern := currentPalette().Modern
+	m.input.CompactPastes = modern
+	m.input.Prompt = screen.InputPrompt
+	if modern {
+		m.input.Prompt = "▎ "
+	} else {
+		m.input.Unfold()
+	}
 	m.styles = defaultStyles()
 	m.input.SetStyles(inputStyles(m.input.Styles()))
 	m.note.SetStyles(textInputStyles(m.note.Styles()))

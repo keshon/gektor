@@ -29,7 +29,7 @@ func TestInspectorRemainsVisibleBehindMainMenu(t *testing.T) {
 	for _, width := range []int{70, 120} {
 		for _, minimal := range []bool{false, true} {
 			m := inspectorModel(t, width)
-			m.minimal = minimal
+			m.setMinimal(minimal)
 			m.openInspector(len(m.transcript.blocks) - 1)
 			m.inspector.pane.Viewport.SetYOffset(10)
 			beforeWidth := m.mainWidth()
@@ -61,7 +61,7 @@ func TestInspectorScrollbarMouseMatchesBothLayouts(t *testing.T) {
 	for _, width := range []int{70, 120} {
 		for _, minimal := range []bool{false, true} {
 			m := inspectorModel(t, width)
-			m.minimal = minimal
+			m.setMinimal(minimal)
 			m.openInspector(len(m.transcript.blocks) - 1)
 			v := &m.inspector.pane.Viewport
 			v.GotoTop()
@@ -291,7 +291,7 @@ func TestInspectorArgumentsPreserveNumbers(t *testing.T) {
 func TestInspectorSharesMenuAndFrame(t *testing.T) {
 	for _, minimal := range []bool{false, true} {
 		m := inspectorModel(t, 120)
-		m.minimal = minimal
+		m.setMinimal(minimal)
 		m.fitBottom()
 		menu := ansi.Strip(m.testControls().MenuLine())
 		m.openInspector(len(m.transcript.blocks) - 1)

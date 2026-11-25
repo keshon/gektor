@@ -481,7 +481,8 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	m.wsRoot = t.TempDir()
 	assignSavedWorkspace(t, filepath.Join(m.sessions.entries[0].dir, "state.json"), m.wsRoot)
-	m.hideSYS, m.hideTools, m.hideNames, m.hideLabels, m.minimal = true, true, true, true, true
+	m.hideSYS, m.hideTools, m.hideNames, m.hideLabels = true, true, true, true
+	m.setMinimal(true)
 	m.transcript.compact = false
 	appearance := m.currentAppearance()
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})

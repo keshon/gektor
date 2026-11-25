@@ -102,7 +102,7 @@ func (m *Controls) Prepare() {
 	if m.dialog != nil && m.dialog.Secret != nil {
 		m.dialog.Secret.editor.SetStyles(m.palette().TextInputStyles(m.dialog.Secret.editor.Styles()))
 		m.dialog.Secret.editor.EchoCharacter = '•'
-		if m.Props.Modern {
+		if m.palette().Modern {
 			m.dialog.Secret.editor.EchoCharacter = '▪'
 		}
 		m.refreshSecret()

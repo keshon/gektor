@@ -86,11 +86,17 @@ func (p *Palette) PopupStyles() (lipgloss.Style, lipgloss.Style, lipgloss.Style)
 	return normal, border, selected
 }
 
-// Palette is an immutable theme snapshot shared by both screens.
+// Appearance selects the shared terminal colors, layout style, borders and caret.
+type Appearance struct {
+	Name     string
+	Caret    string
+	Modern   bool
+	Outlined bool
+}
+
+// Palette is an immutable appearance snapshot shared by both screens.
 type Palette struct {
-	Caret      string
-	Name       string
-	Modern     bool
+	Appearance
 	Background string
 	colors     map[string]string
 }
@@ -104,7 +110,7 @@ type themeColors struct {
 }
 
 func paletteFor(name string) *Palette {
-	p := &Palette{Name: "dark", Background: "#11161C", colors: map[string]string{
+	p := &Palette{Appearance: Appearance{Name: "dark"}, Background: "#11161C", colors: map[string]string{
 		ColorDim: "#8E9CA9", ColorSecondaryText: "#8E9CA9", ColorPopupText: "#D5DEE7", ColorSelectedText: "#F1F4F8", ColorNumberText: "#F1F4F8",
 		ColorAccent: "#79C8D0", ColorUser: "#79C8D0", ColorMode: "#79C8D0",
 		ColorSuccess: "#A2C29B", ColorReady: "#A2C29B", ColorWarning: "#F3D58A", ColorBusy: "#F3D58A", ColorSearchMatch: "#F3D58A",
@@ -160,20 +166,26 @@ func CurrentPalette() *Palette {
 	return defaultPalette
 }
 
-// SetTheme atomically replaces the shared palette, falling back to dark for unknown names.
+// SetTheme changes the color theme, falling back to dark for unknown names.
 func SetTheme(name string) {
-	p := paletteFor(name)
-	p.Caret = CurrentPalette().Caret
-	applyModern(p, CurrentPalette().Modern)
+	appearance := CurrentPalette().Appearance
+	appearance.Name = name
+	SetAppearance(appearance)
+}
+
+// SetAppearance publishes the palette and terminal appearance together.
+func SetAppearance(appearance Appearance) {
+	p := paletteFor(appearance.Name)
+	p.Caret, p.Outlined = appearance.Caret, appearance.Outlined
+	applyModern(p, appearance.Modern)
 	selectedPalette.Store(p)
 }
 
-// SetModern changes surface treatment without changing the selected color theme.
+// SetModern changes surface treatment without changing the color theme.
 func SetModern(modern bool) {
-	p := paletteFor(CurrentPalette().Name)
-	p.Caret = CurrentPalette().Caret
-	applyModern(p, modern)
-	selectedPalette.Store(p)
+	appearance := CurrentPalette().Appearance
+	appearance.Modern = modern
+	SetAppearance(appearance)
 }
 
 func applyModern(p *Palette, modern bool) {

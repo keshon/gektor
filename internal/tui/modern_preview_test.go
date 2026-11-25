@@ -35,7 +35,7 @@ func TestModernPreview(t *testing.T) {
 		m := shellTestModel(t, Config{AgentConfig: AgentConfig{SeedHistory: history, InitialDraft: "Show me the proposed change", Env: roles.Env{Model: "Ornith", ContextLimit: 131072}}})
 		m.colorProfile = colorprofile.TrueColor
 		m.applyTheme(theme)
-		m.agent.ApplyAppearance(config.Appearance{Style: "modern", Frame: "minimal", HideTools: true})
+		m.applyAppearance(screen.CurrentPalette().Name, config.Appearance{Style: "modern", Frame: "minimal", HideTools: true})
 		sizeModelTo(t, m, 120, 30)
 		if err := os.WriteFile(filepath.Join(dir, "modern-"+theme+".ansi"), []byte(m.View().Content), 0600); err != nil {
 			t.Fatal(err)

@@ -22,8 +22,8 @@ func TestSteeringCommandPersistsAndHeaderOnlyShowsEnabled(t *testing.T) {
 			value = "on"
 		}
 		m.command("/steering " + value)
-		if m.steering != enabled || strings.Contains(ansi.Strip(m.badgeLine()), "STEER") != enabled {
-			t.Fatal("header does not reflect steering", m.badgeLine())
+		if m.steering != enabled || strings.Contains(ansi.Strip(m.badgeLine(m.headerBadges())), "STEER") != enabled {
+			t.Fatal("header does not reflect steering", m.badgeLine(m.headerBadges()))
 		}
 		if m.chrome.DialogInfo().Kind != 0 || m.queued != "" {
 			t.Fatal("steering requested a restart or queued")

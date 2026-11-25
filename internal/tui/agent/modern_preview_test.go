@@ -218,18 +218,18 @@ func TestModernStatusMenuOpensAboveComposer(t *testing.T) {
 	}
 }
 
-func TestModernKeepsScrollPositionWithoutComposerHint(t *testing.T) {
+func TestModernShowsLatestWhileScrolledUp(t *testing.T) {
 	defer screen.SetModern(false)
 	m := inspectorModel(t, 80)
 	m.applyAppearance(config.Appearance{Style: "modern", Frame: "minimal"})
 	m.transcript.Follow = false
 	m.transcript.Viewport.GotoTop()
 	m.fitBottom()
-	if m.composerStatus() != "" || m.transcript.Follow {
-		t.Fatal("scrolled conversation has a hint or follows automatically")
+	if !strings.Contains(ansi.Strip(m.testView().Content), "Scrolled up") || m.transcript.Follow {
+		t.Fatal("scrolled conversation lost its indicator or follows automatically")
 	}
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
-	if !m.transcript.Follow || !m.transcript.Viewport.AtBottom() {
-		t.Fatal("hidden Latest shortcut no longer returns to the reply")
+	if !m.transcript.Follow || !m.transcript.Viewport.AtBottom() || m.composerStatus() != "" {
+		t.Fatal("Latest did not return to the reply and clear the indicator")
 	}
 }
