@@ -3,6 +3,7 @@ package agent
 import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
@@ -38,34 +39,39 @@ func (m *Model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	if s.mode == sessConfirm || s.mode == sessReassign {
+	if s.mode == sessReassign {
 		switch msg.String() {
 		case "y", "Y":
-			if s.mode == sessReassign {
-				m.reassignSelected()
-			} else {
-				m.deleteSelected()
-			}
-
-			return m, nil
+			m.reassignSelected()
 		case "n", "N", "esc":
 			s.mode = sessList
 			s.reassign = nil
 			s.flash = ""
-
-			return m, nil
 		}
-
 		return m, nil
 	}
 
 	key := msg.String()
+	if msg.Mod == 0 && (msg.Code == tea.KeyKpPlus || msg.BaseCode == tea.KeyKpPlus || key == "+") {
+		s.markVisible()
+		return m, nil
+	}
+	if msg.Mod == 0 && (msg.Code == tea.KeyKpMinus || msg.BaseCode == tea.KeyKpMinus || key == "-") {
+		for _, entry := range s.entries {
+			delete(s.marked, entry.dir)
+		}
+		return m, nil
+	}
 
 	switch key {
 	case "esc", "ctrl+p":
 		m.closeSessions()
 		return m, nil
 	case "enter":
+		if s.deleteOnly {
+			m.confirmSessionDeletion()
+			return m, nil
+		}
 		return m, m.openSelected()
 	case "up", "down", "pgup", "pgdown":
 		s.flash = ""
@@ -82,6 +88,9 @@ func (m *Model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		s.applyFilter()
 		return m, nil
 	case "ctrl+w":
+		if s.deleteOnly {
+			return m, nil
+		}
 		if m.state != stDone {
 			s.flash = "stop the run first"
 			return m, nil
@@ -102,6 +111,9 @@ func (m *Model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case "ctrl+r":
+		if s.deleteOnly {
+			return m, nil
+		}
 		if len(s.entries) == 0 {
 			return m, nil
 		}
@@ -111,14 +123,17 @@ func (m *Model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		s.rename = newSessionRenameInput()
 
 		return m, s.rename.Focus()
-	case "ctrl+d":
-		if len(s.entries) == 0 {
-			return m, nil
+	case "insert", "kpinsert", "ctrl+space", "ctrl+@":
+		if len(s.entries) > 0 {
+			s.toggleMark(s.entries[s.Cursor].dir)
+			s.Update(tea.KeyPressMsg{Code: tea.KeyDown}, len(s.entries), m.sessVisible())
 		}
-
-		s.flash = ""
-		s.mode = sessConfirm
-
+		return m, nil
+	case "ctrl+a":
+		s.markVisible()
+		return m, nil
+	case "delete", "kpdelete", "ctrl+d":
+		m.confirmSessionDeletion()
 		return m, nil
 	}
 
@@ -163,6 +178,19 @@ func (m *Model) browserMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if isMouseClick(msg) && mouse.Button == tea.MouseLeft && mouse.Y == g.y+g.height-2 {
+		x := mouse.X - g.x - 2
+		if x >= 0 && x < g.width-4 {
+			for _, action := range s.footerActions() {
+				width := lipgloss.Width(action.label)
+				if x >= 0 && x < width {
+					return m.sessionsKey(action.key)
+				}
+				x -= width + lipgloss.Width(screen.Separator())
+			}
+		}
+	}
+
 	if m.sessionsScrollbarMouse(msg) {
 		return m, nil
 	}
@@ -188,6 +216,12 @@ func (m *Model) browserMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 
 		s.Cursor = s.Offset + row
+		if at%4 == 0 {
+			x := mouse.X - g.x - 2
+			if x >= sessionCheckStart && x < sessionCheckEnd {
+				s.toggleMark(s.entries[s.Cursor].dir)
+			}
+		}
 	default:
 		return m, nil
 	}

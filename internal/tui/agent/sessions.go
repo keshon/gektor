@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/components/selection"
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // The session browser owns search, selection, and its rename input.
@@ -18,13 +20,12 @@ const (
 	sessList sessionsMode = iota
 	// sessRename edits the selected title in the browser-owned input.
 	sessRename
-	// sessConfirm is a y/n delete confirmation over the selected row.
-	sessConfirm
 	// sessReassign confirms replacing the saved workspace with the current one.
 	sessReassign
 )
 
 type sessionEntry struct {
+	pinned       bool
 	workspace    string
 	id           string
 	title        string
@@ -51,10 +52,13 @@ type sessionsState struct {
 	selection.Model
 	// offset is the first visible row: the list scrolls under a
 	// stationary viewport instead of clipping past it.
-	drag     scrollDrag
-	mode     sessionsMode
-	flash    string
-	reassign *sessionAssignment
+	drag         scrollDrag
+	mode         sessionsMode
+	flash        string
+	reassign     *sessionAssignment
+	marked       map[string]bool
+	deleteOnly   bool
+	confirmation screen.DialogID
 	// root is the tasks dir scanned at open; mutations re-scan it so
 	// the list always reflects disk, never a stale copy.
 	root string
@@ -70,6 +74,9 @@ type sessionAssignment struct {
 // plus mutation prompts. Each result has a title and an excerpt.
 func (m *Model) sessChrome() int {
 	chrome := 6
+	if m.sessions.mode == sessList {
+		chrome++
+	}
 	if m.sessions.flash != "" {
 		chrome++
 	}
@@ -78,8 +85,6 @@ func (m *Model) sessChrome() int {
 		chrome += 2
 	} else if m.sessions.mode == sessReassign {
 		chrome += 2
-	} else if m.sessions.mode == sessConfirm {
-		chrome++
 	}
 
 	return chrome
@@ -111,11 +116,16 @@ func (m *Model) clampOffset() {
 // tears it down with focus restored. Balanced by construction: every
 // open pairs with esc/enter or run start.
 func (m *Model) openSessions() {
+	m.openSessionPicker(false)
+}
+
+func (m *Model) openSessionPicker(deleteOnly bool) {
 	filter := newSearchInput(max(popup.ModalWidth(m.termW-2, 0)-6, 1))
 	filter.Focus()
 
 	m.sessions = &sessionsState{
 		currentWorkspace: m.wsRoot,
+		deleteOnly:       deleteOnly,
 		entries:          m.savedSessions,
 		all:              m.savedSessions,
 		loading:          m.sessionsLoading,
@@ -183,6 +193,7 @@ func (s *sessionsState) applyFilter() {
 	}
 
 	s.entries = append(titles, history...)
+	sort.SliceStable(s.entries, func(i, j int) bool { return s.entries[i].pinned && !s.entries[j].pinned })
 	s.Cursor, s.Offset = 0, 0
 }
 
@@ -193,6 +204,17 @@ func (s *sessionsState) replaceEntries(entries []sessionEntry) {
 	}
 
 	s.all = entries
+	if len(s.marked) > 0 {
+		present := make(map[string]bool, len(entries))
+		for _, entry := range entries {
+			present[entry.dir] = true
+		}
+		for dir := range s.marked {
+			if !present[dir] {
+				delete(s.marked, dir)
+			}
+		}
+	}
 	s.applyFilter()
 	s.Cursor = min(index, max(len(s.entries)-1, 0))
 

@@ -11,14 +11,14 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.suggestions.Dragging() && m.suggestionMouse(msg) {
 		return m, nil
 	}
-	if m.sessions != nil {
-		return m.browserMouse(msg)
-	}
 	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		if m.actionBarVisible() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
 			return m.toolbarClick(msg.Mouse().X)
 		}
 		return m, m.chrome.DialogMouse(msg)
+	}
+	if m.sessions != nil {
+		return m.browserMouse(msg)
 	}
 	if m.inspectorVisible() && m.chrome.Header.Menu == "" && m.inspector.drag.Active && m.inspectorScrollbarMouse(msg) {
 		return m, nil

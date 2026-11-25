@@ -24,6 +24,9 @@ func (m *Model) footerActions() []screen.Action {
 	if m.chrome.DialogInfo().Kind == screen.FormDialog || m.chrome.DialogInfo().Kind == screen.TableDialog {
 		return m.chrome.DialogActions()
 	}
+	if m.sessions != nil && m.sessions.deleteOnly {
+		return nil
+	}
 
 	if m.state == stPermission && m.chrome.DialogInfo().Kind == screen.NoDialog && m.gstage == gsPermit {
 		actions := []screen.Action{{Key: 'y', Mod: 0, Name: "Y", Label: "Allow once", Short: "Allow", Enabled: true}, {Key: 'n', Mod: 0, Name: "N", Label: "Deny", Short: "Deny", Enabled: true}, {Key: 'a', Mod: 0, Name: "A", Label: "This session", Short: "Session", Enabled: true}}

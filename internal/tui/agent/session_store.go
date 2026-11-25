@@ -2,6 +2,7 @@ package agent
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/keshon/gektor/internal/conversation"
@@ -69,7 +70,8 @@ func sessionDeleteTarget(root, directory string) (string, bool) {
 		return "", false
 	}
 
-	if !strings.EqualFold(filepath.Dir(target), library) {
+	parent := filepath.Dir(target)
+	if parent != library && (runtime.GOOS != "windows" || !strings.EqualFold(parent, library)) {
 		return "", false
 	}
 

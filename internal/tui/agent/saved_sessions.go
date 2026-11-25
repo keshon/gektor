@@ -29,6 +29,7 @@ type savedText struct {
 type savedSummary struct {
 	ID, Dir, Title        string
 	Workspace             string
+	Pinned                bool
 	Msgs                  int
 	Updated               time.Time
 	Status, Mode, Preview string
@@ -136,6 +137,7 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 		if current.Title == "" {
 			current.Title = current.ID
 		}
+		current.Pinned = sessionPinned(dir)
 		cache[dir] = current
 		entries = append(entries, current.savedSummary)
 	}

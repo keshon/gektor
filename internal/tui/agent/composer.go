@@ -68,13 +68,14 @@ func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, bl
 	if palette.Modern && !palette.Outlined {
 		layout.rows = append([]string{blank}, layout.rows...)
 	}
+	var queueLabels []string
+	var queuePreview string
 	if m.state != stAsk {
-		if summary := m.queueSummary(); summary != "" {
-			label, _, _ := strings.Cut(summary, screen.Separator())
-			if palette.Modern {
-				label = summary
-			}
+		queueLabels, queuePreview = m.queueSummary()
+		if len(queueLabels) > 0 && !palette.Modern {
+			label := queueLabels[0]
 			layout.queue = pane.Rect{Y: len(layout.rows), Width: min(lipgloss.Width(label), width), Height: 1}
+			summary := strings.Join(queueLabels, screen.Separator()) + screen.Separator() + "Latest: " + queuePreview
 			layout.rows = append(layout.rows, cellLine(summary, width))
 		}
 		if len(m.draftImages) > 0 || m.clipboardBusy {
@@ -101,6 +102,13 @@ func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, bl
 		return
 	}
 
+	if len(queueLabels) > 0 {
+		layout.rows = append(layout.rows, blank)
+		queueWidth := max(width-1, 0)
+		layout.queue = pane.Rect{X: 1, Y: len(layout.rows), Width: queueWidth, Height: 1}
+		summary := m.modernQueueRow(queueLabels, queuePreview, queueWidth)
+		layout.rows = append(layout.rows, " "+summary)
+	}
 	layout.rows = append(layout.rows, blank)
 	layout.badgeRow = len(layout.rows)
 	layout.rows = append(layout.rows, m.badgeLine(layout.badges))
@@ -112,6 +120,29 @@ func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, bl
 	}
 }
 
+func (m *Model) modernQueueRow(labels []string, preview string, width int) string {
+	const shortcut = "Alt+Q"
+	const gap = 2
+	const separator = " · "
+	shortcutWidth := lipgloss.Width(shortcut)
+	if width < shortcutWidth {
+		return truncate(shortcut, width)
+	}
+	labelWidth := max(width-shortcutWidth-gap, 0)
+	label := truncate(strings.Join(labels, separator), labelWidth)
+	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent)))
+	line := m.shortcutStyles().Key.Render(shortcut)
+	if label != "" {
+		line = accent.Render(label) + strings.Repeat(" ", gap) + line
+	}
+
+	remaining := width - lipgloss.Width(line)
+	if preview != "" && label != "" && remaining > lipgloss.Width(separator) {
+		line += m.styles.Dim.Render(separator + truncate(preview, remaining-lipgloss.Width(separator)))
+	}
+	return line
+}
+
 // Queue receipt can happen between UI events. Refit only when the measured
 // footer changes height; ordinary clock ticks should not rebuild the inspector.
 func (m *Model) syncComposerHeight() {
@@ -121,17 +152,19 @@ func (m *Model) syncComposerHeight() {
 }
 
 func (m *Model) composerStatus() string {
+	if currentPalette().Modern && m.state == stDone && m.transcript.Follow &&
+		m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
+		return ""
+	}
 	if m.state == stRunning && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
 		if m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
 			return m.styles.Dim.Render(m.progress.Detail + screen.Separator() + formatElapsed(time.Since(m.progressStarted)))
 		}
 		return ""
 	}
-	if currentPalette().Modern && m.state == stDone && m.transcript.Follow && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
-		return ""
-	}
 	return m.statusLine()
 }
+
 func (m *Model) composerQueueMouse(msg tea.MouseMsg) bool {
 	mouse := msg.Mouse()
 	if !isMouseClick(msg) || mouse.Button != tea.MouseLeft {

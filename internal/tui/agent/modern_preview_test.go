@@ -225,11 +225,13 @@ func TestModernShowsLatestWhileScrolledUp(t *testing.T) {
 	m.transcript.Follow = false
 	m.transcript.Viewport.GotoTop()
 	m.fitBottom()
-	if !strings.Contains(ansi.Strip(m.testView().Content), "Scrolled up") || m.transcript.Follow {
+	scrolled := ansi.Strip(m.testView().Content)
+	if !strings.Contains(scrolled, "Scrolled up") || !strings.Contains(scrolled, "ENTER send") || m.transcript.Follow {
 		t.Fatal("scrolled conversation lost its indicator or follows automatically")
 	}
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
-	if !m.transcript.Follow || !m.transcript.Viewport.AtBottom() || m.composerStatus() != "" {
+	latest := ansi.Strip(m.testView().Content)
+	if !m.transcript.Follow || !m.transcript.Viewport.AtBottom() || strings.Contains(latest, "Scrolled up") || strings.Contains(latest, "ENTER send") || strings.Contains(latest, "CTRL+O newline") {
 		t.Fatal("Latest did not return to the reply and clear the indicator")
 	}
 }

@@ -79,7 +79,7 @@ func TestPackedToolsExpandInlineAndStillOpenInspector(t *testing.T) {
 	}
 }
 
-func TestFoldedPasteQueuesOriginalTextAndModernHidesRoutineHints(t *testing.T) {
+func TestFoldedPasteQueuesOriginalTextAndModernShowsQueueHint(t *testing.T) {
 	defer screen.SetModern(false)
 	m := queuedModel(t)
 	m.applyAppearance(config.Appearance{Style: "modern", Frame: "minimal"})
@@ -87,8 +87,8 @@ func TestFoldedPasteQueuesOriginalTextAndModernHidesRoutineHints(t *testing.T) {
 	m.input.SetValue("")
 	text := "Start\n" + strings.Repeat("Original pasted text\n", 42) + "End"
 	m.testUpdate(tea.PasteMsg{Content: text})
-	if !m.input.Folded() || m.composerStatus() != "" {
-		t.Fatal("paste did not fold or Modern still has routine hints")
+	if !m.input.Folded() || !strings.Contains(ansi.Strip(m.testView().Content), "Alt+Q") || m.composerStatus() != "" {
+		t.Fatal("folded paste should show the queue shortcut without the running hints")
 	}
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	pending := m.sess.PendingInputs()

@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"path/filepath"
+
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
@@ -27,8 +29,13 @@ func (m *Model) menuItems(menu string) []screen.MenuItem {
 		return rows
 	case "session":
 		saved := idle && m.stateFile != ""
+		favorite := "Add to favorites"
+		if m.stateFile != "" && sessionPinned(filepath.Dir(m.stateFile)) {
+			favorite = "Remove from favorites"
+		}
 		return append([]screen.MenuItem{{Text: "New session", Command: "/new", Enabled: idle}, {Text: "Open session…", Command: "/sessions", Enabled: true},
-			{Text: "Rename session…", Command: "rename-current", Enabled: saved}, {Text: "Delete session…", Command: "delete-current", Enabled: saved}, sep,
+			{Text: "Rename session…", Command: "rename-current", Enabled: saved}, {Text: "Delete sessions…", Command: "delete-sessions", Enabled: idle},
+			{Text: favorite, Command: "favorite-current", Enabled: m.stateFile != ""}, sep,
 			{Text: "Compact history…", Command: "compact-session", Enabled: saved}, sep}, m.sessionCopyItems()...)
 	case "execution":
 		return []screen.MenuItem{

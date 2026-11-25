@@ -43,8 +43,7 @@ type inputQueueEdit struct {
 	form      pendingForm
 }
 
-func (m *Model) queueSummary() string {
-	var labels []string
+func (m *Model) queueSummary() (labels []string, preview string) {
 	var latest llm.Message
 	if m.sess != nil {
 		msg, count, received := m.sess.InputPreview()
@@ -62,16 +61,13 @@ func (m *Model) queueSummary() string {
 		latest = llm.Message{Content: m.queued, Images: m.queuedImages}
 	}
 	if len(labels) == 0 {
-		return ""
+		return nil, ""
 	}
-	preview := strings.Join(strings.Fields(cleanText(latest.Content)), " ")
+	preview = strings.Join(strings.Fields(cleanText(latest.Content)), " ")
 	if preview == "" && len(latest.Images) > 0 {
 		preview = fmt.Sprintf("%d images", len(latest.Images))
 	}
-	if currentPalette().Modern {
-		return strings.Join(labels, " ▪ ") + " ▪ " + preview
-	}
-	return strings.Join(labels, screen.Separator()) + screen.Separator() + "Latest: " + preview
+	return labels, preview
 }
 
 func (m *Model) openInputQueue() {

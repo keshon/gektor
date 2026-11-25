@@ -21,6 +21,22 @@ Use `Ctrl+R` in the session list to rename it, or `Ctrl+D` to open the deletion
 prompt. Press Enter to save a rename or `Y` to confirm deletion. Modern also
 shows clickable **Save**, **Delete** and **Cancel** buttons in these prompts.
 
+Choose **Session > Add to favorites** or **Remove from favorites** for the
+current conversation. Favorites persist across launches and appear first
+among the results that match your search and workspace filter.
+
+Choose **Session > Delete sessions…** to select saved sessions for deletion.
+Press `Insert` to toggle the current mark and move down one row, or click
+the checkboxes to mark rows directly. `+` marks every matching session
+and `-` clears those marks, including rows below the visible list. These
+shortcuts work in both session pickers. Marks outside the current filter stay
+selected. Paste a plus or minus sign to include it in a search.
+
+Press `Delete` or click **Delete** to replace the picker with a confirmation.
+It shows the session name for one session or the count for a batch. With no
+marks, it uses the current row. Choose **Delete** to proceed, or press
+`Esc` to return to your marks. **Cancel** has initial focus.
+
 Choose **New session** in the Session menu, or press `Ctrl+N`, for a fresh conversation.
 Unsent drafts are kept while the app is open, but are not saved across exit.
 

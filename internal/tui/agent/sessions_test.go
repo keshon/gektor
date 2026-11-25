@@ -207,6 +207,16 @@ func TestSessions_EmptyRenameClearsTitle(t *testing.T) {
 	}
 }
 
+func confirmSessionDelete(t *testing.T, m *Model) {
+	t.Helper()
+	snapshot, ok := m.chrome.FormSnapshot(m.chrome.DialogID())
+	if !ok || !snapshot.Destructive || snapshot.Index != len(snapshot.Fields)+1 {
+		t.Fatal("delete confirmation must open with Cancel focused")
+	}
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
+}
+
 func TestSessions_DeleteRemovesDir(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
@@ -220,11 +230,7 @@ func TestSessions_DeleteRemovesDir(t *testing.T) {
 	victim := mm.sessions.entries[mm.sessions.Cursor]
 	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	mm = updated.(*Model)
-	if mm.sessions.mode != sessConfirm {
-		t.Fatalf("mode = %v, want sessConfirm", mm.sessions.mode)
-	}
-	updated, _ = mm.testUpdate(keyRunes('y'))
-	mm = updated.(*Model)
+	confirmSessionDelete(t, mm)
 	if _, err := os.Lstat(victim.dir); !os.IsNotExist(err) {
 		t.Fatalf("session dir still present after delete")
 	}
@@ -247,8 +253,7 @@ func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	mm := updated.(*Model)
-	updated, _ = mm.testUpdate(keyRunes('y'))
-	mm = updated.(*Model)
+	confirmSessionDelete(t, mm)
 	if _, err := os.Lstat(dir); !os.IsNotExist(err) {
 		t.Fatalf("session dir still present after delete")
 	}
@@ -270,8 +275,7 @@ func TestSessions_DeleteActiveRefusesWhileRunning(t *testing.T) {
 
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	mm := updated.(*Model)
-	updated, _ = mm.testUpdate(keyRunes('y'))
-	mm = updated.(*Model)
+	confirmSessionDelete(t, mm)
 	if _, err := os.Lstat(dir); err != nil {
 		t.Fatalf("session deleted mid-run: %v", err)
 	}

@@ -36,7 +36,7 @@ func (m *Model) screenContent(composer composerLayout) string {
 	content := "\n" + strings.Join(rows, "\n")
 
 	content = cellFrame(content, max(m.termW, 0), max(m.termH, 0))
-	if m.sessions != nil {
+	if m.sessions != nil && m.sessions.confirmation == (screen.DialogID{}) {
 		content = m.overlaySearch(content)
 	}
 	content = m.composeInspector(content)

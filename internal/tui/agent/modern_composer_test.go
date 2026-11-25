@@ -34,21 +34,44 @@ func TestModernQueueRowTracksComposerPadding(t *testing.T) {
 				badgeY = y
 			}
 		}
-		if queueY < 0 || strings.Contains(rows[queueY], "Latest:") {
+		if queueY < 0 || strings.Contains(rows[queueY], "Latest:") || !strings.Contains(rows[queueY], "Queued 3  Alt+Q") {
 			t.Fatal("queue summary is absent or uses the old layout", width)
 		}
 		caret := view.Cursor
-		if caret == nil || caret.X < m.promptOffset() || caret.Y != draftY || draftY <= queueY {
+		if caret == nil || caret.X < m.promptOffset() || caret.Y != draftY || queueY != draftY+2 {
 			t.Fatal("queue and input caret disagree", width, caret, queueY, draftY)
 		}
-		if badgeY <= draftY || m.chrome.Props.BadgeRow != badgeY {
+		if badgeY <= queueY || m.chrome.Props.BadgeRow != badgeY {
 			t.Fatal("status menu anchor does not match the rendered badges", width, badgeY)
 		}
-		x := m.promptOffset() + 12
+		queue := m.composerLayout().queue
+		if strings.TrimSpace(rows[draftY+1]) != "" || queue.X != m.promptOffset()+1 ||
+			strings.Index(rows[queueY], "Queued 3") != queue.X {
+			t.Fatal("queue spacing does not match its hit target", width)
+		}
+		m.testUpdate(tea.MouseClickMsg{X: queue.X - 1, Y: queueY, Button: tea.MouseLeft})
+		m.testUpdate(tea.MouseClickMsg{X: queue.X, Y: queueY - 1, Button: tea.MouseLeft})
+		if testTableOpen(m) {
+			t.Fatal("queue opened from the padding", width)
+		}
+		x := queue.X + queue.Width - 1
 		m.testUpdate(tea.MouseClickMsg{X: x, Y: queueY, Button: tea.MouseLeft})
 		if !testTableOpen(m) || len(m.sess.PendingInputs()) != len(before) || m.input.Value() != "unfinished draft" || len(m.draftImages) != 1 {
 			t.Fatal("queue row missed its target or changed the draft", width)
 		}
+	}
+}
+
+func TestModernQueueKeepsShortcutWhenPreviewIsClipped(t *testing.T) {
+	m := testModel()
+	label := []string{"Queued 1"}
+	row := ansi.Strip(m.modernQueueRow(label, "A longer queued message", 20))
+	if row != "Queued 1  Alt+Q · A…" {
+		t.Fatalf("unexpected compact queue row: %q", row)
+	}
+	row = ansi.Strip(m.modernQueueRow(label, "A longer queued message", 15))
+	if row != "Queued 1  Alt+Q" {
+		t.Fatalf("queue label and shortcut should outlast the preview: %q", row)
 	}
 }
 

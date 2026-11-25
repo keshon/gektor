@@ -76,6 +76,14 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 	case "rename-current":
 		m.renameActive()
 		return m, nil
+	case "favorite-current":
+		m.toggleActiveFavorite()
+		return m, nil
+	case "delete-sessions":
+		if m.state == stDone {
+			m.openSessionPicker(true)
+		}
+		return m, nil
 	case "delete-current":
 		m.deleteActive()
 		return m, nil

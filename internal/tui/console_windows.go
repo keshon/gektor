@@ -130,7 +130,9 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 		ctrl := e.ControlKeyState&(xwindows.LEFT_CTRL_PRESSED|xwindows.RIGHT_CTRL_PRESSED) != 0
 		attachmentKey := alt && ((ctrl && e.VirtualKeyCode == 'V' && e.Char == 22) ||
 			(!ctrl && e.VirtualKeyCode >= '1' && e.VirtualKeyCode <= '8' && uint16(e.Char) == e.VirtualKeyCode))
-		if e.Char != 0 && !modifiedEditingKey && !attachmentKey {
+		keypadSign := (e.VirtualKeyCode == xwindows.VK_ADD && e.Char == '+') ||
+			(e.VirtualKeyCode == xwindows.VK_SUBTRACT && e.Char == '-')
+		if e.Char != 0 && !modifiedEditingKey && !attachmentKey && !keypadSign {
 			// ConEmu can assign ordinary virtual keys to every byte of a VT
 			// packet without retaining sequence markers. Decode the character
 			// stream itself instead of wrapping it in Win32 input packets.

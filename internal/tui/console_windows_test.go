@@ -366,3 +366,29 @@ func TestNativeConsoleAttachmentShortcuts(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeConsoleDecodesInsert(t *testing.T) {
+	reader := &consoleReader{}
+	reader.encode(nativeKeyRecord(xwindows.VK_INSERT, 0, 0))
+	events := decodeConsoleEvents(t, reader.buffer.String())
+	if len(events) != 1 {
+		t.Fatalf("Insert produced %d events", len(events))
+	}
+	key, ok := events[0].(uv.KeyPressEvent)
+	if !ok || key.Code != uv.KeyInsert {
+		t.Fatalf("Insert produced %#v", events[0])
+	}
+}
+
+func TestNativeConsolePreservesKeypadPlus(t *testing.T) {
+	reader := &consoleReader{}
+	reader.encode(nativeKeyRecord(xwindows.VK_ADD, '+', 0))
+	events := decodeConsoleEvents(t, reader.buffer.String())
+	if len(events) != 1 {
+		t.Fatalf("keypad plus produced %d events", len(events))
+	}
+	key, ok := events[0].(uv.KeyPressEvent)
+	if !ok || key.BaseCode != uv.KeyKpPlus || key.Text != "+" {
+		t.Fatalf("keypad plus produced %#v", events[0])
+	}
+}

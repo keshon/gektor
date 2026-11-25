@@ -81,6 +81,9 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		}
 
 	case screen.Closed, screen.Replaced, screen.Suspended:
+		if m.sessions != nil && m.sessions.confirmation == dialog {
+			m.sessions.confirmation = screen.DialogID{}
+		}
 		if m.evaluation != nil && m.evaluation.dialog == event.ID {
 			m.cancelEvaluation()
 		}

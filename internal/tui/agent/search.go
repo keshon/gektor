@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -26,6 +27,14 @@ type sessionText struct {
 	message int
 	lower   string
 }
+
+const (
+	sessionCheckStart  = 2
+	sessionCheckEnd    = 5
+	sessionTitleStart  = 6
+	sessionDeleteLabel = "Delete [Del]"
+)
+
 type searchGeometry struct{ x, y, width, height, noteRow int }
 
 // Search geometry owns render, caret and hit testing in terminal cells.
@@ -70,6 +79,9 @@ func (m *Model) searchView() string {
 		}
 		title = "Sessions" + screen.Separator() + scope + screen.Separator() + "^F"
 	}
+	if s.deleteOnly {
+		title = "Delete sessions" + screen.Separator() + scope
+	}
 	header := popup.Header(title, inner, m.styles.Title)
 	rows := []string{line(styles.Normal, header[0]), line(styles.Normal, s.filter.View()), rule}
 	bodyStart := len(rows)
@@ -93,7 +105,15 @@ func (m *Model) searchView() string {
 		if i == s.Cursor {
 			mark, style = "› ", styles.Selected
 		}
-		entry := mark + highlightSearch(cellLine(e.title, max(contentWidth-2, 1)), re, style)
+		check := "[ ]"
+		if s.marked[e.dir] {
+			check = "[x]"
+		}
+		title := e.title
+		if e.pinned {
+			title = "Favorite · " + title
+		}
+		entry := mark + check + " " + highlightSearch(cellLine(title, max(contentWidth-sessionTitleStart, 1)), re, style)
 		rows = append(rows, line(style, entry))
 		metadata := "Date unavailable"
 		if !e.updated.IsZero() {
@@ -144,16 +164,7 @@ func (m *Model) searchView() string {
 			destination = ansi.TruncateLeft(destination, extra+1, "…")
 		}
 		rows = append(rows, line(styles.Normal, "Assign saved workspace to:"), line(styles.Normal, destination))
-	case sessConfirm:
-		title := "session"
-		if len(s.entries) > 0 {
-			title = s.entries[s.Cursor].title
-		}
-		label := "Delete " + title + "?"
-		if !currentPalette().Modern {
-			label += " Y delete" + screen.Separator() + "N cancel"
-		}
-		rows = append(rows, line(styles.Normal, label))
+
 	}
 	hintWidth, count := inner, ""
 	if len(s.entries) > 0 {
@@ -168,13 +179,14 @@ func (m *Model) searchView() string {
 	} else {
 		shortcuts = append(shortcuts, popup.Shortcut{Key: "^F", Action: "scope"}, popup.Shortcut{Key: "^W", Action: "assign"})
 	}
+	if s.deleteOnly {
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "↑↓", Action: "move"}, {Key: "Keypad +", Action: "mark all"}}
+	}
 	switch s.mode {
 	case sessRename:
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Enter", Action: "save"}}
 	case sessReassign:
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Y", Action: "assign"}, {Key: "N", Action: "cancel"}}
-	case sessConfirm:
-		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Y", Action: "delete"}, {Key: "N", Action: "cancel"}}
 	}
 	hint := popup.Shortcuts(hintWidth, m.shortcutStyles(), shortcuts...) + m.styles.Dim.Render(count)
 	if actions, _ := m.sessionButtons(g); actions != "" {
@@ -183,7 +195,32 @@ func (m *Model) searchView() string {
 	for _, row := range popup.Footer(inner, hint, m.styles.Dim) {
 		rows = append(rows, line(styles.Normal, row))
 	}
+	if s.mode == sessList {
+		labels := []string{}
+		for _, action := range s.footerActions() {
+			labels = append(labels, action.label)
+		}
+		rows = append(rows, line(styles.Normal, strings.Join(labels, screen.Separator())))
+	}
 	return strings.Join(popup.Frame(rows, g.width, styles), "\n")
+}
+
+type sessionFooterAction struct {
+	label string
+	key   tea.KeyPressMsg
+}
+
+func (s *sessionsState) footerActions() []sessionFooterAction {
+	mark := "Mark [Ins]"
+	if len(s.marked) > 0 {
+		mark = fmt.Sprintf("%d marked [Ins]", len(s.marked))
+	}
+	return []sessionFooterAction{
+		{label: sessionDeleteLabel, key: tea.KeyPressMsg{Code: tea.KeyDelete}},
+		{label: mark, key: tea.KeyPressMsg{Code: tea.KeyInsert}},
+		{label: "All [+]", key: tea.KeyPressMsg{Code: tea.KeyKpPlus}},
+		{label: "Clear [-]", key: tea.KeyPressMsg{Code: tea.KeyKpMinus}},
+	}
 }
 
 // sessionButtons uses the form action row for the browser's mutation prompts.
@@ -197,14 +234,12 @@ func (m *Model) sessionButtons(g searchGeometry) (string, []form.Hit) {
 		primary = "Save"
 	case sessReassign:
 		primary = "Assign"
-	case sessConfirm:
-		primary = "Delete"
 	default:
 		return "", nil
 	}
 	buttons := form.Model{Index: -1}
 	return buttons.Actions(max(g.width-4, 1), g.height-2, primary, true,
-		m.sessions.mode == sessConfirm, m.chrome.FormButtonStyles())
+		false, m.chrome.FormButtonStyles())
 }
 
 // searchRegex builds the matcher once per frame. Compiling it per visible

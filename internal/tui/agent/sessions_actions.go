@@ -1,8 +1,11 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
 // reassignSelected is reached only after an explicit confirmation.
@@ -81,54 +84,152 @@ func (m *Model) commitRename() {
 	}
 }
 
-// deleteSelected removes the session dir — title goes with it, so no
-// orphan rows — then re-scans. Deleting the active session unloads it
-// first (the empty state, then the dir is just files). Only at rest:
-// unloading mid-run would orphan the in-flight turn.
-func (m *Model) deleteSelected() {
+const sessionPinFile = "pinned"
+
+func sessionPinned(dir string) bool {
+	info, err := os.Lstat(filepath.Join(dir, sessionPinFile))
+	return err == nil && info.Mode().IsRegular()
+}
+
+func (m *Model) toggleActiveFavorite() {
+	if m.stateFile == "" {
+		return
+	}
+	dir := filepath.Dir(m.stateFile)
+	target, err := browserSessionDirectory(m.sessionRoot(), dir)
+	if err == nil {
+		err = toggleSessionFavorite(target)
+	}
+	if err != nil {
+		m.chrome.Open("Session favorite", []string{err.Error()})
+		return
+	}
+	m.refreshSessions()
+}
+
+func toggleSessionFavorite(dir string) error {
+	marker := filepath.Join(dir, sessionPinFile)
+	if sessionPinned(dir) {
+		return os.Remove(marker)
+	}
+	file, err := os.OpenFile(marker, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	return file.Close()
+}
+
+func (s *sessionsState) toggleMark(dir string) {
+	if s.marked[dir] {
+		delete(s.marked, dir)
+		return
+	}
+	if s.marked == nil {
+		s.marked = map[string]bool{}
+	}
+	s.marked[dir] = true
+}
+
+func (s *sessionsState) markVisible() {
+	if s.marked == nil {
+		s.marked = make(map[string]bool, len(s.entries))
+	}
+	for _, entry := range s.entries {
+		s.marked[entry.dir] = true
+	}
+}
+
+func (m *Model) confirmSessionDeletion() {
 	s := m.sessions
-	if len(s.entries) == 0 {
-		s.mode = sessList
+	var targets []sessionEntry
+	for _, entry := range s.all {
+		if s.marked[entry.dir] {
+			targets = append(targets, entry)
+		}
+	}
+	if len(targets) == 0 && len(s.entries) > 0 {
+		targets = []sessionEntry{s.entries[s.Cursor]}
+	}
+	if len(targets) == 0 {
 		return
 	}
 
-	cur := s.entries[s.Cursor]
-	if m.stateFile != "" && sameSession(cur.dir, m.stateFile) {
-		if m.state != stDone {
-			s.mode = sessList
-			s.flash = "stop the run first"
+	title := fmt.Sprintf("Delete %d sessions?", len(targets))
+	hint := "This permanently deletes the selected saved sessions."
+	if len(targets) == 1 {
+		title = "Delete session?"
+		hint = fmt.Sprintf("Permanently delete %q?", cleanText(targets[0].title))
+	}
+	m.openForm(screen.Form{
+		Title:         title,
+		Hint:          hint,
+		ApplyLabel:    "Delete",
+		Destructive:   true,
+		StartOnCancel: true,
+	}, func(_ map[string]string) error {
+		if m.sessions == s {
+			m.deleteSelected(targets)
+		}
+		return nil
+	})
+	s.confirmation = m.chrome.DialogID()
+}
+
+func browserSessionDirectory(root, dir string) (string, error) {
+	target, valid := sessionDeleteTarget(root, dir)
+	if !valid {
+		return "", fmt.Errorf("session is outside the session directory")
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("session path is not a directory")
+	}
+	return target, nil
+}
+
+func (m *Model) deleteSelected(targets []sessionEntry) {
+	s := m.sessions
+	s.flash = ""
+
+	paths := make([]string, 0, len(targets))
+	for _, entry := range targets {
+		if sameSession(entry.dir, m.stateFile) && m.state != stDone {
+			s.flash = "Stop the run before deleting its session."
 			return
 		}
-
-		m.newTask()
+		path, err := browserSessionDirectory(s.root, entry.dir)
+		if err != nil {
+			s.flash = "Cannot delete " + entry.id + ": " + err.Error()
+			return
+		}
+		paths = append(paths, path)
 	}
 
-	target, valid := sessionDeleteTarget(s.root, cur.dir)
-	if !valid {
-		s.mode, s.flash = sessList, "refusing to delete outside the session directory"
-		return
+	deleted := 0
+	for i, entry := range targets {
+		if sameSession(entry.dir, m.stateFile) {
+			m.newTask()
+		}
+		err := os.RemoveAll(paths[i])
+		if err != nil {
+			s.flash = fmt.Sprintf("Deleted %d of %d. Cannot delete %s: %v", deleted, len(targets), entry.id, err)
+			break
+		}
+		deleted++
+		delete(s.marked, entry.dir)
+		delete(m.drafts, filepath.Join(entry.dir, "state.json"))
+		m.savedSessions = withoutSession(m.savedSessions, entry.dir)
+		s.all = withoutSession(s.all, entry.dir)
+		s.entries = withoutSession(s.entries, entry.dir)
 	}
-
-	err := os.RemoveAll(target)
-	if err != nil {
-		s.mode = sessList
-		s.flash = "delete failed: " + err.Error()
-		return
+	if deleted == len(targets) && deleted > 1 {
+		s.flash = fmt.Sprintf("Deleted %d sessions", deleted)
 	}
-
-	delete(m.drafts, filepath.Join(cur.dir, "state.json"))
-	m.savedSessions = withoutSession(m.savedSessions, cur.dir)
-	s.all = withoutSession(s.all, cur.dir)
-	s.entries = withoutSession(s.entries, cur.dir)
-	m.refreshSessions()
-
-	if s.Cursor >= len(s.entries) && s.Cursor > 0 {
-		s.Cursor--
-	}
-
 	m.clampOffset()
-	s.mode = sessList
-	s.flash = ""
+	m.refreshSessions()
 }
 
 func withoutSession(entries []sessionEntry, dir string) []sessionEntry {
