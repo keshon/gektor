@@ -38,10 +38,29 @@ or press `A` to begin. New and Open ask before discarding unsaved edits.
 Save asks for confirmation before replacing another file or a recipe
 that has changed on disk.
 
+## Create a two-node recipe
+
+1. Choose **New recipe…** and enter an unused workspace path such as
+   `increment-twice.json`. Choose **Add first node** on the canvas.
+2. Select `script_transform`. Set the node ID to `first`, enter
+   `return input + 1;` as its code, and enter `2` as its input. Choose **Add node**.
+3. Press `A` and add another `script_transform`. Give it the ID `second`
+   and the same code. Leave its input blank for the connection.
+4. Select `first` and press `C`. Choose **second / Argument: input**.
+   In the mapping form, choose **Whole output** if offered, or leave the
+   manual pointer blank. Apply the mapping.
+5. Press `V` to validate, `Ctrl+S` to save, and `R` to run. Answer permission
+   prompts if shown. In the run view, select `second` and open **Result** to see
+   the value `4`.
+
+The two transforms use local JSON values and require no model connection.
+Press `D` to return to the editable recipe.
+
 ## Read the nodes and connections
 
 Each card shows its name, operation, input and output ports, and status.
-The selected card has a double border.
+Commander marks the selected card with a double border. Modern uses an accent
+color on its single-line border.
 
 - Inputs are on the left. They receive values.
 - Outputs are on the right. They pass results to other steps.
@@ -79,9 +98,8 @@ Select a node and press `Ctrl+T`. The inspector has three tabs:
 Click a tab or press `1`, `2` or `3`.
 `Tab` moves focus between canvas and inspector.
 In the focused inspector, left/right changes tabs and up/down scrolls.
-Tabs stay above the scrolling content. The active tab has brackets;
-its color shows whether the inspector has focus. Help uses the same tabs,
-with mouse clicks or Tab and left/right to choose a category.
+Tabs stay above the scrolling content. Commander brackets the active tab.
+Modern fills it. The focus color identifies the pane receiving keyboard input.
 
 Properties uses the same port names as the cards.
 Result needs a selected run; a draft alone has no recorded result.
@@ -140,7 +158,9 @@ Save and validate after reviewing it.
 ## Validate and run
 
 1. Press `V`, or choose **Validate recipe…** in Run, to check the recipe.
-   Supply input values if asked. Fix any reported errors.
+   Supply input values if asked. When the diagnostics identify a node, the
+   editor selects it and opens Properties. Close the error dialog and press
+   `Enter` to edit the selected node.
 2. Press `R`, or choose **Run recipe…** in Run, to execute it.
 3. If it declares inputs, the form starts with recipe defaults or the
    values from the last successful validation of this draft. You can edit
@@ -270,4 +290,4 @@ replace the saved note. To update it, use its current revision in
 
 ## TUI editor
 
-The [workflow workspace](workflows.md#recipes-and-runs) opens from `/workflows` or GEKTOR, Workflows. It edits the same version 4 recipes used by the CLI and uses the same execution, permission and review services. Canvas layout is user-local metadata, not part of the executable recipe.
+The [workflow workspace](#recipes-and-runs) opens from `/workflows` or GEKTOR, Workflows. It edits the same version 4 recipes used by the CLI and uses the same execution, permission and review services. Canvas layout is user-local metadata, not part of the executable recipe.

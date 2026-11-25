@@ -17,7 +17,9 @@ The list searches session titles and saved message history across workspaces.
 Use `Ctrl+F` to toggle the current-workspace filter; each result shows its assigned
 workspace. Opening a session restores that workspace, not the current directory.
 
-Use `Ctrl+R` in the session list to rename it, or `Ctrl+D` to confirm deletion.
+Use `Ctrl+R` in the session list to rename it, or `Ctrl+D` to open the deletion
+prompt. Press Enter to save a rename or `Y` to confirm deletion. Modern also
+shows clickable **Save**, **Delete** and **Cancel** buttons in these prompts.
 
 Choose **New session** in the Session menu, or press `Ctrl+N`, for a fresh conversation.
 Unsent drafts are kept while the app is open, but are not saved across exit.
@@ -26,8 +28,9 @@ Unsent drafts are kept while the app is open, but are not saved across exit.
 
 If the saved directory is missing, or an older session has no workspace assigned,
 opening stops with an explanation. Choose the intended workspace with **GEKTOR > Change workspace…**,
-then press `Ctrl+W` on the session and confirm with `Y` to reassign it (`N` or
-`Esc` cancels). Reassignment changes metadata, not project files.
+then press `Ctrl+W` on the session and confirm with `Y` or Modern's **Assign**
+button. Press `N` or `Esc` to cancel. Reassignment updates the session's
+workspace metadata and leaves project files where they are.
 
 An explicit workspace switch also updates the active saved session
 once the replacement services have been initialized, without needing another

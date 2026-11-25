@@ -1,7 +1,8 @@
 # TUI mockups
 
-The [modernization experiment](modernization.md) describes the current branch
-prototype, its preview export and what to review before merging.
+Use the mockups to review layout and interaction states. For application
+controls, see the [terminal reference](../../reference/terminal.md) and the
+[workflow walkthrough](../../guide/workflows.md#create-a-two-node-recipe).
 
 Open [gektor-ui.figcraft](gektor-ui.figcraft) in FigCraft. This is the editable
 project; text, shapes, components, variables and prototype links are native
@@ -23,7 +24,7 @@ plan. Update it when a reviewed mockup changes an interaction rule.
 | 03 Main layouts | Agent and Workflows with aligned inspectors; applied-settings state |
 | 04 Narrow and interaction | 40 by 20 layouts and a preserved-draft example |
 | 05 Themes | The same controls under the six theme modes |
-| 06 Composer review | Queue, received-message and draft states; wide/narrow layouts and a before/after comparison |
+| 06 Composer review | Queue, received-message and draft states; wide and narrow layouts |
 
 The component sheet includes buttons, text inputs, validation, read-only values,
 checkboxes, radio choices, list rows, tabs, status, shortcuts, progress and a
@@ -59,8 +60,8 @@ Solarized are adaptations of the terminal-theme references. All six are availabl
 in Settings and through `/theme <name>`. Keep focus, selection,
 warning, error and success meanings stable across modes.
 
-Inspector and canvas footers use one text row without blank padding. Their outer
-panes stay aligned. The Agent composer has its own height for editable input.
+The mockups show a one-row inspector footer. Current footer and composer
+geometry is defined in the [interaction contracts](../../development/tui.md#panel-and-split-pane).
 
 ## MCP layout
 
@@ -86,15 +87,11 @@ Ctrl+W assigns the current workspace only after a Y/N confirmation; select a
 different current workspace under GEKTOR, Change workspace first when relocating a conversation.
 These boards show the list state, not an interactive filesystem picker.
 
-`update-session-workspaces.py` generates the corresponding command JSON. The
-commands record this migration against the pre-workspace library's node IDs;
-they are not a complete project generator and should not be reapplied to the
-updated file (the workspace labels already exist).
-
 ## Composer and message queue
 
 Page **06 Composer review** records the busy Agent composer and message queue.
-The application uses these layouts with the shared toolbar, table and form components.
+For current behavior in both styles, see the [Agent guide](../../guide/agent.md#stop-retry-and-continue).
+This page describes the mockup's states.
 
 The summary counts all queued messages and previews only the latest. Click the
 count or use ALT+Q, Queue, to open the complete list. At 40 columns the bar
@@ -138,7 +135,7 @@ python docs/design/tui/update-composer.py --output tmp/composer-review.figcraft
 Use `--cli PATH` if the FigCraft CLI is not installed at the detected location.
 Export changed frames with the same `--no-system-fonts` setting.
 
-![Busy composer before and updated layout](composer-review-light.webp)
+![Busy composer layout studies](composer-review-light.webp)
 
 ![Queue with three individually managed messages](message-queue-light.webp)
 

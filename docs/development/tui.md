@@ -6,18 +6,16 @@ Use this reference when changing terminal components or shared interactions. For
 
 This is the design reference for GEKTOR's terminal UI.
 It covers Agent and Workflows, including their menus, dialogs and inspectors.
-The component boundaries below describe the implementation. Verification lists
-the checks needed before accepting a screen; it does not claim every screen
-has passed them.
+Use the verification checklist when changing a layout or interaction.
 
 For current shortcuts and everyday use, see the [terminal guide](../reference/terminal.md).
 For the application's state and service boundaries, see
 [architecture](../../ARCHITECTURE.md#ui-and-settings). This document owns shared UI
-appearance, interaction and layout decisions. It is not a record of past changes.
+appearance, interaction and layout decisions.
 
-The editable [FigCraft project and mockups](../design/tui/README.md) show proposed
-controls, screen layouts, interaction states and palette studies. Review them
-before migrating a screen. Static mockups do not verify terminal input behavior.
+The editable [FigCraft project and mockups](../design/tui/README.md) illustrate
+controls, layouts, interaction states and palettes. Verify input behavior
+against the running TUI.
 
 ## Scope and ownership
 
@@ -43,9 +41,12 @@ decides whether that saves settings, opens a session or starts a connection.
 
 `internal/tui` owns the application model and terminal runtime. It selects the
 active screen, routes input and results, constructs both screens, and coordinates
-quit protection across active runs and retained Workflow drafts.
+quit protection across active runs and retained Workflow drafts. The shell
+publishes one appearance snapshot through
+[`screen.SetAppearance`](../../pkg/tui/screen/styles.go). Agent, Workflows and
+shared controls read the same color theme, UI style, border setting and caret.
 `internal/tui/agent` owns its conversation, transcript, composer, inspector,
-sessions, preferences, and Agent execution. Start at
+sessions, history display options and Agent execution. Start at
 [agent.go](../../internal/tui/agent/agent.go) for the package contract, launch
 configuration, model state, constructor, and lifecycle. Agent emits navigation and quit
 intents to the parent; it does not import Workflow.
@@ -272,8 +273,12 @@ when present, and the latest message preview. The count and ALT+Q open the queue
 Commander keeps Stop and Queue visible at 40 columns during a run, even when
 the queue is empty. Run > Message queue provides the same entry point. Help, Send
 and Newline remain available by keyboard. Modern inputs show no routine shortcut
-row, including during a run; F1, menus and the action search provide discovery. Commander retains its
-bottom action strip and original transcript treatment.
+row, including during a run. F1, menus and action search expose those commands.
+Modern shows a local Latest hint when idle and scrolled away from the bottom.
+
+[`composerLayout`](../../internal/tui/agent/composer.go) measures the Agent
+footer rows and their positions. Rendering, the draft and approval-note carets,
+the Modern badge menu anchor and queue clicks use those measurements.
 
 The queue uses the table component's list layout: main text, a detail row and
 space between messages. Its actions wrap to a second footer row when needed.
@@ -383,7 +388,7 @@ tables, so management remains usable at 40 by 20 cells.
 | Inspector | Shared panel shell and tabs; human summary first, full/raw data available separately |
 | Document viewer | Wrapped text, scrolling, optional copy action and a fixed Close footer |
 | Confirmation | Clear effect and target, explicit action and safe default focus |
-| Permission/question gate | Readable request, bounded choices and existing permission semantics |
+| Permission/question gate | Visible choices share paint and click geometry. When the framed gate cannot fit, the prompt uses a scrollable viewport with keyboard answers. |
 | Completion list | Anchored to the composer; selecting a suggestion inserts or runs according to its declared action |
 | Notice | Information, warning or error with an appropriate dismissal policy; important failures remain inspectable |
 | Transcript block | Shared spacing, speaker/status roles, markdown and thinking presentation |
@@ -534,7 +539,7 @@ structs, functions and explicit message handling. Keep related primitives in
 the same package. Introduce another package only when its responsibility is
 clear and it has a real consumer.
 
-| Existing home | Migration responsibility |
+| Component | Responsibility |
 |---|---|
 | [cell](../../pkg/tui/components/cell/cell.go) | Terminal-cell measurement, fitting and clipping |
 | [popup](../../pkg/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer, shortcut groups, attached menus and overlay geometry |
@@ -573,31 +578,7 @@ Keep repeated rendering work bounded by the visible area. Cache only with keys
 that include every presentation input that can change the result. A node far
 outside the viewport must not make dragging or repainting progressively slower.
 
-## Implementation status (2026-11-09 snapshot)
-
-The shared components listed above are implemented. They provide modal frames,
-forms, lists and tables, panel layouts, shortcuts and graph presentation.
-Settings, session search, MCP management and Permissions use these components.
-
-Component adoption and usability are separate checks. When changing a screen,
-use the existing components and run the relevant verification tasks below.
-Record a specific missing behavior when one is found, rather than treating an
-entire component family as unfinished.
-
 ## Verification
-
-The following checks were recorded for visual acceptance on 2026-11-09:
-
-- Check workflow input, recipe/run selection, confirmation and detail dialogs
-  against the shared controls and fix any remaining differences.
-- Review representative screens in all six themes and the sizes below, including
-  both inspector layouts, node selection, status colors and resized dialogs.
-- Run the usability tasks and remove leftover drawing and input paths found
-  during those checks.
-
-These are acceptance criteria for the migration, not claims about current test
-coverage. Existing tests cover parts of frame sizing, hit testing, focus,
-themes and draft preservation. A passing layout test does not establish usability.
 
 Use all six themes at 80 by 24, 120 by 40 and 160 by 50 cells. Also check 40 by 20
 for safe clipping, reachable actions and a usable close path. Resize while a

@@ -22,7 +22,7 @@ Follow [Get started](docs/start.md) to select a workspace and run your first
 Agent task, or try a saved workflow without a model.
 
 - [Work with Agent](docs/guide/agent.md): plan, edit, inspect results and retry.
-- [Run a workflow](docs/guide/workflows.md): open a recipe and review its results.
+- [Create and run a workflow](docs/guide/workflows.md).
 - [Connect a model](docs/guide/models.md): local servers, APIs and ChatGPT.
 - [Files, images and media](docs/guide/files-and-images.md): attachments, document reading and media downloads.
 - [Workflow examples](examples/workflows/README.md): recipes with requirements and run instructions.

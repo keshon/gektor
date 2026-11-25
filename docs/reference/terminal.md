@@ -138,10 +138,11 @@ extra flags are supplied; `-plan=false` explicitly starts in Act.
 
 Click the top menus, or press `F9` and use the arrow keys.
 Choose **Settings > Appearance > UI style** for **Commander** or **Modern**.
-Commander keeps the bottom hotkey strip. Modern uses controls inside dialogs
-and beside the draft instead. In Modern, mode, model and context sit below the
+Commander shows the bottom hotkey strip when the terminal has at least
+40 columns and 14 rows. Modern uses controls inside dialogs and beside the
+draft. In Modern, mode, model and context sit below the
 input. **Borders > Visible / Hidden** controls panel outlines independently of
-the UI style. Existing preferences default to Commander.
+the UI style. The default style is Commander.
 **Caret > Block / Vertical bar / Underline** selects the blinking native terminal
 caret for all editable inputs, including pickers and filters. It defaults to
 Vertical bar, applies in both UI styles, and persists as `appearance.caret`
@@ -178,7 +179,7 @@ and quits the application. A checkmark shows the active mode.
 | Menu | Agent | Workflows |
 |---|---|---|
 | Session / Recipe | New, open, rename and delete sessions; compact saved history | New, open and save recipes; edit recipe settings |
-| Node | | Add, edit, connect and delete nodes; add schedule triggers |
+| Node | | Add, edit, connect and delete nodes, bind recipe inputs, and add schedule triggers |
 | Run | Plan or Act; Ask permission or Full access; Queue steering, message queue and background processes; permissions, MCP, stop and retry | Validate, run and stop; Ask permission or Full access; inspect run history and set up schedules |
 | View | Show transcript details and jump to the latest message | Show the inspector and arrange the canvas |
 | Settings | Appearance, model connection, response settings, launch profiles, identity and persona, agent instructions | The same shared settings |
@@ -187,8 +188,8 @@ and quits the application. A checkmark shows the active mode.
 At narrow widths, More opens the menus that do not fit on the top row.
 Keyboard and mouse reach the same actions. Disabled actions cannot run.
 
-Appearance groups theme and panel frame choices. Apply saves them together;
-Cancel discards the draft. The View menu cycles thinking and tool-call display
+Appearance groups the color theme, borders, UI style and caret. Apply saves
+them together for Agent and Workflows. Cancel discards the draft. The View menu cycles thinking and tool-call display
 modes and toggles system messages, speaker names and message labels. See
 [history display](../guide/agent.md#read-history-and-tool-results).
 The agent instruction preview shows identity instructions, not the full model

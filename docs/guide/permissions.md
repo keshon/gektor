@@ -9,10 +9,12 @@ Use `/` to filter by decision, tool or pattern. Order numbers stay unchanged
 when filtering: later matching rules take precedence. Details shows the full
 pattern. This screen does not change rules or grant permission.
 
-A permission request shows the operation and its target.
-In Agent's permission prompt, `Y` allows once. `A` opens confirmation for
-allowing the same tool and target for this session, including follow-up messages.
-`N` lets you add a redirect note. Esc at the first prompt denies the request.
+A permission request shows the operation and its target. In Agent, click
+a visible choice or use `Y` to allow once, `A` to open session-wide confirmation,
+or `N` to add a redirect note. Session-wide approval still requires Enter on
+the confirmation step. Esc at the first prompt denies the request. In a
+compact terminal, scroll the prompt if the choice list cannot fit and answer
+with the same keys.
 An explicit deny rule cannot be overridden here.
 
 For SSH commands, the target is the connection endpoint (user, host and port),

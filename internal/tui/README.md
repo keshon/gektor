@@ -93,5 +93,3 @@ go build ./cmd/... ./internal/...
 ```
 
 For interaction and layout contracts, see [Terminal architecture](../../docs/development/tui.md).
-For the completed refactor's decisions and verification record, see the
-[screen ownership plan](../../docs/internal/tui-screen-parity-plan.md).

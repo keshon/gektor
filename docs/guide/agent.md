@@ -4,7 +4,8 @@ Describe a task, inspect the proposed approach in Plan, then switch to Act when 
 
 ## Do a task
 
-1. Check the workspace and model in the header.
+1. Check the workspace in the top menu row. Check the model above the
+   conversation in Commander or below the draft in Modern.
 2. Choose **Plan** in the Run menu to discuss and inspect, or **Act** to allow changes.
 3. Type your request and press `Enter`. Use `Ctrl+O` for a new line.
 4. Read the reply and tool summaries. Answer questions or permission requests.
@@ -36,8 +37,9 @@ The inspector opens beside history, or fills the screen in a narrow terminal.
 `Tab` changes focus. Arrow keys, page keys and the mouse wheel scroll it.
 `Esc` closes the focused inspector; its close button works too.
 
-Scrolling up lets you read without following new messages.
-`Ctrl+End` or `F7` returns to the latest message.
+Scrolling up lets you read without following new messages. When Agent is
+idle, Modern shows **Scrolled up** and the **Latest** shortcut above the draft.
+Press `Ctrl+End` or `F7` to return to the latest message.
 
 The **View** menu controls how history looks:
 
@@ -65,9 +67,10 @@ If a popup is open, Esc may close it first.
 You can send another message while Agent is working.
 It waits for a model/tool boundary and does not interrupt a running tool.
 The line above the draft shows how many messages are queued and previews the
-latest one. Click the count or press `Alt+Q` to open **Message queue**.
-The Queue shortcut stays visible during a run, including when nothing is waiting.
-You can also open it from Run > Message queue.
+latest one. Click the count in Commander or the summary row in Modern to
+open **Message queue**. In both styles, use `Alt+Q` or **Run > Message queue**
+even when the queue is empty. Commander also shows **Queue** in its bottom
+strip while a turn runs.
 Messages appear oldest first. Select any message, then use:
 
 - `Enter` to read its full text and image names.

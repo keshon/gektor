@@ -78,10 +78,6 @@ See [Menu ownership](development/tui.md#menu-ownership).
 
 See [Implementation boundaries](development/tui.md#implementation-boundaries).
 
-## Implementation status
-
-See [Implementation status](development/tui.md#implementation-status-2026-11-09-snapshot).
-
 ## Verification
 
 See [Verification](development/tui.md#verification).

@@ -364,8 +364,8 @@ API may change. Application screens and terminal runtime stay in `internal/tui`.
 keyboard, paste, mouse and caret routing. Session scans return revision-tagged
 results; stale results cannot replace the current session list.
 
-The [TUI design reference](docs/development/tui.md) defines the target component
-contracts and migration plan for shared controls, layouts and interaction.
+The [TUI design reference](docs/development/tui.md) describes appearance
+ownership and the interaction contracts for shared controls and layouts.
 
 Settled transcript blocks are cached by content and presentation settings.
 The viewport retains separate rendered parts and draws only visible lines.
