@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+
+	"github.com/keshon/gektor/internal/httptransport"
 )
 
 type tokenResponse struct {
@@ -46,7 +48,7 @@ func exchange(ctx context.Context, fields map[string]string) (tokenResponse, err
 		return result, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: 30 * time.Second, Transport: httptransport.Transport()}).Do(req)
 	if err != nil {
 		return result, fmt.Errorf("ChatGPT token exchange could not connect")
 	}
@@ -191,7 +193,7 @@ func (m *Manager) Logout(ctx context.Context) error {
 			if err != nil {
 				return false, err
 			}
-			client := &http.Client{Timeout: 30 * time.Second}
+			client := &http.Client{Timeout: 30 * time.Second, Transport: httptransport.Transport()}
 			resp, err := client.Do(req)
 			if err != nil {
 				return false, fmt.Errorf("logout could not load OpenAI metadata; credentials retained for retry")

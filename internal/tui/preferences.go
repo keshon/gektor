@@ -57,6 +57,7 @@ func (m *Model) editSettings(section string) {
 	}, func(_ map[string]string) error {
 		m.preparePreferences()
 		m.preferences.StorePage()
+
 		profile, err := ws.Draft.Resolve()
 		if err != nil {
 			return err

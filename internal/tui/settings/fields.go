@@ -66,6 +66,11 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("endpoint", "Backend URL", profile.Provider.URL, false)
 		add("model", "Model identifier", profile.Provider.Model, false)
 		add("key-env", "API key environment variable", profile.Provider.APIKeyEnv, false)
+	case "network":
+		network := preferences.Network
+		add("network-type", "Proxy type", network.Type, false)
+		add("network-host", "Proxy host", network.Host, false)
+		add("network-port", "Proxy port", network.Port, false)
 	}
 	return title, fields
 }

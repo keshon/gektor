@@ -195,7 +195,7 @@ func TestSettingsMenusAreIdenticalAcrossModes(t *testing.T) {
 			}
 		}
 	}
-	for _, section := range []string{"model", "generation", "profiles", "you", "prompts"} {
+	for _, section := range []string{"workspace", "model", "generation", "profiles", "network", "you", "prompts"} {
 		m.runAction("edit:" + section)
 		if m.chrome.DialogInfo().Kind == screen.NoDialog || m.preferences.EditSession.Section != section {
 			t.Fatalf("settings %s unavailable in Workflow", section)

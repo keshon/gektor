@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"sort"
 	"time"
+
+	"github.com/keshon/gektor/internal/httptransport"
 )
 
 func (m *Manager) Models(ctx context.Context) ([]string, error) {
@@ -57,7 +59,7 @@ func (m *BoundAccount) ModelCatalog(ctx context.Context) ([]Model, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: 15 * time.Second, Transport: httptransport.Transport()}).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("ChatGPT model discovery could not connect")
 	}

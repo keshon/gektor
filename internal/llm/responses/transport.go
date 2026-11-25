@@ -3,11 +3,14 @@ package responses
 import (
 	"net/http"
 	"time"
+
+	"github.com/keshon/gektor/internal/httptransport"
 )
 
 // Connection and header waits are independent of long streamed generation.
 func responseHTTPClient() *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	httptransport.ConfigureProxy(transport)
 	transport.ResponseHeaderTimeout = 90 * time.Second
 	transport.TLSHandshakeTimeout = 15 * time.Second
 	return &http.Client{Timeout: 120 * time.Minute, Transport: transport}

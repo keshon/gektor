@@ -1,4 +1,6 @@
-// Package httptransport constructs HTTP transports with explicit public or loopback network access.
+// Package httptransport routes HTTP requests through the configured proxy.
+// NetworkClient checks destinations and connects through proxies using locally
+// validated IP addresses. Transport serves operator-configured endpoints.
 package httptransport
 
 import (
@@ -13,28 +15,18 @@ import (
 // ErrDestinationDenied marks URL or resolved-address policy rejection.
 var ErrDestinationDenied = errors.New("HTTP destination denied")
 
-// networkClient enforces the destination at redirect and dial time. Proxy
-// environment variables are deliberately ignored: a proxy would bypass DNS
-// validation of the actual destination.
+// Client validates request and redirect URLs. Its default transport also checks resolved addresses.
 func Client(allowLoopback bool, override http.RoundTripper) *http.Client {
-	tr := publicTransport
-	if allowLoopback {
-		tr = loopbackTransport
+	if override == nil {
+		override = transportForPolicy(allowLoopback)
 	}
-
-	var transport http.RoundTripper = tr
-	if override != nil {
-		transport = override
-	}
-
 	return &http.Client{
-		Transport: &validatedTransport{transport, allowLoopback},
+		Transport: &validatedTransport{override, allowLoopback},
 		Timeout:   30 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
 			}
-
 			_, err := normalizeURL(req.URL.String(), allowLoopback)
 			if err != nil {
 				return fmt.Errorf("%w: %v", ErrDestinationDenied, err)
@@ -44,19 +36,16 @@ func Client(allowLoopback bool, override http.RoundTripper) *http.Client {
 	}
 }
 
-var publicTransport = newNetworkTransport(false)
-var loopbackTransport = newNetworkTransport(true)
-
-// NetworkClient allows public addresses and optionally loopback dev servers.
 func NetworkClient(allowLoopback bool) *http.Client { return Client(allowLoopback, nil) }
 
 func newNetworkTransport(allowLoopback bool) *http.Transport {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.Proxy = nil
+	tr.DialTLSContext = nil
+	direct := &net.Dialer{Timeout: 10 * time.Second}
 	tr.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-		return dialPublic(ctx, network, address, allowLoopback, net.DefaultResolver.LookupIPAddr, (&net.Dialer{Timeout: 10 * time.Second}).DialContext)
+		return dialPublic(ctx, network, address, allowLoopback, net.DefaultResolver.LookupIPAddr, direct.DialContext)
 	}
-
 	return tr
 }
 
@@ -87,7 +76,6 @@ func dialPublic(ctx context.Context, network, address string, allowLoopback bool
 		if e == nil {
 			return conn, nil
 		}
-
 		err = e
 	}
 
@@ -104,6 +92,5 @@ func (t *validatedTransport) RoundTrip(req *http.Request) (*http.Response, error
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrDestinationDenied, err)
 	}
-
 	return t.inner.RoundTrip(req)
 }

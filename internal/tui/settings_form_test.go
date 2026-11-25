@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
@@ -309,5 +310,41 @@ func TestPromptDialogNormalizesWindowsLineEndings(t *testing.T) {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("dialog lost %q", want)
 		}
+	}
+}
+
+func TestNetworkSettingsAreStagedForRelaunch(t *testing.T) {
+	m := settingsModel(t)
+	original := config.Network{Type: "http", Host: "old.example", Port: "8080"}
+	m.application.Preferences.Network = original
+	if err := config.SavePreferences(m.application.PreferencePath, m.application.Preferences); err != nil {
+		t.Fatal(err)
+	}
+
+	m.editSettings("network")
+	id := m.chrome.DialogID()
+	m.chrome.ConfigureForm(id, fieldform.Presentation{Values: map[string]string{
+		"network-type": "socks5", "network-host": "new.example", "network-port": "70000",
+	}})
+	if err := m.applyValues(nil); err == nil || m.modeChange != nil {
+		t.Fatal("an invalid proxy requested a relaunch")
+	}
+	persisted, err := config.LoadPreferences(m.application.PreferencePath)
+	if err != nil || persisted.Network != original {
+		t.Fatalf("failed apply changed saved network settings: %+v, %v", persisted.Network, err)
+	}
+
+	m.chrome.ConfigureForm(id, fieldform.Presentation{Values: map[string]string{"network-port": "1080"}})
+	m.editSettings("generation")
+	if err := m.applyValues(nil); err != nil {
+		t.Fatal(err)
+	}
+	want := config.Network{Type: "socks5", Host: "new.example", Port: "1080"}
+	if m.modeChange == nil || m.modeChange.Preferences.Network != want {
+		t.Fatal("applying another settings page lost the staged proxy")
+	}
+	persisted, err = config.LoadPreferences(m.application.PreferencePath)
+	if err != nil || persisted.Network != original {
+		t.Fatalf("staged proxy reached disk before relaunch: %+v, %v", persisted.Network, err)
 	}
 }

@@ -61,6 +61,23 @@ func (m *Model) requestProfileChange(profile config.Profile) error {
 		p.ProfilePath = m.preferences.EditSession.LoadedPath
 	}
 	if formOpen && m.preferences != nil && m.preferences.EditSession != nil {
+		if fields, ok := m.preferences.EditSession.Draft.Fields("network"); ok {
+			network := config.Network{}
+			for _, field := range fields {
+				switch field.Key {
+				case "network-type":
+					network.Type = field.Value
+				case "network-host":
+					network.Host = strings.Trim(strings.TrimSpace(field.Value), "[]")
+				case "network-port":
+					network.Port = strings.TrimSpace(field.Value)
+				}
+			}
+			if network.Type == "" {
+				network = config.Network{}
+			}
+			p.Network = network
+		}
 		fields, _ := m.preferences.EditSession.Draft.Fields("workspace")
 		for _, field := range fields {
 			if field.Key == "app-workspace" {

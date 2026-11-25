@@ -30,6 +30,17 @@ func CatalogDetail(key, path string) string {
 
 func ChoiceLabel(key, value string) string {
 	switch key {
+	case "network-type":
+		switch value {
+		case "":
+			return "Use environment"
+		case "http":
+			return "HTTP"
+		case "https":
+			return "HTTPS"
+		case "socks5":
+			return "SOCKS5"
+		}
 	case "kind":
 		if descriptor, err := providers.Lookup(value); err == nil {
 			return descriptor.Label
@@ -71,6 +82,8 @@ func ChoiceLabel(key, value string) string {
 // Hint explains what each section changes and when it takes effect.
 func Hint(section string) string {
 	switch section {
+	case "network":
+		return "Apply restarts GEKTOR with this proxy. Use environment reads the proxy variables."
 	case "you", "prompts":
 		return "Applies to the next Agent turn and future launches. Existing messages remain unchanged."
 	case "workspace":
@@ -95,6 +108,8 @@ func Choices(key string) []string {
 		return ids
 	case "prefer-main", "prefer-post", "reasoning-summary":
 		return []string{"true", "false"}
+	case "network-type":
+		return []string{"", "http", "https", "socks5"}
 	case "kind":
 		return providers.Kinds()
 	}
@@ -110,7 +125,7 @@ func SuggestedBackendURL(endpoint, previous, next string) string {
 type Category struct{ ID, Label string }
 
 func categories() []Category {
-	return []Category{{"model", "Model connection"}, {"generation", "Response settings"}, {"profiles", "Launch profiles"}, {"workspace", "Workspace"}, {"you", "Identity and persona"}, {"prompts", "Agent instructions"}}
+	return []Category{{"model", "Model connection"}, {"generation", "Response settings"}, {"profiles", "Launch profiles"}, {"workspace", "Workspace"}, {"you", "Identity and persona"}, {"prompts", "Agent instructions"}, {"network", "Network"}}
 }
 func SectionTitle(id string) string {
 	for _, category := range categories() {

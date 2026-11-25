@@ -48,6 +48,23 @@ See [authentication](cli.md#authentication-remote-providers).
 settings. Only `scripts/bench-llama.cmd` reads its benchmark settings from `.env`.
 The file is gitignored; do not commit credentials or machine-specific paths.
 
+### Outbound HTTP proxy
+
+Use **Settings > Network** to select HTTP, HTTPS, or SOCKS5 and enter its
+host and port. Apply restarts the terminal application with the new settings.
+The saved proxy also applies to the command-line application.
+
+**Use environment** reads `HTTP_PROXY` and `HTTPS_PROXY` per request scheme.
+`ALL_PROXY` is the fallback for an unset scheme. `NO_PROXY` exclusions apply
+to either source, and localhost uses a direct connection. For authenticated
+proxies, use a proxy URL with credentials in the environment.
+
+These settings cover the model connection and GEKTOR's HTTP clients for
+web requests, downloads, remote MCP, and workflows. HTTP and HTTPS proxies
+used by destination-checked clients must support CONNECT tunnels to IP
+addresses. SSH, external browsers, and subprocesses have their own network
+configuration.
+
 ## Saved data
 
 Preferences, sessions and retained tool output live under `~/.gektor`.

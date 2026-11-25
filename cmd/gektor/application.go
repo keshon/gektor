@@ -7,10 +7,20 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui"
 	"github.com/keshon/gektor/internal/userdirs"
 )
+
+// applyNetwork sets the proxy before composing launch services.
+func applyNetwork(prefs config.Preferences) {
+	httptransport.SetProxyConfig(httptransport.ProxyConfig{
+		Type: httptransport.ProxyType(prefs.Network.Type),
+		Host: prefs.Network.Host,
+		Port: prefs.Network.Port,
+	})
+}
 
 type launchRequest struct {
 	args              []string
@@ -31,14 +41,25 @@ func runApplication(args []string) error {
 	if len(args) > 0 && args[0] == "ssh" {
 		return runSSH(args[1:], os.Stdout)
 	}
-	if len(args) > 0 && args[0] == "mcp" {
-		return runMCP(args[1:])
-	}
-	if len(args) > 0 && args[0] == "workflow" {
-		return runWorkflow(args[1:])
-	}
-	if len(args) > 0 && args[0] == "auth" {
-		return runAuth(args[1:])
+	path := userdirs.Sub("application.json")
+	if len(args) > 0 {
+		var command func([]string) error
+		switch args[0] {
+		case "mcp":
+			command = runMCP
+		case "workflow":
+			command = runWorkflow
+		case "auth":
+			command = runAuth
+		}
+		if command != nil {
+			prefs, err := config.LoadPreferences(path)
+			if err != nil {
+				return err
+			}
+			applyNetwork(prefs)
+			return command(args[1:])
+		}
 	}
 	options, err := parseLaunchOptions(args)
 	if errors.Is(err, flag.ErrHelp) {
@@ -47,13 +68,13 @@ func runApplication(args []string) error {
 	if err != nil {
 		return err
 	}
-	path := userdirs.Sub("application.json")
-	if !options.tui {
-		return runConfigured(launchRequest{options: &options, preferencePath: path})
-	}
 	prefs, err := config.LoadPreferences(path)
 	if err != nil {
 		return err
+	}
+	applyNetwork(prefs)
+	if !options.tui {
+		return runConfigured(launchRequest{options: &options, preferencePath: path})
 	}
 	request := initialTUILaunch(options, prefs, path)
 	for {
@@ -77,6 +98,7 @@ func runApplication(args []string) error {
 		if err := config.SavePreferences(path, prefs); err != nil {
 			return err
 		}
+		applyNetwork(prefs)
 		next := relaunchOptions(o.launchOptions, prefs, change.KeepAct)
 		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, images: change.Images, drafts: change.Drafts, directory: change.Directory, reassignWorkspace: change.ReassignWorkspace, common: true}
 	}

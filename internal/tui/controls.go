@@ -70,9 +70,9 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 	menu := screen.Menu{ID: "settings", Label: "Settings", Items: []screen.MenuItem{
 		{Text: "Appearance…", Command: "appearance", Enabled: true},
 		{},
-		section("model"), section("generation"), section("profiles"),
+		section("workspace"), section("model"), section("generation"), section("profiles"),
 		{},
-		section("you"), section("prompts"),
+		section("network"), section("you"), section("prompts"),
 	}}
 	help := screen.Menu{ID: "help", Label: "Help", Items: []screen.MenuItem{{Text: "Actions…", Command: "actions", Shortcut: "F12", Enabled: true}, {Text: "Keyboard shortcuts", Command: "help-keys", Enabled: true}}}
 	if !m.workflowActive() {

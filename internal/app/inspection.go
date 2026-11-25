@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/providers/koboldcpp"
 	"github.com/keshon/gektor/internal/providers/llamacpp"
@@ -40,7 +41,7 @@ func newInspector(d providers.Descriptor, base, model string, hc *http.Client) (
 func DetectKind(ctx context.Context, base string, clients ...*http.Client) string {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	hc := http.DefaultClient
+	hc := &http.Client{Transport: httptransport.Transport()}
 	if len(clients) > 0 && clients[0] != nil {
 		hc = clients[0]
 	}

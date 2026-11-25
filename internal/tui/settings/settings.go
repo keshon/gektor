@@ -123,6 +123,10 @@ func (f *Model) Shortcut(key string) (fieldform.Intent, bool) {
 
 func (f *Model) FieldVisible(index int) bool {
 	if index >= 0 && index < len(f.Fields) && f.EditSession != nil {
+		switch f.Fields[index].Key {
+		case "network-host", "network-port":
+			return f.Fields[0].Value != ""
+		}
 		descriptor, lookupErr := providers.Lookup(f.providerKind())
 		if lookupErr == nil {
 			switch f.Fields[index].Key {

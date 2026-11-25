@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/keshon/gektor/internal/httptransport"
 )
 
 // ResolvedAPIKey selects the bearer token at composition. Precedence
@@ -80,5 +82,5 @@ func (t connectionTransport) RoundTrip(req *http.Request) (*http.Response, error
 }
 func connectionHTTP(endpoint, key string, headers map[string]string) *http.Client {
 	origin, _ := url.Parse(endpoint)
-	return &http.Client{Timeout: 120 * time.Minute, Transport: connectionTransport{base: http.DefaultTransport, origin: origin, key: key, headers: headers}}
+	return &http.Client{Timeout: 120 * time.Minute, Transport: connectionTransport{base: httptransport.Transport(), origin: origin, key: key, headers: headers}}
 }

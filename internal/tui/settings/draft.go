@@ -89,7 +89,7 @@ func (d *Draft) Dirty(active string, fields []form.Field) bool {
 func (d *Draft) Resolve() (config.Profile, error) {
 	p := d.Base()
 	for _, section := range d.ChangedSections() {
-		if section == "workspace" || section == "profiles" {
+		if section == "workspace" || section == "profiles" || section == "network" {
 			continue
 		}
 		values := make(map[string]string)

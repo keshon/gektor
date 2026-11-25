@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/llm"
 )
 
@@ -110,7 +111,7 @@ func newClient(baseURL, model string, d dialect) *Client {
 		dialect: d,
 		// Long: a full context on a local model can take minutes to
 		// process before a single token is generated.
-		http: &http.Client{Timeout: 120 * time.Minute},
+		http: &http.Client{Timeout: 120 * time.Minute, Transport: httptransport.Transport()},
 	}
 }
 

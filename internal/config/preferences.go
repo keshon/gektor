@@ -3,8 +3,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // Validate checks application choices without changing them. The optional
@@ -28,10 +31,33 @@ func (p Preferences) Validate() error {
 		return fmt.Errorf("unknown theme %q", p.Theme)
 	}
 
+	if err := p.Network.Validate(); err != nil {
+		return err
+	}
+
 	if p.Version != 1 {
 		return fmt.Errorf("invalid application preferences")
 	}
 
+	return nil
+}
+
+// Validate checks explicitly selected proxies. An empty type uses the environment.
+func (n Network) Validate() error {
+	switch n.Type {
+	case "":
+		return nil
+	case "http", "https", "socks5":
+	default:
+		return fmt.Errorf("unknown network proxy type %q", n.Type)
+	}
+	if n.Host == "" || (net.ParseIP(n.Host) == nil && strings.ContainsAny(n.Host, ":/@\\?#[]% \t\r\n")) {
+		return fmt.Errorf("enter a proxy hostname or IP address without a scheme or port")
+	}
+	port, err := strconv.ParseUint(n.Port, 10, 16)
+	if err != nil || port == 0 {
+		return fmt.Errorf("proxy port must be between 1 and 65535")
+	}
 	return nil
 }
 

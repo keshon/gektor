@@ -15,6 +15,14 @@ type Profile struct {
 	Identity   *Identity  `json:"identity,omitempty"`
 }
 
+// Network describes an outbound proxy GEKTOR may route traffic through. It is
+// persisted in application preferences and applied whenever clients are built.
+type Network struct {
+	Type string `json:"type,omitempty"` // "" | "http" | "https" | "socks5"
+	Host string `json:"host,omitempty"`
+	Port string `json:"port,omitempty"`
+}
+
 // Preferences stores application choices. Profile is optional and caller-owned;
 // use Profile.Clone before editing a shared profile. No resources are retained.
 type Preferences struct {
@@ -26,4 +34,5 @@ type Preferences struct {
 	ProfilePath string     `json:"profile_path,omitempty"`
 	Profile     *Profile   `json:"profile,omitempty"`
 	Harness     Harness    `json:"harness,omitempty"`
+	Network     Network    `json:"network,omitempty"`
 }
