@@ -3,15 +3,100 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
+	"github.com/keshon/gektor/pkg/tui/components/form"
 	"github.com/keshon/gektor/pkg/tui/components/pane"
 	"github.com/keshon/gektor/pkg/tui/components/schemaform"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
+
+// recipeReferences provides selectable references without requiring JSON syntax.
+func (m *Model) recipeReferences(includeOutputs bool) ([]string, map[string]json.RawMessage) {
+	var labels []string
+	values := map[string]json.RawMessage{}
+	for name := range m.editor.Definition.Inputs {
+		label := "Recipe input / " + name
+		raw, _ := json.Marshal(map[string]string{"$input": name})
+		labels = append(labels, label)
+		values[label] = raw
+	}
+	sort.Strings(labels)
+	if includeOutputs {
+		for _, step := range m.editor.Definition.Steps {
+			pointers := []string{""}
+			node, err := m.registry.Node(step.Tool)
+			if err == nil {
+				pointers = append(pointers, workflowOutputPointers(node.OutputSchema)...)
+			}
+			for _, pointer := range pointers {
+				label := "Node output / " + step.ID + " / " + portLabelForDisplay(pointer)
+				ref := map[string]string{"$step": step.ID}
+				if pointer != "" {
+					ref["pointer"] = pointer
+				}
+				raw, _ := json.Marshal(ref)
+				labels = append(labels, label)
+				values[label] = raw
+			}
+		}
+	}
+	return labels, values
+}
+
+func (m *Model) bindRecipeInput() {
+	step := m.selectedStep()
+	node, err := m.registry.Node(step.Tool)
+	if err != nil {
+		return
+	}
+
+	names := []string{}
+	for name := range schemaform.Parse(node.InputSchema).Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	labels, refs := m.recipeReferences(false)
+	if len(names) == 0 || len(labels) == 0 {
+		m.setNotice(pane.NoticeInfo, "Select a node with arguments and declare a recipe input in Recipe settings.")
+		return
+	}
+	draft := m.editor.Source()
+	m.openForm(screen.Form{
+		Title:      "Bind recipe input / " + step.ID,
+		Hint:       "The input replaces the selected argument. Undo restores its previous value.",
+		ApplyLabel: "Bind input",
+		Fields: []formField{
+			{Key: "argument", Label: "Node argument", Value: names[0]},
+			{Key: "input", Label: "Recipe input", Value: labels[0]},
+		},
+		Choices: map[string][]string{"argument": names, "input": labels},
+	}, func(v map[string]string) error {
+		if m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen the input binding")
+		}
+		if !slices.Contains(names, v["argument"]) || refs[v["input"]] == nil {
+			return fmt.Errorf("choose an argument and a recipe input")
+		}
+		d := m.editor.Clone()
+		for i := range d.Steps {
+			if d.Steps[i].ID != step.ID {
+				continue
+			}
+			args, err := updateValue(d.Steps[i].Args, []string{v["argument"]}, refs[v["input"]], false)
+			if err != nil {
+				return err
+			}
+			d.Steps[i].Args = args
+			return m.replaceRecipe(d, draft)
+		}
+		return fmt.Errorf("node is no longer in the recipe")
+	})
+}
 
 type workflowParameterEdit struct {
 	Kind, Name, Draft string
@@ -152,6 +237,8 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 	schema := schemaform.Parse(json.RawMessage(workflowInputSchema))
 	var original json.RawMessage
 	var choices map[string][]string
+	var references map[string]json.RawMessage
+	var visibility map[string][]form.Condition
 	if edit.Kind == "inputs" {
 		choices = schema.Choices()
 		input := workflow.Input{Type: "string"}
@@ -165,11 +252,18 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 		if len(value) == 0 {
 			value = json.RawMessage(`null`)
 		}
-		fields = append(fields, formField{Key: "value", Label: "Value (JSON literal or reference)", Value: string(value), Multiline: true})
+		labels, refs := m.recipeReferences(true)
+		references = refs
+		if len(labels) > 0 {
+			fields = append(fields, formField{Key: "source", Label: "Output source", Value: "Enter JSON"})
+			choices = map[string][]string{"source": append([]string{"Enter JSON"}, labels...)}
+			visibility = map[string][]form.Condition{"value": {{Key: "source", Value: "Enter JSON"}}}
+		}
+		fields = append(fields, formField{Key: "value", Label: "Value (when entering JSON)", Value: string(value), Multiline: true})
 	}
 	hint := "Default is a JSON value; leave it blank for no default. Required inputs can have defaults."
 	if edit.Kind == "outputs" {
-		hint = `Use a JSON value or reference, e.g. {"$step":"save","pointer":"/result"}. V validates referenced names.`
+		hint = "Choose a recipe input or node output. Enter JSON for a literal or a custom reference."
 	}
 	m.openForm(screen.Form{
 		Title:      "Recipe / " + edit.Kind,
@@ -177,6 +271,7 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 		ApplyLabel: "Apply",
 		Fields:     fields,
 		Choices:    choices,
+		ShowWhen:   visibility,
 	}, func(v map[string]string) error {
 		d := m.editor.Clone()
 		name := v["name"]
@@ -220,7 +315,14 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 			if _, exists := d.Outputs[name]; exists && edit.Name == "" {
 				return fmt.Errorf("output name already exists")
 			}
-			if !json.Valid([]byte(v["value"])) {
+			value := json.RawMessage(v["value"])
+			if source := v["source"]; source != "" && source != "Enter JSON" {
+				value = references[source]
+				if value == nil {
+					return fmt.Errorf("choose an output source")
+				}
+			}
+			if !json.Valid(value) {
 				return fmt.Errorf("output value must be valid JSON")
 			}
 			if d.Outputs == nil {
@@ -229,7 +331,7 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 			if edit.Name == "" && len(d.Outputs) >= 32 {
 				return fmt.Errorf("recipe permits at most 32 outputs")
 			}
-			d.Outputs[name] = json.RawMessage(v["value"])
+			d.Outputs[name] = value
 		}
 		return m.replaceRecipe(d, edit.Draft)
 	})

@@ -128,6 +128,20 @@ func (w *Workspace) Rename(from, to string) error {
 	}
 	return w.files.Rename(src, dst)
 }
+
+// Link creates a second name for a workspace file and refuses an existing destination.
+func (w *Workspace) Link(from, to string) error {
+	src, err := w.Relative(from)
+	if err != nil {
+		return err
+	}
+	dst, err := w.Relative(to)
+	if err != nil {
+		return err
+	}
+	return w.files.Link(src, dst)
+}
+
 func (w *Workspace) Remove(name string) error {
 	rel, err := w.Relative(name)
 	if err != nil {

@@ -82,30 +82,18 @@ func (m *Model) connectionTarget(from, to string, old *Connection) {
 	if dest.ID == "" {
 		return
 	}
-	node, err := m.registry.Node(dest.Tool)
-	if err != nil {
-		m.setNotice(pane.NoticeError, err.Error())
-		return
-	}
-	paths := map[string]Connection{"Run after (no data)": {To: to, Field: "depends_on"}}
-	var arguments []string
-	for name := range schemaform.Parse(node.InputSchema).Properties {
-		label := "Argument: " + name
-		arguments = append(arguments, label)
-		paths[label] = Connection{To: to, Field: "args", Path: "/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(name)}
-	}
-	sort.Strings(arguments)
-	options := append([]string{"Run after (no data)"}, arguments...)
+	paths, options := m.connectionDestinations(dest)
 	selected := options[0]
 	if old != nil {
-		for label, c := range paths {
+		selected = "Current: " + old.Field + old.Path
+		for _, label := range options {
+			c := paths[label]
 			if c.Field == old.Field && c.Path == old.Path {
 				selected = label
 				break
 			}
 		}
-		if old.Field != "depends_on" && selected == options[0] {
-			selected = "Current: " + old.Field + old.Path
+		if _, known := paths[selected]; !known {
 			paths[selected] = *old
 			options = append(options, selected)
 		}
@@ -144,6 +132,22 @@ func (m *Model) connectionTarget(from, to string, old *Connection) {
 		return nil
 	})
 
+}
+
+func (m *Model) connectionDestinations(step workflow.Step) (map[string]Connection, []string) {
+	order := "Run after (no data)"
+	paths := map[string]Connection{order: {To: step.ID, Field: "depends_on"}}
+	var arguments []string
+	node, err := m.registry.Node(step.Tool)
+	if err == nil {
+		for name := range schemaform.Parse(node.InputSchema).Properties {
+			label := "Argument: " + name
+			arguments = append(arguments, label)
+			paths[label] = Connection{To: step.ID, Field: "args", Path: "/" + escapePointer(name)}
+		}
+	}
+	sort.Strings(arguments)
+	return paths, append(arguments, order)
 }
 
 func connectionValue(d workflow.Definition, to, field, path string) string {

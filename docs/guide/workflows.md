@@ -33,8 +33,10 @@ not a required folder.
 There is no automatic recipe library or shared user-directory recipe lookup yet.
 
 In the editor, `Ctrl+O` opens, `Ctrl+N` creates and `Ctrl+S` saves.
-Save before replacing a draft.
-New/Open asks before discarding unsaved changes.
+A new draft shows its name and path on the canvas. Choose **Add first node**
+or press `A` to begin. New and Open ask before discarding unsaved edits.
+Save asks for confirmation before replacing another file or a recipe
+that has changed on disk.
 
 ## Read the nodes and connections
 
@@ -92,7 +94,8 @@ Close the inspector with its close button or focused `Esc`.
 ## Change a recipe
 
 1. Press `A`, or choose **Add node…** in Node, to select an operation.
-2. Press `Enter` on a draft node to edit its arguments.
+2. Set the node ID and any arguments you know. You can leave arguments
+   for later connections. Press `Enter` on a node to edit its arguments.
 3. Click an output port, then an input port, to set their connection.
    Review the mapping in the form before applying.
 4. Choose **Behavior…** in Node (`E` on the canvas), then a section:
@@ -100,9 +103,12 @@ Close the inspector with its close button or focused `Esc`.
    **Map** for items, concurrency and item failures; **Loop** for repeated child
    calls; or **Retry** for attempts, failure codes and delays.
 5. Choose **Recipe settings…** in Recipe to change its name, inputs or outputs.
+   Use **Bind recipe input…** in Node to fill an argument from a declared input.
+   When editing an output, choose a recipe input or node result as its source.
 6. Save with `Ctrl+S`.
 
-`B` opens connections for editing or removal. `C` opens a connection form.
+`B` opens connections for editing or removal. To connect by keyboard, select
+the source node and press `C`, then choose a destination and review the mapping.
 `Delete` removes a node. `Ctrl+Z` undoes a recipe change; `Ctrl+Y` redoes it.
 These controls do not undo an executed operation.
 
@@ -136,8 +142,9 @@ Save and validate after reviewing it.
 1. Press `V`, or choose **Validate recipe…** in Run, to check the recipe.
    Supply input values if asked. Fix any reported errors.
 2. Press `R`, or choose **Run recipe…** in Run, to execute it.
-3. If it declares inputs, a form shows their defaults.
-   Change the values for this run, then continue.
+3. If it declares inputs, the form starts with recipe defaults or the
+   values from the last successful validation of this draft. You can edit
+   the values before running.
 4. Read and answer any permission requests or step reviews.
 5. Select a node and open **Result** to inspect what happened.
 

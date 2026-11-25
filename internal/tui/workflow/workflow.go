@@ -54,6 +54,7 @@ type Model struct {
 	connectFrom              string
 	connectPort              string
 	editor                   *Editor
+	validated                validatedInputs
 	graph                    graph.Model
 	registry                 *workflow.Registry
 	notice                   string

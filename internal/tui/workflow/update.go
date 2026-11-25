@@ -44,6 +44,7 @@ type workflowResult struct {
 	text            string
 	err             error
 	source, path    string
+	validation      validatedInputs
 	action          string
 	schedules       []store.Schedule
 	scheduleStatus  []service.ScheduleInspection

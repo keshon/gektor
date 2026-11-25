@@ -18,6 +18,12 @@ type workflowInvocation struct {
 	ScheduleID          string
 }
 
+type validatedInputs struct {
+	editor *Editor
+	draft  string
+	values json.RawMessage
+}
+
 func (m *Model) queueInvocation(action string, in workflowInvocation) {
 	b, _ := json.Marshal(in)
 	m.queueAction(action, string(b))
@@ -45,6 +51,11 @@ func (m *Model) inputForm(in workflowInvocation) {
 		return
 	}
 	specs := m.editor.Clone().Inputs
+	reused := m.validated.editor == m.editor && m.validated.draft == in.Draft && in.Action != "schedule"
+	prefill := in.Inputs
+	if reused {
+		prefill = m.validated.values
+	}
 
 	title := "Run workflow"
 	primary := "Run"
@@ -57,11 +68,15 @@ func (m *Model) inputForm(in workflowInvocation) {
 		primary = "Next"
 	}
 	if in.Mode == "JSON" {
+		value := string(prefill)
+		if value == "" {
+			value = "{}"
+		}
 		m.openForm(screen.Form{
 			Title:      title + " / JSON",
 			Hint:       "Input values are checked before execution; omitted keys use recipe defaults.",
 			ApplyLabel: primary,
-			Fields:     []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}},
+			Fields:     []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: value, Multiline: true}},
 		}, func(v map[string]string) error {
 			var values map[string]json.RawMessage
 			decodeErr := json.Unmarshal([]byte(v["inputs"]), &values)
@@ -77,9 +92,9 @@ func (m *Model) inputForm(in workflowInvocation) {
 	}
 	schema := schemaform.Schema{Properties: map[string]schemaform.Property{}}
 	defaults := map[string]json.RawMessage{}
-	var scheduled map[string]json.RawMessage
-	if in.Action == "schedule" {
-		_ = json.Unmarshal(in.Inputs, &scheduled)
+	var supplied map[string]json.RawMessage
+	if in.Action == "schedule" || reused {
+		_ = json.Unmarshal(prefill, &supplied)
 	}
 	for name, spec := range specs {
 		kind, _ := json.Marshal(spec.Type)
@@ -91,7 +106,7 @@ func (m *Model) inputForm(in workflowInvocation) {
 		if spec.Default != nil {
 			defaults[name] = spec.Default
 		}
-		if value, ok := scheduled[name]; ok {
+		if value, ok := supplied[name]; ok {
 			defaults[name] = value
 		}
 	}
@@ -147,6 +162,9 @@ func (m *Model) inputForm(in workflowInvocation) {
 		}
 	}
 	hint := "Defaults are filled in. Edit values for this run; lists accept comma-separated values."
+	if reused {
+		hint = "Prefilled from the last successful validation of this draft."
+	}
 	if in.Action == "schedule" {
 		hint = "These values will be saved with the schedule and used for each scheduled run."
 	}
@@ -160,10 +178,11 @@ func (m *Model) inputForm(in workflowInvocation) {
 		values := map[string]json.RawMessage{}
 		for name, spec := range specs {
 			text := v["value:"+name]
-			if spec.Default != nil && text == initial[name] && in.Action != "schedule" {
+			if spec.Default != nil && text == initial[name] && in.Action != "schedule" && supplied[name] == nil {
 				continue
 			}
-			if spec.Default == nil && !spec.Required && text == "" && scheduled[name] == nil {
+			keepEmpty := supplied[name] != nil && (in.Action == "schedule" || text == initial[name])
+			if spec.Default == nil && !spec.Required && text == "" && !keepEmpty {
 				continue
 			}
 			value := json.RawMessage(text)

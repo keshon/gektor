@@ -119,15 +119,13 @@ func TestWorkflowInspectorStyleMatrixKeepsTabsAndScrollingAligned(t *testing.T) 
 				if w.inspectorOpen {
 					t.Fatal("close button missed", modern, outlined, width)
 				}
-				empty := workflowRecipe()
-				empty.Steps = nil
-				w.editor.Replace(empty)
+				w.editor = NewEditor()
 				view = ansi.Strip(w.content())
 				if !strings.Contains(view, "No workflow open.") {
 					t.Fatal("empty canvas lost its message", modern, outlined, width)
 				}
-				if width == 121 && strings.Contains(view, "Ctrl+O") == modern {
-					t.Fatal("empty canvas hints do not match style", modern, outlined)
+				if !strings.Contains(view, newRecipeLabel) || !strings.Contains(view, openRecipeLabel) {
+					t.Fatal("empty canvas lost the create or open action", modern, outlined, width)
 				}
 			}
 		}

@@ -3,6 +3,8 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -101,7 +103,7 @@ func (m *Model) command(action string) tea.Cmd {
 	case "new", "open":
 		m.recipePath(action, "")
 	case "save":
-		m.saveForm()
+		m.saveForm(m.editor.Path)
 	case "add":
 		return m.addNodeForm()
 
@@ -111,6 +113,8 @@ func (m *Model) command(action string) tea.Cmd {
 		return m.behaviorForm()
 	case "binding":
 		m.savedConnectionForm()
+	case "bind-input":
+		m.bindRecipeInput()
 
 	case "ai":
 		return m.proposalForm()
@@ -173,7 +177,7 @@ func (m *Model) command(action string) tea.Cmd {
 // workflowRequiresDraft identifies actions unavailable while inspecting a frozen run.
 func workflowRequiresDraft(action string) bool {
 	switch action {
-	case "edit", "add", "link", "connections", "delete", "recipe", "name", "inputs", "outputs", "ai", "behavior", "binding", "undo", "redo", "save", "run", "validate":
+	case "edit", "add", "link", "connections", "delete", "recipe", "name", "inputs", "outputs", "ai", "behavior", "binding", "bind-input", "undo", "redo", "save", "run", "validate":
 		return true
 	default:
 		return false
@@ -208,26 +212,70 @@ func (m *Model) recipePath(action, path string) {
 		if strings.TrimSpace(v["path"]) == "" {
 			return fmt.Errorf("enter a recipe path")
 		}
-		_, pathErr := m.config.WS.Relative(v["path"])
-		if pathErr != nil {
-			return pathErr
+		path, err := m.config.WS.Relative(strings.TrimSpace(v["path"]))
+		if err != nil {
+			return err
 		}
-		m.queueAction(action+"-path", v["path"])
+		m.queueAction(action+"-path", path)
 		return nil
 	})
 }
 
-func (m *Model) saveForm() {
+func (m *Model) saveForm(path string) {
 	m.openForm(screen.Form{
 		Title:      "Save workflow",
 		Hint:       "Writes the recipe; canvas positions stay in your user settings.",
 		ApplyLabel: "Save",
-		Fields:     []formField{{Key: "path", Label: "Recipe path", Value: m.editor.Path}},
+		Fields:     []formField{{Key: "path", Label: "Recipe path", Value: path}},
 	}, func(v map[string]string) error {
 		if strings.TrimSpace(v["path"]) == "" {
 			return fmt.Errorf("enter a path")
 		}
-		m.queueAction("save-path", v["path"])
+		path, err := m.config.WS.Relative(strings.TrimSpace(v["path"]))
+		if err != nil {
+			return err
+		}
+		file, err := m.config.WS.Lstat(path)
+		if os.IsNotExist(err) {
+			m.queueAction("save-path", path)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !file.Mode().IsRegular() {
+			return fmt.Errorf("choose a regular recipe file or a new path")
+		}
+		if path == m.editor.savedPath && file.Size() <= 64<<10 {
+			raw, err := m.config.WS.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			original, err := Decode(raw)
+			if err == nil && (&Editor{Definition: original}).Source() == m.editor.Saved {
+				m.queueAction("replace-path", path)
+				return nil
+			}
+		}
+		m.queueAction("confirm-replace", path)
+		return nil
+	})
+}
+
+func (m *Model) confirmReplace(path string) {
+	draft := m.editor.Source()
+	m.openForm(screen.Form{
+		Title:         "Replace existing file?",
+		Hint:          "This replaces the contents of the selected workspace file.",
+		Fields:        []formField{{Key: "path", Label: "Existing file", Value: path, ReadOnly: true}},
+		ApplyLabel:    "Replace",
+		Destructive:   true,
+		StartOnCancel: true,
+	}, func(_ map[string]string) error {
+		if m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; save again")
+		}
+		m.queueAction("replace-path", path)
 		return nil
 	})
 }
@@ -241,18 +289,24 @@ func (m *Model) addOperation(name string) {
 		m.setNotice(pane.NoticeError, err.Error())
 		return
 	}
+	schema := schemaform.Parse(n.InputSchema)
+	empty := json.RawMessage(`{}`)
+	choices := schema.Choices()
+	fields := []formField{{Key: "$id", Label: "Node ID", Value: m.nextNodeID()}}
+	fields = append(fields, schema.Fields(empty)...)
 	draft := m.editor.Source()
 	m.openForm(screen.Form{
-		Title:      "Add operation",
-		Hint:       name,
-		ApplyLabel: "Add",
-		Fields:     []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(m.editor.Definition.Steps)+1)}},
+		Title:      "Add " + name,
+		Hint:       n.Description + screen.Separator() + "Fill arguments now or connect values later.",
+		ApplyLabel: "Add node",
+		Fields:     fields,
+		Choices:    choices,
 	}, func(v map[string]string) error {
 		if m.busy || m.run != nil || m.editor.Source() != draft {
 			return fmt.Errorf("draft changed; add the node again")
 		}
 
-		id := strings.TrimSpace(v["id"])
+		id := strings.TrimSpace(v["$id"])
 		if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
 			return fmt.Errorf("enter a node ID without / or a leading @")
 		}
@@ -264,13 +318,32 @@ func (m *Model) addOperation(name string) {
 			}
 		}
 
-		d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
+		draftSchema := schema
+		draftSchema.Required = nil
+		args, err := draftSchema.Values(empty, v)
+		if err != nil {
+			return err
+		}
+		d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: args})
 		m.editor.Replace(d)
 		m.graph.Selected = id
 		m.graph = m.buildGraph(m.graph)
-		m.queueAction("edit", "")
+		m.setNotice(pane.NoticeSuccess, "Node added. Enter edits arguments; C connects nodes.")
 		return nil
 	})
+}
+
+func (m *Model) nextNodeID() string {
+	ids := make(map[string]bool, len(m.editor.Definition.Steps))
+	for _, step := range m.editor.Definition.Steps {
+		ids[step.ID] = true
+	}
+	for i := len(ids) + 1; ; i++ {
+		id := "step_" + strconv.Itoa(i)
+		if !ids[id] {
+			return id
+		}
+	}
 }
 
 func (m *Model) edit() {

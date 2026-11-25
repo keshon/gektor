@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -16,12 +15,16 @@ func (m *Model) setupForm() tea.Cmd {
 	if m.run != nil {
 		return nil
 	}
+	sections := []string{"Name", "Inputs", "Outputs", "AI change", "Complete JSON"}
+	if m.selectedStep().ID != "" {
+		sections = append(sections, "Selected step arguments")
+	}
 	m.openForm(screen.Form{
-		Title:      "Edit workflow",
+		Title:      "Recipe settings",
 		Hint:       "Choose what to change. AI proposals are reviewed before applying.",
 		ApplyLabel: "Open",
-		Fields:     []formField{{Key: "section", Label: "Section", Value: "Selected step arguments"}},
-		Choices:    map[string][]string{"section": {"Selected step arguments", "AI change", "Name", "Inputs", "Outputs", "Complete JSON"}},
+		Fields:     []formField{{Key: "section", Label: "Section", Value: sections[0]}},
+		Choices:    map[string][]string{"section": sections},
 	}, func(v map[string]string) error {
 		actions := map[string]string{"Selected step arguments": "edit", "AI change": "ai", "Name": "name", "Inputs": "inputs", "Outputs": "outputs", "Complete JSON": "recipe"}
 		action, ok := actions[v["section"]]
@@ -37,12 +40,20 @@ func (m *Model) setupForm() tea.Cmd {
 
 func (m *Model) addNodeForm() tea.Cmd {
 	names := append(m.registry.Names(), "Schedule trigger")
+	descriptions := map[string]string{"Schedule trigger": "Schedule trigger · Starts the entire recipe"}
+	for _, name := range m.registry.Names() {
+		node, err := m.registry.Node(name)
+		if err == nil && node.Description != "" {
+			descriptions[name] = name + " · " + node.Description
+		}
+	}
 	m.openForm(screen.Form{
 		Title:      "Add node",
 		Hint:       "Choose an operation or a Schedule trigger.",
 		ApplyLabel: "Next",
 		Fields:     []formField{{Key: "type", Label: "Node type", Value: names[0]}},
 		Choices:    map[string][]string{"type": names},
+		Labels:     map[string]map[string]string{"type": descriptions},
 	}, func(v map[string]string) error {
 		if v["type"] == "Schedule trigger" {
 			m.queueAction("schedule-add", "")
@@ -99,36 +110,42 @@ func (m *Model) sourceForm() tea.Cmd {
 }
 
 func (m *Model) connectForm() tea.Cmd {
-	names := []string{}
-	for _, s := range m.editor.Definition.Steps {
-		names = append(names, s.ID)
+	from := m.selectedStep().ID
+	var options []string
+	destinations := map[string]Connection{}
+	for _, step := range m.editor.Definition.Steps {
+		if step.ID == from {
+			continue
+		}
+		paths, labels := m.connectionDestinations(step)
+		for _, label := range labels {
+			choice := step.ID + " / " + label
+			options = append(options, choice)
+			destinations[choice] = paths[label]
+		}
 	}
-	if len(names) < 2 {
-		m.setNotice(pane.NoticeWarning, "Add at least two nodes first")
+	if from == "" || len(options) == 0 {
+		m.setNotice(pane.NoticeWarning, "Select a source node and add at least two nodes first")
 		return nil
 	}
-	destination := names[0]
-	if destination == m.graph.Selected {
-		destination = names[1]
-	}
+	draft := m.editor.Source()
 	m.openForm(screen.Form{
-		Title:      "Connect nodes",
-		Hint:       "Choose the source and destination, then map their data.",
-		ApplyLabel: "Next",
-		Fields: []formField{
-			{Key: "from", Label: "Source node", Value: m.graph.Selected},
-			{Key: "to", Label: "Destination node", Value: destination},
-		},
-		Choices: map[string][]string{"from": names, "to": names},
+		Title:      "Connect from " + from,
+		Hint:       "Choose a destination argument to pass data, or Run after to set order.",
+		ApplyLabel: "Review",
+		Fields:     []formField{{Key: "destination", Label: "Destination", Value: options[0]}},
+		Choices:    map[string][]string{"destination": options},
 	}, func(v map[string]string) error {
-		if v["from"] == v["to"] {
-			return fmt.Errorf("choose different nodes")
+		if m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen connections")
 		}
-		payload, _ := json.Marshal([]string{v["from"], v["to"]})
-		m.queueAction("link-target", string(payload))
+		dest, ok := destinations[v["destination"]]
+		if !ok {
+			return fmt.Errorf("choose a destination")
+		}
+		m.queueConnection(workflowConnectionEdit{From: from, To: dest.To, Field: dest.Field, Path: dest.Path, Draft: draft})
 		return nil
 	})
-
 	return nil
 }
 

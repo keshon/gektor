@@ -32,6 +32,9 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 		return nil
 	}
 	switch a.action {
+	case "confirm-replace":
+		m.confirmReplace(a.value)
+		return nil
 	case "add-operation":
 		m.addOperation(a.value)
 		return nil
@@ -88,16 +91,18 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 		m.editor.Path = a.value
 		m.graph = graph.Model{}
 		m.run = nil
+		m.setNotice(pane.NoticeInfo, "Draft created. Add a node to get started.")
 		return nil
 	case "inspect-run":
 		m.runID = a.value
 		return m.poll(a.value, false)
-	case "open-path", "save-path", "validate-inputs", "run-inputs", "review-approve", "review-reject":
+	case "open-path", "save-path", "replace-path", "validate-inputs", "run-inputs", "review-approve", "review-reject":
 	default:
 		return m.command(a.action)
 	}
 	m.setNotice(pane.NoticeInfo, "Working…")
 	source, path := m.editor.Source(), m.editor.Path
+	editor := m.editor
 	ws, policy := m.config.WS, m.config.Policy
 	if path == "" {
 		path = "recipe.json"
@@ -146,6 +151,9 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 				}
 				result.source, result.path = string(b), a.value
 			case "save-path":
+				result.text, err = s.SaveNew(ctx, a.value, []byte(source))
+				result.path = a.value
+			case "replace-path":
 				result.text, err = s.Save(ctx, a.value, []byte(source))
 				result.path = a.value
 			case "run-inputs", "validate-inputs":
@@ -157,6 +165,9 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 				}
 				if err == nil {
 					result.outcome, err = s.RunSource(ctx, []byte(source), path, inputs)
+					if err == nil && s.ValidateOnly && result.outcome.Valid {
+						result.validation = validatedInputs{editor: editor, draft: source, values: json.RawMessage(a.value)}
+					}
 				}
 			case "review-approve", "review-reject":
 				result.outcome, err = s.Review(ctx, runID, a.value, a.action == "review-approve")
@@ -238,6 +249,13 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 	m.cancel = nil
 	m.finishPermission()
 	if r.err != nil {
+		if r.action == "save-path" && os.IsExist(r.err) {
+			if m.active {
+				m.saveForm(r.path)
+				m.dialogs.FormFeedback(m.dialogs.DialogID(), "This path already exists. Choose a new path or confirm replacement.")
+			}
+			return nil
+		}
 		if r.action == "open-path" {
 			m.setNotice(pane.NoticeWarning, "Recipe was not opened"+screen.Separator()+"Ctrl+O choose a file")
 			if m.active {
@@ -258,7 +276,11 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		if r.outcome.RunID != "" {
 			rows = append(rows, "Run: "+r.outcome.RunID+screen.Separator()+r.outcome.Status)
 		}
-		m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow failed", Lines: rows})
+		title := "Workflow failed"
+		if r.action == "validate-inputs" {
+			title = "Recipe validation failed"
+		}
+		m.dialogs.PresentDialog(screen.Dialog{Title: title, Lines: rows})
 		return nil
 	}
 	if r.action == "schedule-save" || r.action == "schedule-delete" || r.action == "schedule-refresh" {
@@ -287,7 +309,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 			m.approvals.Reset()
 		}
 		m.runID = ""
-		m.editor = &Editor{Definition: d, Path: r.path}
+		m.editor = &Editor{Definition: d, Path: r.path, savedPath: r.path}
 		m.editor.Saved = m.editor.Source()
 		m.run = nil
 		m.graph = m.buildGraph(graph.Model{})
@@ -295,6 +317,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 	}
 	if r.path != "" && r.source == "" {
 		m.editor.Path = r.path
+		m.editor.savedPath = r.path
 		m.editor.Saved = m.editor.Source()
 		if err := m.saveLayout(); err != nil {
 			m.setNotice(pane.NoticeError, "Recipe saved; layout: "+err.Error())
@@ -314,6 +337,9 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		}
 		m.setNotice(level, "Run: "+r.outcome.Status+" / H opens saved runs")
 	} else if r.outcome.Valid {
+		if r.validation.editor == m.editor {
+			m.validated = r.validation
+		}
 		m.setNotice(pane.NoticeSuccess, "Recipe valid"+screen.Separator()+r.outcome.Scope)
 	} else if r.text != "" {
 		m.setNotice(pane.NoticeInfo, r.text)
@@ -321,7 +347,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 	if m.runID != "" {
 		return m.poll(m.runID, false)
 	}
-	if r.action == "open-path" || r.action == "save-path" {
+	if r.action == "open-path" || r.action == "save-path" || r.action == "replace-path" {
 		return m.scheduleRefresh()
 	}
 	return nil

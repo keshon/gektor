@@ -31,10 +31,11 @@ func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 			{Text: "Add node…", Command: "/workflows add", Enabled: edit},
 			{Text: "Add schedule trigger…", Command: "/workflows schedule-add", Enabled: edit}, sep,
 			{Text: "Edit arguments…", Command: "/workflows edit", Enabled: edit && hasNode},
+			{Text: "Bind recipe input…", Command: "/workflows bind-input", Enabled: edit && m.selectedStep().ID != "" && len(m.editor.Definition.Inputs) > 0},
 			{Text: "Behavior…", Command: "/workflows behavior", Enabled: edit && hasNode},
 			{Text: "Saved connection…", Command: "/workflows binding", Enabled: bindingEnabled},
 			{Text: "Connections…", Command: "/workflows connections", Enabled: edit && hasNode},
-			{Text: "Connect nodes…", Command: "/workflows link", Enabled: edit && hasSteps && hasNode}, sep,
+			{Text: "Connect from selected node…", Command: "/workflows link", Enabled: edit && len(m.editor.Definition.Steps) >= 2 && hasNode}, sep,
 			{Text: "Delete node…", Command: "/workflows delete", Enabled: edit && hasNode},
 		}
 	case "execution":

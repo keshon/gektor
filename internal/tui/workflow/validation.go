@@ -41,12 +41,15 @@ func (m *Model) validationRows(err error) []string {
 		m.graph.Selected = id
 		m.inspect = true
 		m.inspectorOpen = true
-		m.offset = 0
+		m.setInspectorTab(0)
 		width, height := m.canvasSize()
 		m.graph.Reveal(width, height)
 		rows = append(rows, "Node: "+id)
 		if path != "" {
 			rows = append(rows, "Value: "+path)
+		}
+		if m.run == nil {
+			rows = append(rows, "Close this dialog, then press Enter to edit the selected node.")
 		}
 		rows = append(rows, "")
 	}

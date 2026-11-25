@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
@@ -132,11 +133,7 @@ func (m *Model) content() string {
 	}
 	left := canvas.View(cw, ch, view.Styles.Graph)
 	if len(canvas.Nodes) == 0 {
-		empty := "No workflow open."
-		if !view.Quiet {
-			empty += "\nCtrl+O opens a recipe" + screen.Separator() + "H saved runs\nA adds a node" + screen.Separator() + "I requests an AI proposal"
-		}
-		left = cellFrame(empty, cw, ch)
+		left = cellFrame(m.emptyRecipe(view), cw, ch)
 	}
 	title := m.editor.Definition.Name
 	if m.editor.Dirty() {
@@ -207,6 +204,45 @@ func (m *Model) content() string {
 		}
 	}
 	return strings.Join(rows, "\n")
+}
+
+const firstNodeLabel = "Add first node [A]"
+const newRecipeLabel = "New recipe [Ctrl+N]"
+const openRecipeLabel = "Open recipe [Ctrl+O]"
+
+func (m *Model) emptyRecipe(view screen.Surface) string {
+	if m.hasRecipeDraft() {
+		path := m.editor.Path
+		if path == "" {
+			path = "Unsaved recipe"
+		}
+		title := cleanText(m.editor.Definition.Name) + " / " + cleanText(path)
+		return title + "\n" + view.Styles.Accent.Bold(true).Render(firstNodeLabel)
+	}
+	return "No workflow open.\n" + view.Styles.Accent.Bold(true).Render(newRecipeLabel) + "\n" + view.Styles.Accent.Bold(true).Render(openRecipeLabel)
+}
+
+func (m *Model) emptyRecipeAction(x, y int) string {
+	if m.run != nil || len(m.graph.Nodes) > 0 || len(m.editor.Definition.Steps) > 0 || x < 0 {
+		return ""
+	}
+	if m.hasRecipeDraft() {
+		if y == 1 && x < lipgloss.Width(firstNodeLabel) {
+			return "add"
+		}
+		return ""
+	}
+	if y == 1 && x < lipgloss.Width(newRecipeLabel) {
+		return "new"
+	}
+	if y == 2 && x < lipgloss.Width(openRecipeLabel) {
+		return "open"
+	}
+	return ""
+}
+
+func (m *Model) hasRecipeDraft() bool {
+	return m.run == nil && (m.editor.Path != "" || m.editor.Dirty())
 }
 
 // CardDetail presents an execution status without changing selection styling.

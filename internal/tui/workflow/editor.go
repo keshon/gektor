@@ -16,6 +16,7 @@ type Editor struct {
 	Definition workflow.Definition
 	Path       string
 	Saved      string
+	savedPath  string
 	undo, redo []string
 }
 

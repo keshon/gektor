@@ -109,6 +109,9 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		if action := m.emptyRecipeAction(x, y); action != "" {
+			return m, m.command(action)
+		}
 		canvas := m.graph
 		if m.overview {
 			canvas = m.graph.Overview(cw)

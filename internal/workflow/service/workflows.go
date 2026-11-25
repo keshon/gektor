@@ -14,7 +14,16 @@ import (
 
 // Save writes a recipe atomically to an operator-selected workspace path.
 // The adapter authorizes the destination; replacement does not follow a final symlink.
-func (s Service) Save(ctx context.Context, path string, source json.RawMessage) (out string, err error) {
+func (s Service) Save(ctx context.Context, path string, source json.RawMessage) (string, error) {
+	return s.save(ctx, path, source, true)
+}
+
+// SaveNew publishes the recipe only if the destination is still unused.
+func (s Service) SaveNew(ctx context.Context, path string, source json.RawMessage) (string, error) {
+	return s.save(ctx, path, source, false)
+}
+
+func (s Service) save(ctx context.Context, path string, source json.RawMessage, replace bool) (out string, err error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -62,7 +71,12 @@ func (s Service) Save(ctx context.Context, path string, source json.RawMessage) 
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if err := s.WS.Rename(tmp, path); err != nil {
+	if replace {
+		err = s.WS.Rename(tmp, path)
+	} else {
+		err = s.WS.Link(tmp, path)
+	}
+	if err != nil {
 		return "", err
 	}
 	result, err := json.Marshal(map[string]any{"recipe_path": filepath.ToSlash(path), "saved": true})
