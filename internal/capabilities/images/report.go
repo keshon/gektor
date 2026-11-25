@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	imagekit "github.com/keshon/pixelita"
+	"github.com/keshon/pixelita/result"
 )
 
 type imageOutcome struct {
@@ -42,7 +43,7 @@ func (t operation) evaluateReport(in Request, rep *imagekit.Report, sourceErr er
 	if blocked {
 		reason := "requested outputs were not produced"
 		for _, it := range rep.Items {
-			if it.Status == "failed" || (!failed && it.Status == "skipped") {
+			if it.Status == result.StatusFailed || (!failed && it.Status == result.StatusSkipped) {
 				reason = it.Code + ": " + it.Reason
 				break
 			}
@@ -60,8 +61,8 @@ func (t operation) formatReport(in Request, rep *imagekit.Report, staged stagedI
 		if outcome.blocked && t.writesOutputs() {
 			it.Written = false
 			it.Output = ""
-			if it.Status == "done" {
-				it.Status = "skipped"
+			if it.Status == result.StatusDone {
+				it.Status = result.StatusSkipped
 				it.Code = "batch_not_published"
 				it.Reason = "batch was not published; see operation error"
 				if outcome.publicationFailed {
@@ -134,9 +135,9 @@ func (t operation) formatReport(in Request, rep *imagekit.Report, staged stagedI
 		switch {
 		case t.Kind == "inspect" && it.Code == "headers_only":
 			it.Status = "inspected"
-		case it.Status == "would":
+		case it.Status == result.StatusWould:
 			it.Status = "previewed"
-		case it.Status == "done":
+		case it.Status == result.StatusDone:
 			it.Status = "written"
 			if t.Kind == "compare" {
 				it.Status = "compared"

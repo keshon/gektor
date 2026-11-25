@@ -351,8 +351,10 @@ contain the process ID and status. Retrieve logs and failure details with
 
 ## Image tools
 
-Image operations use the bundled Pixelita integration. They do not need a
-separate image executable. The same operations can be called by Agent tools.
+Agent image tools use the [Pixelita Go API](https://github.com/keshon/pixelita/blob/v0.2.0/docs/go-api.md)
+compiled into GEKTOR. GEKTOR stages workspace inputs and authorizes output paths
+before publication. Inspect, compare and optimization reports use the
+`gektor.images.v1` schema.
 
 Enable `native_images` through `enable_capability` to load these schemas:
 
