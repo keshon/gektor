@@ -309,13 +309,8 @@ type Result struct {
 	ToolSeconds        float64           `json:"tool_seconds"`
 	ToolFailures       map[string]int    `json:"tool_failures,omitempty"`
 
-	// Errored means the run never reached the model — a dead backend, a
-	// bad seed path — so it says nothing about the agent and must not be
-	// scored. Without this the first thing a stopped koboldcpp produces
-	// is a table of red rows and failed checks, which reads exactly like
-	// a model that got worse. An instrument that cannot tell "the agent
-	// failed" from "nothing ran" is the same disease as a model grading
-	// its own work.
+	// Errored excludes infrastructure failures from scoring: a run that
+	// never reached the model, or required evidence that could not be saved.
 	Errored bool `json:"errored,omitempty"`
 
 	// Skipped means the probe does not run on this host OS (see Probe.Oses)
@@ -346,10 +341,12 @@ type Result struct {
 	// of arguing about it.
 	Nudges []string `json:"nudges,omitempty"`
 
-	RunError  string            `json:"run_error,omitempty"`
-	Delegates []delegateMetrics `json:"delegates,omitempty"`
-	Failures  []string          `json:"failures,omitempty"`
-	Trace     string            `json:"trace_log,omitempty"`
+	RunError       string            `json:"run_error,omitempty"`
+	Delegates      []delegateMetrics `json:"delegates,omitempty"`
+	Failures       []string          `json:"failures,omitempty"`
+	Trace          string            `json:"trace_log,omitempty"`
+	Workspace      string            `json:"workspace,omitempty"`
+	ModelWorkspace string            `json:"model_workspace,omitempty"`
 }
 
 const defaultTimeout = 15 * time.Minute
@@ -393,6 +390,7 @@ func runEvaluation() int {
 		"proves very little")
 	maxFailures := flag.Int("max-failures", -1, "maximum scored failures before exit 1; -1 disables the gate; enabled gates exit 2 for errors or no scored runs")
 	outDir := flag.String("out", "eval/results", "directory for results.jsonl and per-run traces")
+	keepWorkspaces := flag.Bool("keep-workspaces", false, "retain per-run workspaces and a snapshot before acceptance checks under the output directory")
 	maxTokens := flag.Int("max-tokens", 8192, "generation budget per response")
 	toolProfile := flag.String("tool-profile", "baseline", "native tool exposure for comparison: baseline or lazy-web")
 	deadlineAware := flag.Bool("deadline-aware", false, "reserve part of each probe timeout for a tool-free incomplete-work report")
@@ -546,6 +544,7 @@ func runEvaluation() int {
 		DelegateSteps:    steps,
 		DelegateMaxSteps: maximum,
 		MaxFailures:      *maxFailures,
+		KeepWorkspaces:   *keepWorkspaces,
 	}, probes); err != nil {
 		log.Fatalf("record experiment metadata: %v", err)
 	}
@@ -579,7 +578,7 @@ func runEvaluation() int {
 		fmt.Printf("  ....  %-22s run %d  started\n", j.probe.Name, j.run)
 		mu.Unlock()
 		record(runOnce(ctx, j.probe, j.run, runDir, *backendKind, *backend, *model,
-			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware, *toolProfile, delegateBudget))
+			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware, *toolProfile, *keepWorkspaces, delegateBudget))
 	}
 
 	runProbeJobs(probes, *runs, *jobsN, run1)
@@ -662,7 +661,7 @@ func osSkipReason(oses []string) (bool, string) {
 }
 
 func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend, model string,
-	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool, toolProfile string, budgets ...config.Harness) (res Result) {
+	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool, toolProfile string, keepWorkspaces bool, budgets ...config.Harness) (res Result) {
 
 	res = Result{
 		Probe:   p.Name,
@@ -684,15 +683,34 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 
 	// A fresh copy per run. Without it the second run starts from the
 	// first run's output and measures nothing.
-	tempRoot, err := os.MkdirTemp("", "gektor-eval-")
+	workspaceParent := ""
+	if keepWorkspaces {
+		var err error
+		workspaceParent, err = filepath.Abs(filepath.Join(runDir, "_workspaces"))
+		if err != nil {
+			res.RunError = "resolve workspace directory: " + err.Error()
+			return res
+		}
+		err = os.MkdirAll(workspaceParent, 0700)
+		if err != nil {
+			res.RunError = "create workspace directory: " + err.Error()
+			return res
+		}
+	}
+	tempRoot, err := os.MkdirTemp(workspaceParent, "gektor-eval-")
 	if err != nil {
 		res.RunError = "mkdir temp: " + err.Error()
 		return res
 	}
 
-	defer os.RemoveAll(tempRoot)
+	if !keepWorkspaces {
+		defer os.RemoveAll(tempRoot)
+	}
 
 	work := filepath.Join(tempRoot, "workspace")
+	if keepWorkspaces {
+		res.Workspace = work
+	}
 	if err := os.Mkdir(work, 0700); err != nil {
 		res.RunError = "mkdir workspace: " + err.Error()
 		return res
@@ -736,12 +754,14 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	// thing that says why — reading traces is how the three harness bugs
 	// fixed on 2026-09-04 were found.
 	tracePath := filepath.Join(runDir, fmt.Sprintf("%s-run%d.log", p.Name, run))
-	if tf, err := os.Create(tracePath); err == nil {
-		defer tf.Close()
-
-		kobold.SetDebug(tf)
-		res.Trace = tracePath
+	tf, err := os.Create(tracePath)
+	if err != nil {
+		res.RunError = "create trace: " + err.Error()
+		return res
 	}
+	defer tf.Close()
+	kobold.SetDebug(tf)
+	res.Trace = tracePath
 
 	counter := &countingClient{inner: client}
 
@@ -812,7 +832,21 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 
 	answer = executeProbeAgent(runCtx, p, env, images, &res)
 	res.Requests = counter.timings
+	recordProbeUsage(&res, counter, contextLimit, calls)
 	res.Errored = !counter.reached() && !p.InjectOverflowOnce
+	if keepWorkspaces {
+		snapshot := filepath.Join(tempRoot, "model-workspace")
+		err = os.CopyFS(snapshot, os.DirFS(work))
+		if err != nil {
+			if res.RunError != "" {
+				res.RunError += "; "
+			}
+			res.RunError += "snapshot model workspace: " + err.Error()
+			res.Errored = true
+			return res
+		}
+		res.ModelWorkspace = snapshot
+	}
 
 	// The backend was never reached, so the workspace checks below would
 	// only be measuring the seed. Report it as an error rather than
@@ -838,7 +872,6 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 
 	checkProbeOutcome(ctx, p, ws, images, calls, answer, &res)
 
-	recordProbeUsage(&res, counter, contextLimit, calls)
 	if p.MaxSteps > 0 && res.Steps > p.MaxSteps {
 		res.EfficiencyFailures = append(res.EfficiencyFailures,
 			fmt.Sprintf("took %d steps, probe allows %d", res.Steps, p.MaxSteps))

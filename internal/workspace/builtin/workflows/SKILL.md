@@ -6,6 +6,8 @@ description: Create, validate, run and inspect GEKTOR recipes; connect node outp
 # GEKTOR workflows
 
 In normal Agent mode, enable `native_workflows`, then read `workflow_schema`.
+When needed node names are known, pass `operations: [names]` to read only their
+schemas and contracts. Omit it for the full catalog; do not combine it with `record_kind`.
 Draft-only roles use their available schema tool or supplied contracts instead.
 The operation contracts
 describe inputs, outputs, execution effects, concurrency and retry safety. Use those contracts;

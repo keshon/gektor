@@ -96,6 +96,22 @@ Each invocation writes `eval/results/<timestamp>/` by default, containing `resul
 recording which model produced the numbers, and a full request/response trace
 per run.
 
+Add `-keep-workspaces` to retain each run beneath the output directory's
+`_workspaces/` folder. The leading underscore excludes model-authored packages
+from Go's recursive package discovery, including `go test ./...`.
+Results record `workspace`, the directory used by the agent
+and acceptance checks, and `model_workspace`, a separate copy taken after the
+agent returns and before acceptance checks run. Use the latter to inspect the
+model's files without injected verifier files or acceptance-command changes.
+Attachments and workflow state outside the workspace remain beside the working
+directory. Retention is opt-in; otherwise temporary workspaces are removed.
+
+The copy is not an atomic snapshot of background processes: a process left
+running can still change files while copying. Unsupported file types or a copy
+failure produce an infrastructure error; the original workspace remains available.
+Trace creation failures stop the run before model execution. Retention settings
+are recorded in metadata.
+
 By default, scored failures do not change the process exit status: the runner
 remains an exploratory measurement tool. For a gate, build the binary and set
 `-max-failures 0` (or another nonnegative count). An enabled gate returns 0 when
@@ -243,6 +259,14 @@ Three independent verdicts, all of which must hold:
 | `trace` | which tools were called, with `mode`, `args_regex` and `max_calls` |
 | `answer` | what the run reported, by regex |
 
+For exact source or read-only fixture checks, `content_equals` compares the
+complete file against the check's `content` field, normalizing only CRLF to LF.
+Probe 05 uses it to reject decoy comments and collateral edits. Probe 18 requires
+the full two-line answer and a successful read of the correct file; it measures
+injected overflow recovery, not retention after naturally filling the context.
+These stronger criteria change the input digest, so scores from older probe
+definitions are a separate baseline.
+
 Optional `answer_schema` validates the entire final answer as one JSON value
 against a JSON Schema, using the existing operation validator. Extra prose,
 Markdown fences, duplicate keys and invalid values fail; JSON is not extracted
@@ -373,6 +397,48 @@ SKIP. Prefer portable checks over shell commands.
 Run media checks with `go run ./cmd/eval -suite media -runs 3 -jobs 1 -backend-kind llama -backend http://127.0.0.1:9931 -require-model Ornith`. See [media criteria](prompts/media.md) for application and network requirements.
 
 A probe may supply `continuation`, an array of recorded assistant/tool messages after its opening task and initial Act notice. The harness resumes that conversation without adding a user message. This supports role-boundary regressions; fixture turns are included in the input fingerprint and are not counted as executed tools.
+
+## Repair-to-workflow journey
+
+`TestLiveJourney` runs the shipping harness against local llama in an isolated,
+retained ledger workspace. Run it alone against the server, after other model
+evaluations finish. It currently requires a model name containing `Surogate3.7`.
+
+```powershell
+$env:GEKTOR_LIVE_JOURNEY_DIR = 'D:/Temp/gektor-journey-run1'
+$env:GEKTOR_LIVE_BACKEND = 'http://127.0.0.1:9931'
+go test ./cmd/eval -run '^TestLiveJourney$' -count=1 -timeout 30m -v
+Remove-Item Env:GEKTOR_LIVE_JOURNEY_DIR, Env:GEKTOR_LIVE_BACKEND
+```
+
+The output directory must not exist; its parent must exist. The journey repairs
+the broken ledger, runs configured project verification, and applies independent
+acceptance tests hidden until generation ends. It then captures a real persisted
+`ask_user` checkpoint, cancels the session, and resumes a fresh session with an
+explicit answer and a new workflow-authoring instruction. This measures checkpoint
+recovery after graceful cancellation, not recovery from an operating-system crash.
+
+The model must save and validate the recipe without running it. The independent
+runner executes it with two fresh inputs, checks that publication pauses for
+review, approves it, and checks the actual reports. Invalid input must fail before
+publication. Repair acceptance runs again after authoring. Neither model-written
+tests nor final prose can substitute for these checks.
+
+`journey.json`, `meta.json`, request traces, checkpoint archives, the repaired
+workspace snapshot, final workspace and workflow run store remain in the output
+directory, including on assertion failures. Ordinary `go test` skips this live
+test. Offline `TestJourneyLifecycle*` and `TestJourneyWorkflow*` cover checkpoint
+handling and deliberately broken workflow recipes.
+
+For a diagnostic continuation of a failed first repair, also set
+`GEKTOR_LIVE_JOURNEY_FROM` to its output directory. Use a new output directory.
+The runner copies and hashes the prior workspace/archive and grants 24 additional
+repair requests (48 combined). It checks that the original evidence stays
+unchanged. This is a separate experiment, not a passing rerun of the original
+24-request attempt. Remove this environment variable after running.
+
+Measurements and limitations from the first local run are recorded in the
+[2026-11-26 benchmark report](../docs/internal/benchmark-2026-11-26.md).
 
 ## Discovery integration checks
 

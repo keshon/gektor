@@ -103,7 +103,8 @@ pipes or redirection applies. All four tools accept a workspace-relative
 `workdir`.
 
 `run_shell` and `run_program` also accept `timeout_seconds` from 1 to 600.
-Defaults are the workspace root and 600 seconds. The working directory applies
+Defaults are the workspace root and 120 seconds. Set an explicit timeout for
+slower finite work, or use a managed background command. The working directory applies
 to that call only. Unknown parameters and invalid bounds are refused before
 starting a process. Servers still use `start_background` or `start_program`
 rather than a longer blocking timeout.

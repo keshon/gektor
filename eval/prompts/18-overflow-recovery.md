@@ -21,9 +21,14 @@ go run ./cmd/eval -only 18
 **Pass:**
 - Run completes despite the step-0 overflow (without recovery it dies with
   a backend failure before doing anything)
-- Uses `read_file`, answers `Hello from eval fixtures`
-- No `write_file`
+- Successfully reads `hello.txt` and answers with both complete fixture lines,
+  preserving case and punctuation, without wrappers or commentary; the final
+  newline is optional and CRLF/LF line endings are accepted
+- `hello.txt` remains unchanged; no `write_file`, `patch_file` or `move_file`
 
 **Fail:**
 - Run errors on step 0 (recovery missing or broken)
 - Answer wrong or read never happened (recovery corrupted the run)
+
+This measures synthetic overflow recovery on a small request. It does not
+measure retrieval or retention after a naturally filled context window.

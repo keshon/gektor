@@ -31,7 +31,7 @@ func (Shell) Description() string {
 func (Shell) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 		"command":{"type":"string","minLength":1,"description":"Complete PowerShell source on Windows or POSIX sh source elsewhere."},
-		"workdir":{"type":"string","description":"Workspace-relative working directory; defaults to root."},"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"default":600}},"required":["command"],"additionalProperties":false}`)
+		"workdir":{"type":"string","description":"Workspace-relative working directory; defaults to root."},"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"default":120}},"required":["command"],"additionalProperties":false}`)
 }
 
 // Shell input is deliberately a single mode: command is always shell source.
@@ -99,7 +99,7 @@ func (Program) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 		"program":{"type":"string","minLength":1,"description":"Native executable name or path, without shell quoting."},
 		"args":{"type":"array","items":{"type":"string"},"description":"Literal arguments passed verbatim; no shell expansion."},
-		"workdir":{"type":"string","description":"Workspace-relative working directory; defaults to root."},"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"default":600}},"required":["program"],"additionalProperties":false}`)
+		"workdir":{"type":"string","description":"Workspace-relative working directory; defaults to root."},"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"default":120}},"required":["program"],"additionalProperties":false}`)
 }
 
 // Native arguments are passed to the OS verbatim, never joined into shell source.

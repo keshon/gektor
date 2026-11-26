@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/workflow"
@@ -21,12 +23,12 @@ type Schema struct {
 
 func (Schema) Name() string { return "workflow_schema" }
 func (Schema) Description() string {
-	return "Read the current recipe format, operation schemas and native schedule-trigger instructions. Optional record_kind reads that kind's registered data schema. Does not execute operations."
+	return "Read recipe format, operation contracts and schedule instructions. Use operations to select known node names; omission returns all. record_kind reads a registered data schema instead. Does not execute operations."
 }
 func (Schema) Mode() agent.ToolMode { return agent.Concurrent }
 func (Schema) ReadOnly() bool       { return true }
 func (Schema) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"record_kind":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"}},"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"record_kind":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"},"operations":{"type":"array","minItems":1,"maxItems":32,"items":{"type":"string","minLength":1,"maxLength":128}}},"additionalProperties":false}`)
 }
 func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if s.Registry == nil {
@@ -39,10 +41,14 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 	var in struct {
-		Kind string `json:"record_kind"`
+		Kind       string   `json:"record_kind"`
+		Operations []string `json:"operations"`
 	}
 	if err := decode(args, &in); err != nil {
 		return "", err
+	}
+	if in.Kind != "" && len(in.Operations) > 0 {
+		return "", fmt.Errorf("operations and record_kind cannot be combined")
 	}
 	if in.Kind != "" {
 		if s.WS == nil {
@@ -61,6 +67,25 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 	operations := registry.Schemas()
+	contracts := registry.Contracts()
+	if len(in.Operations) > 0 {
+		selected := make(map[string]json.RawMessage, len(in.Operations))
+		selectedContracts := make(map[string]workflow.Contract, len(in.Operations))
+		for _, name := range in.Operations {
+			schema, ok := operations[name]
+			if !ok {
+				names := make([]string, 0, len(operations))
+				for available := range operations {
+					names = append(names, available)
+				}
+				slices.Sort(names)
+				return "", fmt.Errorf("unknown workflow operation %q; available operations: %s", name, strings.Join(names, ", "))
+			}
+			selected[name] = schema
+			selectedContracts[name] = contracts[name]
+		}
+		operations, contracts = selected, selectedContracts
+	}
 	data, err := json.Marshal(struct {
 		Recipe     json.RawMessage              `json:"recipe"`
 		Operations map[string]json.RawMessage   `json:"operations"`
@@ -68,7 +93,7 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		References string                       `json:"references"`
 		Examples   []json.RawMessage            `json:"argument_examples"`
 		Scheduling json.RawMessage              `json:"schedule_trigger"`
-	}{(service.Service{Registry: registry}).DefinitionSchema(), operations, registry.Contracts(), `Use operation_contracts for descriptions, inputs, outputs and retry safety. output_schema=true means the return value depends on the operation arguments or script. script_transform runs bundled JavaScript and returns exactly its JSON value, without an /output wrapper. Recipe outputs are VALUES or references, not type declarations; steps have no outputs field. v4 references are JSON objects, not strings. No interpolation or workspace prefix is needed. Validation needs values or defaults for referenced inputs. workflow_call returns the called recipe's declared outputs object.`, []json.RawMessage{
+	}{(service.Service{Registry: registry}).DefinitionSchema(), operations, contracts, `Use operation_contracts for descriptions, inputs, outputs and retry safety. output_schema=true means the return value depends on the operation arguments or script. script_transform runs bundled JavaScript and returns exactly its JSON value, without an /output wrapper. Recipe outputs are VALUES or references, not type declarations; steps have no outputs field. v4 references are JSON objects, not strings. No interpolation or workspace prefix is needed. Validation needs values or defaults for referenced inputs. workflow_call returns the called recipe's declared outputs object.`, []json.RawMessage{
 		json.RawMessage(`{"version":4,"name":"Double count","inputs":{"count":{"type":"integer","default":3}},"steps":[{"id":"double","tool":"script_transform","args":{"input":{"$input":"count"},"code":"return input * 2;"}}],"outputs":{"doubled":{"$step":"double"}}}`),
 		json.RawMessage(`{"paths":[{"$input":"source"}]}`),
 		json.RawMessage(`{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/1/output"}]}`),

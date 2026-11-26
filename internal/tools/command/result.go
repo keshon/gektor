@@ -10,7 +10,7 @@ import (
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
-const defaultTimeout = 10 * time.Minute
+const defaultTimeout = 2 * time.Minute
 
 func Timeout(seconds *int) (time.Duration, error) {
 	if seconds == nil {

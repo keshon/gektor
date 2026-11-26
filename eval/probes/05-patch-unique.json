@@ -5,22 +5,24 @@
   "seed": "eval/fixtures",
   "verify": [
     {
-      "type": "content_contains",
+      "type": "content_equals",
       "path": "sample.go",
-      "contains": "const Version = \"v2\""
-    },
-    {
-      "type": "content_contains",
-      "path": "sample.go",
-      "contains": "func Greet() string"
+      "content": "package sample\n\n// Version is the eval fixture version string.\nconst Version = \"v2\"\n\nfunc Greet() string {\n\treturn \"hello\"\n}\n"
     }
   ],
   "trace": [
     {
+      "tool": "patch_file",
+      "mode": "required",
+      "success": true,
+      "args_regex": "\"path\"\\s*:\\s*\"(?:[^\"]*[/\\\\])?sample\\.go\"",
+      "why": "the requested constant edit must succeed through the patch tool"
+    },
+    {
       "tool": "write_file",
       "mode": "forbidden",
       "args_regex": "sample.go",
-      "why": "rewriting a whole file to change one constant is how surrounding code gets silently dropped - the Greet() assertion above is what catches it when it happens"
+      "why": "this probe measures a targeted patch; the complete source check rejects unrelated edits"
     }
   ]
 }

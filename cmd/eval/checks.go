@@ -17,10 +17,11 @@ import (
 )
 
 type Check struct {
-	Type     string `json:"type"`               // shell, go_acceptance, file_exists, file_absent, content_contains, http, none
+	Type     string `json:"type"`               // shell, go_acceptance, file_exists, file_absent, content_contains, content_equals, http, none
 	Cmd      string `json:"cmd,omitempty"`      // shell: the command line
-	Path     string `json:"path,omitempty"`     // file_exists / file_absent / content_contains
+	Path     string `json:"path,omitempty"`     // file_exists / file_absent / content_contains / content_equals
 	Contains string `json:"contains,omitempty"` // content_contains: substring that must appear
+	Content  string `json:"content,omitempty"`  // content_equals: complete text, ignoring CRLF versus LF
 	URL      string `json:"url,omitempty"`      // http: expect a 200 response
 }
 
@@ -39,7 +40,7 @@ func ValidateCheck(c Check) error {
 		return err
 	case "", "none":
 		return nil
-	case "file_exists", "file_absent":
+	case "file_exists", "file_absent", "content_equals":
 		if strings.TrimSpace(c.Path) == "" {
 			return fmt.Errorf("type %q needs path", c.Type)
 		}
@@ -150,6 +151,28 @@ func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output str
 			return fmt.Sprintf("file %s (%d bytes) does not contain %q", c.Path, len(body), needle), false
 		}
 		return fmt.Sprintf("file %s contains %q", c.Path, needle), true
+
+	case "content_equals":
+		full, err := ws.Resolve(c.Path)
+		if err != nil {
+			return fmt.Sprintf("check path rejected: %v", err), false
+		}
+		file, err := os.Open(full)
+		if err != nil {
+			return fmt.Sprintf("cannot read %s: %v", c.Path, err), false
+		}
+		defer file.Close()
+		// A CRLF copy can be twice as long as the frozen LF expectation.
+		body, err := io.ReadAll(io.LimitReader(file, int64(2*len(c.Content)+1)))
+		if err != nil {
+			return fmt.Sprintf("cannot read %s: %v", c.Path, err), false
+		}
+		got := strings.ReplaceAll(string(body), "\r\n", "\n")
+		want := strings.ReplaceAll(c.Content, "\r\n", "\n")
+		if got != want {
+			return fmt.Sprintf("file %s differs from frozen text", c.Path), false
+		}
+		return fmt.Sprintf("file %s matches frozen text", c.Path), true
 
 	case "shell", "go_acceptance":
 		out, err := runCommandCheck(ctx, c, ws)

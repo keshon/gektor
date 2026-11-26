@@ -58,15 +58,16 @@ func Execute(ctx context.Context, cmd *exec.Cmd, dir string, onOutput func(strin
 	}
 	cmd.Stdout = out
 	cmd.Stderr = out
-	if err := cmd.Start(); err != nil {
-		return "", err
+	err := cmd.Start()
+	if err != nil {
+		return "", diagnoseStartError(cmd, err)
 	}
 	if err := group.AfterStart(cmd); err != nil {
 		_ = group.Kill(cmd)
 		_ = cmd.Wait()
 		return out.String(), err
 	}
-	err := cmd.Wait()
+	err = cmd.Wait()
 	out.flush()
 	_ = group.Kill(cmd)
 	if ctx.Err() != nil {

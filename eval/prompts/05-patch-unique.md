@@ -16,8 +16,10 @@ go run ./cmd/gektor -log-max 300 -workspace sandbox/eval-manual \
 
 **Pass:**
 - `patch_file` (not full `write_file` rewrite of whole file)
-- `sample.go` contains `const Version = "v2"`
-- `go build` would succeed (file still valid Go)
+- `sample.go` equals the fixture with only `"v1"` changed to `"v2"`; CRLF
+  and LF line endings are treated equally
+- The complete source comparison preserves the valid Go program and greeting;
+  it does not run a compiler
 
 **Fail:**
 - Rewrites entire file via one giant `write_file`

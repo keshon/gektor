@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -11,6 +12,119 @@ import (
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
+
+func TestWorkflowSchemaSelectsOperations(t *testing.T) {
+	registry, err := app.WorkflowRegistry(nil, "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := Schema{Registry: func() (*workflow.Registry, error) { return registry, nil }}
+	full, err := tool.Run(t.Context(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fullFields map[string]json.RawMessage
+	err = json.Unmarshal([]byte(full), &fullFields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, names := range [][]string{{"run_program"}, {"run_program", "artifact_read_text"}, {"run_program", "run_program"}} {
+		args, err := json.Marshal(struct {
+			Operations []string `json:"operations"`
+		}{Operations: names})
+		if err != nil {
+			t.Fatal(err)
+		}
+		filtered, err := tool.Run(t.Context(), args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]json.RawMessage
+		err = json.Unmarshal([]byte(filtered), &fields)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, field := range []string{"operations", "operation_contracts"} {
+			var selected, all map[string]json.RawMessage
+			err = json.Unmarshal(fields[field], &selected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = json.Unmarshal(fullFields[field], &all)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := make(map[string]json.RawMessage)
+			for _, name := range names {
+				want[name] = all[name]
+			}
+			if !reflect.DeepEqual(selected, want) {
+				t.Fatalf("%s does not contain exactly the requested original contracts", field)
+			}
+		}
+		for _, field := range []string{"recipe", "references", "argument_examples", "schedule_trigger"} {
+			if string(fields[field]) != string(fullFields[field]) || len(fields[field]) == 0 {
+				t.Fatalf("filter changed shared guidance: %s", field)
+			}
+		}
+		if len(filtered) >= len(full) {
+			t.Fatal("filter did not reduce the catalog")
+		}
+		t.Logf("operations=%v full=%d bytes filtered=%d bytes reduction=%.1f%%", names, len(full), len(filtered), 100*(1-float64(len(filtered))/float64(len(full))))
+	}
+	after, err := tool.Run(t.Context(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != full {
+		t.Fatal("filtered lookup mutated the full registry")
+	}
+}
+
+func TestWorkflowSchemaRejectsInvalidOperationSelection(t *testing.T) {
+	tool := Schema{Registry: func() (*workflow.Registry, error) {
+		return app.WorkflowRegistry(nil, "", nil, nil)
+	}}
+	tooMany := `{"operations":[` + strings.Repeat(`"run_program",`, 32) + `"run_program"]}`
+	for _, args := range []string{
+		`{"operations":["not_registered"]}`,
+		`{"operations":["run_program","not_registered"]}`,
+		`{"operations":["workflow_bind"]}`,
+		`{"operations":["run_program"],"record_kind":"assets"}`,
+		`{"operations":[]}`,
+		`{"operations":null}`,
+		`{"operations":"run_program"}`,
+		`{"operations":[""]}`,
+		`{"operations":[1]}`,
+		`{"operations":["` + strings.Repeat("a", 129) + `"]}`,
+		tooMany,
+	} {
+		out, err := tool.Run(t.Context(), json.RawMessage(args))
+		if err == nil || out != "" {
+			t.Fatalf("invalid filter returned catalog: args=%s out=%s err=%v", args, out, err)
+		}
+	}
+}
+
+func TestWorkflowSchemaUnknownOperationListsPublicNames(t *testing.T) {
+	registry, err := app.WorkflowRegistry(nil, "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := Schema{Registry: func() (*workflow.Registry, error) { return registry, nil }}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{"operations":["run_program","read_file"]}`))
+	if err == nil || out != "" {
+		t.Fatalf("unknown operation returned partial success: out=%q err=%v", out, err)
+	}
+	_, names, found := strings.Cut(err.Error(), "; available operations: ")
+	if !found || !reflect.DeepEqual(strings.Split(names, ", "), registry.Names()) {
+		t.Fatalf("diagnostic omitted sorted public operation names: %v", err)
+	}
+	if !strings.Contains(names, "artifact_read_text") || strings.Contains(names, "workflow_bind") || strings.Contains(names, "input_schema") {
+		t.Fatalf("diagnostic omitted useful name or exposed private schema: %v", err)
+	}
+	t.Logf("unknown-operation diagnostic: %d bytes for %d public names", len(err.Error()), len(registry.Names()))
+}
 
 func TestWorkflowContractsAndRunnableExample(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())

@@ -372,7 +372,7 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 600,
-              "default": 600
+              "default": 120
             }
           },
           "required": [
@@ -400,7 +400,7 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 600,
-              "default": 600
+              "default": 120
             }
           },
           "required": [

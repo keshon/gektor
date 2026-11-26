@@ -21,6 +21,7 @@ import (
 type evalMetadata struct {
 	ToolProfile      string `json:"tool_profile"`
 	MaxFailures      int    `json:"max_failures"`
+	KeepWorkspaces   bool   `json:"keep_workspaces"`
 	DelegateSteps    int    `json:"delegate_steps"`
 	DelegateMaxSteps int    `json:"delegate_max_steps"`
 	DeadlineAware    bool   `json:"deadline_aware"`
