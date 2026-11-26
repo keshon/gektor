@@ -60,12 +60,12 @@ agent run. A failed initialization does not stamp the new workspace.
 
 ### Session titles
 
-New Agent conversations first use the opening message as a title. After the
-first answer, GEKTOR asks the selected backend once for a short title in the
-user's language. This runs separately from the conversation, with no tools or
-history. A failed or cancelled request keeps the original title; manual renames
-always take precedence. Starting another turn cancels a title request in progress.
-Existing sessions and forks keep their titles.
+New Agent conversations first use the opening message as a title. Before the
+first task request, GEKTOR asks the selected backend once for a short title in
+the user's language. This separate request has no tools or conversation history
+and an eight-second timeout, so the first turn can take longer to begin.
+A failed, timed-out or cancelled title request keeps the original title; manual
+renames take precedence. Existing sessions and forks keep their titles.
 
 ## Compaction and earlier decisions
 

@@ -210,18 +210,27 @@ func (a *Agent) resume(ctx context.Context, history []llm.Message, note llm.Mess
 	return a.run(ctx, history)
 }
 
-// ResumeWithAnswer continues from a history that ended with an unanswered
-// ask_user. answer becomes the matching role:tool message, not a user
-// message: a backend expects every tool_call answered before anything
-// else, and a naked user turn after one is wire-invalid.
-func (a *Agent) ResumeWithAnswer(ctx context.Context, history []llm.Message, callID, answer string) (string, error) {
+// ResumeAnswer separates the pending tool reply from new user instructions.
+type ResumeAnswer struct {
+	CallID string
+	Answer string
+	Note   string
+	Images []string
+}
+
+// ResumeWithAnswer closes the pending tool group before appending new user
+// instructions or images. The answer remains a matching role:tool message.
+func (a *Agent) ResumeWithAnswer(ctx context.Context, history []llm.Message, input ResumeAnswer) (string, error) {
 	var err error
 	history, err = a.restoreHistory(history)
 	if err != nil {
 		return "", err
 	}
 
-	history = a.closePendingCalls(a.resumeHistory(history), callID, answer)
+	history = a.closePendingCalls(a.resumeHistory(history), input.CallID, input.Answer)
+	if strings.TrimSpace(input.Note) != "" || len(input.Images) > 0 {
+		history = append(history, llm.Message{Role: llm.RoleUser, Content: input.Note, Images: input.Images})
+	}
 
 	return a.run(ctx, history)
 }

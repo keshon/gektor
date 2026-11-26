@@ -1,0 +1,36 @@
+Audit date: 2026-11-26
+Repository: D:\Projects\dev\keshon\gektor
+Revision: 60365ee (clean working tree at start)
+
+Reproduction command:
+  go run scripts/check-tui-package.go
+
+Observed output excerpt (other copied component tests passed):
+Public TUI source SHA-256: 9efbf1123127f93627f4ff642cc8789d12d1d59fc66245155e56dd9e66932422
+# github.com/keshon/gektor/pkg/tui/components/markdown
+pkg\tui\components\markdown\clang_format.go:15:12: pattern clang-format/plugin.wasm: no matching files found
+FAIL github.com/keshon/gektor/pkg/tui/components/markdown [setup failed]
+FAIL
+gektor: go test -p 1 ./...: exit status 1
+exit status 1
+
+Cause: scripts/check-tui-package.go skips every non-.go source asset while copying
+the isolated candidate. Both clang-format/plugin.wasm and prettier/* are embedded
+by the current public Markdown package, and are omitted by this copy policy.
+
+Independent counter-check:
+Created D:\Temp\gektor-audit-2026-11-26\consumer as an external module with a local
+replace to the complete GEKTOR checkout. Imported public screen and markdown,
+constructed Controls, opened a dialog, and formatted JSON through Markdown.
+  go run -mod=mod .
+Exit code: 0
+Output:
+External consumer
+[json │ { │   "ready": true │ }]
+
+Thus the extraction-check snapshot is broken; public imports do work against
+complete current source. No released-version claim is made.
+
+Focused validation:
+  go test -p 1 ./internal/release ./pkg/tui/screen ./pkg/tui/examples/workbench
+All three packages passed. Root agent owns full test/vet/build checks.

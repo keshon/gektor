@@ -3,11 +3,13 @@ package harness
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 )
 
@@ -36,29 +38,59 @@ func TestResumeSharesSavedAnswerPromptAndReport(t *testing.T) {
 			}
 			history := []llm.Message{
 				{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "task"},
-				{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "question", Name: "ask_user", Arguments: json.RawMessage(`{"question":"which option?"}`)}}},
+				{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
+					{ID: "question", Name: "ask_user", Arguments: json.RawMessage(`{"question":"which option?"}`)},
+					{ID: "sibling", Name: "write_file", Arguments: json.RawMessage(`{"path":"unsafe.txt","content":"must not execute"}`)},
+				}},
 			}
 			sess, err := New(cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
-			answer, err := sess.Resume(t.Context(), history, "continue")
+			const note = "Do not deploy. Only inspect staging."
+			image := filepath.Join(t.TempDir(), "new-reference.png")
+			answer, err := sess.Resume(t.Context(), history, note, image)
 			if err != nil || answer != "done" || sess.Report().Final != "done" {
 				t.Fatal(answer, sess.Report(), err)
 			}
 			if supplied && asked != 0 || !supplied && asked != 1 {
 				t.Fatalf("asked=%d supplied=%v", asked, supplied)
 			}
-			found := false
-			for _, request := range client.requests {
-				for _, message := range request.Messages {
-					if message.Role == llm.RoleTool && message.ToolCallID == "question" && strings.Contains(message.Content, "selected answer") {
-						found = true
+			saved, err := conversation.Load(cfg.StateFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(client.requests) != 1 {
+				t.Fatalf("model calls = %d", len(client.requests))
+			}
+			for _, messages := range [][]llm.Message{client.requests[0].Messages, saved.History} {
+				questionAt, siblingAt, noteAt := -1, -1, -1
+				for index, message := range messages {
+					switch {
+					case message.Role == llm.RoleTool && message.ToolCallID == "question":
+						if message.Content != "selected answer" || message.ToolFailed == nil || *message.ToolFailed {
+							t.Fatalf("question reply = %+v", message)
+						}
+						questionAt = index
+					case message.Role == llm.RoleTool && message.ToolCallID == "sibling":
+						if message.ToolFailed == nil || !*message.ToolFailed {
+							t.Fatalf("interrupted sibling was not closed as unknown: %+v", message)
+						}
+						siblingAt = index
+					case message.Role == llm.RoleUser && message.Content == note:
+						if len(message.Images) != 1 || message.Images[0] != image {
+							t.Fatal("resume lost attached image", message.Images)
+						}
+						noteAt = index
 					}
 				}
+				if questionAt < 0 || siblingAt < 0 || noteAt <= questionAt || noteAt <= siblingAt {
+					t.Fatalf("tool group must close before new input: question=%d sibling=%d note=%d", questionAt, siblingAt, noteAt)
+				}
 			}
-			if !found {
-				t.Fatal("saved question answer did not reach the resumed request")
+			_, err = cfg.Env.WS.Stat("unsafe.txt")
+			if !os.IsNotExist(err) {
+				t.Fatal("interrupted sibling executed", err)
 			}
 		})
 	}

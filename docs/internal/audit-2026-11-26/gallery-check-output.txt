@@ -1,0 +1,5 @@
+ok  	github.com/keshon/gektor/internal/tui	0.375s
+ok  	github.com/keshon/gektor/internal/tui/agent	0.211s
+ok  	github.com/keshon/gektor/internal/tui/workflow	0.199s
+gallery-ansi.css MATCH
+gallery.html MATCH

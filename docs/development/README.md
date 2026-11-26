@@ -30,7 +30,7 @@ steps run without one.
 - [Writing documentation](writing.md) defines article ownership and editing checks.
 - [Website](../../website/README.md) explains publication and local previews.
 - [Scripts](../../scripts/README.md) covers build, benchmark and release helpers.
-- [Editable terminal designs](../design/tui/README.md) stay beside their native assets.
+- [Terminal gallery](../design/tui/README.md) covers offline viewing and regeneration.
 
 ## Check and package
 

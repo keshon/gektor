@@ -182,9 +182,11 @@ not run a second model request concurrently for the same conversation.
 Ordinary steps append to history, preserving the backend prompt prefix.
 The saved snapshot separates the full archive from the model's working
 projection. Automatic compaction makes a bounded LLM checkpoint, retains user
-instructions verbatim and keeps recent complete step groups. An invalid
-checkpoint leaves the previous context intact. Explicit /compact uses the
-extractive transformation without a model call. A cooldown limits repeated
+instructions verbatim and keeps recent complete step groups. If checkpoint
+generation fails, compaction can use a mechanical projection of recorded facts
+and recent turns that fits the context budget. Cancellation or a failed fit
+leaves the previous context intact. Explicit /compact uses the extractive
+transformation without a model call. A cooldown limits repeated
 automatic compaction; overflow recovery may compact immediately.
 
 Before each agent request, `internal/agent` records archive ID membership and

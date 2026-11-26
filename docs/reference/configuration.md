@@ -44,9 +44,10 @@ unknown keys and additional JSON documents are errors. Retired preference keys
 ## Configuration
 
 The TUI saves connection and generation settings in the user's GEKTOR directory.
-Explicit CLI flags override the selected configuration. API keys are read from
-the process environment; GEKTOR does not automatically load `.env`.
-See [authentication](cli.md#authentication-remote-providers).
+Explicit CLI flags override the selected configuration. For providers using API
+keys, the authentication mode selects an environment variable, a saved provider
+key, or no key. See [authentication and precedence](cli.md#authentication-remote-providers).
+GEKTOR does not automatically load `.env`.
 
 `.env.example` documents the API key variable and optional external benchmark
 settings. Only `scripts/bench-llama.cmd` reads its benchmark settings from `.env`.

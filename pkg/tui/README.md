@@ -49,7 +49,9 @@ go run scripts/check-tui-package.go
 ```
 
 The last command builds a separate consumer against a local copy of the root
-module using unchanged public import paths. It checks local source without
+module using unchanged public import paths. The snapshot includes package assets,
+licenses and test fixtures. CI runs this check on Windows and Linux.
+It checks local source without
 publishing a release. The first build may download dependencies. The workbench
 runs offline.
 

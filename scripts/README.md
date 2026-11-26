@@ -49,6 +49,8 @@ local helper; publishing remains a separate action.
 
 Other project helpers:
 
+- `go run scripts/check-tui-package.go` verifies public controls through an isolated
+  module and workbench consumer. See the [package check](../docs/development/testing.md#isolated-controls-package-preparation).
 - `scripts/tui-smoke.go` starts an isolated session-recovery check with a fake backend.
   See the [terminal smoke procedure](../docs/development/testing.md) for build and run commands.
 - `eval-run.cmd [flags]` runs model eval probes.

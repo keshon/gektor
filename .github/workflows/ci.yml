@@ -46,6 +46,12 @@ jobs:
       - name: test
         run: go test -race ./...
 
+      - name: public TUI checker regression
+        run: go test scripts/check-tui-package.go scripts/check-tui-package_test.go
+
+      - name: public TUI consumer
+        run: go run scripts/check-tui-package.go
+
   eval-dry:
     runs-on: ubuntu-latest
     steps:

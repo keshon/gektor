@@ -1,20 +1,10 @@
 package agent
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/pkg/tui/components/markdown"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
-
-type clangFormatReadyMsg struct{}
-
-func warmClangFormat() tea.Msg {
-	if !markdown.WarmClangFormat() {
-		return nil
-	}
-	return clangFormatReadyMsg{}
-}
 
 func baseStyle(r role, st styles) lipgloss.Style {
 	switch r {

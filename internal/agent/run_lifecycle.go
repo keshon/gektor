@@ -173,7 +173,7 @@ func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history [
 	}
 
 	// Restore the task checklist when resuming a saved conversation.
-	a.rehydrateTodo(ctx, history)
+	a.rehydrateTodo(ctx)
 
 	if a.cfg.Catalog != nil {
 		err := a.cfg.Catalog.Prepare(workCtx)

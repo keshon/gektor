@@ -1,0 +1,9 @@
+--- FAIL: TestAuditResumePendingQuestionRetainsNewInstructions (0.10s)
+    audit_20261126_test.go:39: resume silently discarded accepted input: note=false image=false
+--- FAIL: TestAuditResumeDoesNotApplyRejectedChecklist (0.10s)
+    audit_20261126_test.go:64: rejected checklist update was replayed during resume; pending work=[]
+--- FAIL: TestAuditResumeRestoresChecklistFromCompactedArchive (0.11s)
+    audit_20261126_test.go:99: compacted accepted checklist was lost despite original archive: pending=[]
+FAIL
+FAIL	github.com/keshon/gektor/internal/harness	0.461s
+FAIL

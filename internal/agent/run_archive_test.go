@@ -74,7 +74,7 @@ func TestRunArchiveQuestionContinuationKeepsTask(t *testing.T) {
 	}
 	s, _ = conversation.Load(path)
 	a := New(Config{Client: &stubClient{responses: []llm.ChatResponse{say("done")}}, Tools: NewRegistry(), StateFile: path, System: "sys"})
-	if _, err := a.ResumeWithAnswer(t.Context(), s.Context(), "ask", "yes"); err != nil {
+	if _, err := a.ResumeWithAnswer(t.Context(), s.Context(), ResumeAnswer{CallID: "ask", Answer: "yes"}); err != nil {
 		t.Fatal(err)
 	}
 	s, err := conversation.Load(path)

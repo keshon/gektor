@@ -120,7 +120,12 @@ func (s *Session) resume(ctx context.Context, history []llm.Message, note string
 		if rerr != nil {
 			return "", rerr
 		}
-		ans, err = a.ResumeWithAnswer(ctx, history, callID, reply.Answer)
+		ans, err = a.ResumeWithAnswer(ctx, history, agent.ResumeAnswer{
+			CallID: callID,
+			Answer: reply.Answer,
+			Note:   note,
+			Images: images,
+		})
 	} else {
 		ans, err = a.Resume(ctx, history, note, images...)
 	}

@@ -28,8 +28,6 @@ func runtimeFiles(tracked []string, target string) []string {
 			"scripts/run-task.sh", "scripts/run-plan.sh", "scripts/run-resume.sh":
 			selected[name] = true
 		case "README.md", "LICENSE", "SECURITY.md", "ARCHITECTURE.md", ".env.example",
-			"pkg/tui/components/markdown/prettier/LICENSE", "pkg/tui/components/markdown/clang-format/LICENSE",
-			"pkg/tui/components/markdown/prettier/RUST-LICENSE",
 			"eval/README.md", "examples/README.md", "examples/demos/README.md", "scripts/README.md", "internal/workspace/builtin/workflows/SKILL.md":
 			selected[name] = true
 		default:

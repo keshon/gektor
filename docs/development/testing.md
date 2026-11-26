@@ -196,14 +196,17 @@ these are calibration results, not a guarantee across models and tasks.
 Run from the repository root:
 
 ```text
+go test scripts/check-tui-package.go scripts/check-tui-package_test.go
 go run scripts/check-tui-package.go
 ```
 
-This copies the public controls and components into a temporary snapshot of the
-root module, and the workbench into a separate consumer module. Public import
+This copies the public controls and components, including package assets,
+licenses and test fixtures, into a temporary snapshot of the root module, and
+the workbench into a separate consumer module. Public import
 paths are unchanged. Application imports are rejected. The command tidies, tests,
 vets and builds both modules, then deletes the temporary workspace. Add `-keep`
 to inspect it. The printed source hash identifies the copied input files.
+CI runs the checker and its embedded-asset regression test on Windows and Linux.
 
 The consumer replaces `github.com/keshon/gektor` with that local snapshot. It
 checks consumption through the real package paths; it does not verify a released

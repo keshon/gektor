@@ -1,0 +1,21 @@
+package main
+import (
+ "fmt"
+ "strings"
+ "time"
+ "github.com/keshon/gektor/pkg/tui/components/markdown"
+ "github.com/charmbracelet/x/ansi"
+)
+func main() {
+ for _, count := range []int{1,1,4,10} {
+  src := strings.Repeat("~~~javascript\nconst add=(a,b)=>a+b;\n~~~\n\n",count)
+  start:=time.Now()
+  rows:=markdown.Render(src+"Streaming suffix",100,markdown.Styles{})
+  fmt.Printf("javascript closed=%d bytes=%d rows=%d elapsed=%s\n",count,len(src),len(rows),time.Since(start))
+ }
+ for _, src:=range []string{"fn main(){let x=1 println!(\"{}\",x)}", "fn main(){let x=1}", "fn main(){let x=1; println!(\"{}\",x)}"} {
+  start:=time.Now()
+  rows:=markdown.Render("~~~rust\n"+src+"\n~~~",120,markdown.Styles{})
+  fmt.Printf("rust input=%q elapsed=%s output=%q\n",src,time.Since(start),ansi.Strip(strings.Join(rows,"\n")))
+ }
+}

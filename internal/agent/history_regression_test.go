@@ -94,7 +94,7 @@ func TestAnswerClosesEveryInterruptedSiblingWithoutExecutingIt(t *testing.T) {
 	var results []ToolResult
 	a := New(Config{Client: c, Tools: NewRegistry(), System: "sys", OnResult: func(r ToolResult) { results = append(results, r) }})
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}, {Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "ask", Name: "ask_user"}, {ID: "write", Name: "write_file"}}}}
-	if _, err := a.ResumeWithAnswer(t.Context(), history, "ask", "approved answer"); err != nil {
+	if _, err := a.ResumeWithAnswer(t.Context(), history, ResumeAnswer{CallID: "ask", Answer: "approved answer"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 2 || results[0].Failed || !results[1].Failed {

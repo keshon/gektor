@@ -15,9 +15,8 @@ appearance, interaction and layout decisions.
 
 See the [TUI gallery](tui-gallery.md) for current terminal captures.
 
-The editable [FigCraft project and mockups](../design/tui/README.md) illustrate
-controls, layouts, interaction states and palettes. Verify input behavior
-against the running TUI.
+The [gallery assets](../design/tui/README.md) are generated from terminal fixtures.
+Verify keyboard, mouse and focus behavior against the running TUI.
 
 ## Scope and ownership
 
@@ -160,7 +159,7 @@ content and open overlays, including cached transcript and inspector content.
 ### Theme set
 
 The theme set is Dark, Light, One Half Dark, One Half Light, Solarized
-Dark and Solarized Light. The FigCraft project contains all six. The latter four
+Dark and Solarized Light. The latter four
 are GEKTOR adaptations of the referenced terminal palettes; they keep readable
 text and the shared state meanings rather than copying every ANSI color slot.
 

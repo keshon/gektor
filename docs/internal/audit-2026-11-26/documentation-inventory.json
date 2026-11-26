@@ -1,0 +1,851 @@
+{
+  "baseline": "60365eeabd158bf32419d8b8b268542277eec898",
+  "scope": "Tracked Markdown inventory; classification is not a claim of line-by-line semantic review. Website links separately checked by project tooling.",
+  "files": [
+    {
+      "path": ".agents/skills/docs-pattern/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 119
+    },
+    {
+      "path": ".agents/skills/go-architecture/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 129
+    },
+    {
+      "path": ".agents/skills/go-style/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 304
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "audience": "contributor documentation",
+      "lines": 510
+    },
+    {
+      "path": "README.md",
+      "audience": "user documentation",
+      "lines": 51
+    },
+    {
+      "path": "SECURITY.md",
+      "audience": "user documentation",
+      "lines": 130
+    },
+    {
+      "path": "docs/README.md",
+      "audience": "user documentation",
+      "lines": 37
+    },
+    {
+      "path": "docs/bootstrap.md",
+      "audience": "other source documentation",
+      "lines": 23
+    },
+    {
+      "path": "docs/browser.md",
+      "audience": "other source documentation",
+      "lines": 15
+    },
+    {
+      "path": "docs/cli.md",
+      "audience": "other source documentation",
+      "lines": 91
+    },
+    {
+      "path": "docs/conventions.md",
+      "audience": "other source documentation",
+      "lines": 39
+    },
+    {
+      "path": "docs/design/tui/README.md",
+      "audience": "visual reference",
+      "lines": 184
+    },
+    {
+      "path": "docs/development/README.md",
+      "audience": "contributor documentation",
+      "lines": 65
+    },
+    {
+      "path": "docs/development/capabilities.md",
+      "audience": "contributor documentation",
+      "lines": 260
+    },
+    {
+      "path": "docs/development/conventions.md",
+      "audience": "contributor documentation",
+      "lines": 270
+    },
+    {
+      "path": "docs/development/testing.md",
+      "audience": "contributor documentation",
+      "lines": 211
+    },
+    {
+      "path": "docs/development/tui-gallery.md",
+      "audience": "contributor documentation",
+      "lines": 7
+    },
+    {
+      "path": "docs/development/tui.md",
+      "audience": "contributor documentation",
+      "lines": 658
+    },
+    {
+      "path": "docs/development/writing.md",
+      "audience": "contributor documentation",
+      "lines": 73
+    },
+    {
+      "path": "docs/extensions.md",
+      "audience": "other source documentation",
+      "lines": 27
+    },
+    {
+      "path": "docs/guide/agent.md",
+      "audience": "user documentation",
+      "lines": 153
+    },
+    {
+      "path": "docs/guide/automation.md",
+      "audience": "user documentation",
+      "lines": 93
+    },
+    {
+      "path": "docs/guide/browser.md",
+      "audience": "user documentation",
+      "lines": 140
+    },
+    {
+      "path": "docs/guide/extensions.md",
+      "audience": "user documentation",
+      "lines": 403
+    },
+    {
+      "path": "docs/guide/files-and-images.md",
+      "audience": "user documentation",
+      "lines": 91
+    },
+    {
+      "path": "docs/guide/models.md",
+      "audience": "user documentation",
+      "lines": 102
+    },
+    {
+      "path": "docs/guide/permissions.md",
+      "audience": "user documentation",
+      "lines": 39
+    },
+    {
+      "path": "docs/guide/sessions.md",
+      "audience": "user documentation",
+      "lines": 174
+    },
+    {
+      "path": "docs/guide/troubleshooting.md",
+      "audience": "user documentation",
+      "lines": 26
+    },
+    {
+      "path": "docs/guide/workflows.md",
+      "audience": "user documentation",
+      "lines": 293
+    },
+    {
+      "path": "docs/internal/audit-remediation-2026-11-20.md",
+      "audience": "historical evidence",
+      "lines": 497
+    },
+    {
+      "path": "docs/internal/command-boundary-review.md",
+      "audience": "historical evidence",
+      "lines": 110
+    },
+    {
+      "path": "docs/internal/controlled-comparison-2026-11-20.md",
+      "audience": "historical evidence",
+      "lines": 75
+    },
+    {
+      "path": "docs/internal/direct-execution-readability-plan.md",
+      "audience": "historical evidence",
+      "lines": 326
+    },
+    {
+      "path": "docs/internal/discovery-and-path-access-audit.md",
+      "audience": "historical evidence",
+      "lines": 428
+    },
+    {
+      "path": "docs/internal/document-read-continuation-plan.md",
+      "audience": "historical evidence",
+      "lines": 325
+    },
+    {
+      "path": "docs/internal/documentation-migration.md",
+      "audience": "historical evidence",
+      "lines": 83
+    },
+    {
+      "path": "docs/internal/documentation-plan.md",
+      "audience": "historical evidence",
+      "lines": 492
+    },
+    {
+      "path": "docs/internal/harness-friction.md",
+      "audience": "historical evidence",
+      "lines": 37
+    },
+    {
+      "path": "docs/internal/internal-architecture-audit.md",
+      "audience": "historical evidence",
+      "lines": 312
+    },
+    {
+      "path": "docs/internal/internal-cleanup-plan.md",
+      "audience": "historical evidence",
+      "lines": 125
+    },
+    {
+      "path": "docs/internal/mcp-browser-unification-plan.md",
+      "audience": "historical evidence",
+      "lines": 261
+    },
+    {
+      "path": "docs/internal/media-session-findings.md",
+      "audience": "historical evidence",
+      "lines": 487
+    },
+    {
+      "path": "docs/internal/project-audit-2026-11-20.md",
+      "audience": "historical evidence",
+      "lines": 496
+    },
+    {
+      "path": "docs/internal/seo-geo-plan.md",
+      "audience": "historical evidence",
+      "lines": 294
+    },
+    {
+      "path": "docs/internal/tool-node-capability-review.md",
+      "audience": "historical evidence",
+      "lines": 142
+    },
+    {
+      "path": "docs/internal/tools-management-plan.md",
+      "audience": "historical evidence",
+      "lines": 544
+    },
+    {
+      "path": "docs/internal/tui-reusability-audit-2026-11-19.md",
+      "audience": "historical evidence",
+      "lines": 296
+    },
+    {
+      "path": "docs/internal/tui-screen-parity-plan.md",
+      "audience": "historical evidence",
+      "lines": 227
+    },
+    {
+      "path": "docs/internal/website-documentation-audit-2026-11-26.md",
+      "audience": "historical evidence",
+      "lines": 111
+    },
+    {
+      "path": "docs/internal/workflow-runtime-audit-2026-11-19.md",
+      "audience": "historical evidence",
+      "lines": 171
+    },
+    {
+      "path": "docs/internal/workflow-runtime-plan.md",
+      "audience": "historical evidence",
+      "lines": 1094
+    },
+    {
+      "path": "docs/reference/cli.md",
+      "audience": "user documentation",
+      "lines": 574
+    },
+    {
+      "path": "docs/reference/configuration.md",
+      "audience": "user documentation",
+      "lines": 254
+    },
+    {
+      "path": "docs/reference/http-api.md",
+      "audience": "user documentation",
+      "lines": 142
+    },
+    {
+      "path": "docs/reference/operations.md",
+      "audience": "user documentation",
+      "lines": 738
+    },
+    {
+      "path": "docs/reference/recipes.md",
+      "audience": "user documentation",
+      "lines": 745
+    },
+    {
+      "path": "docs/reference/rpc.md",
+      "audience": "user documentation",
+      "lines": 223
+    },
+    {
+      "path": "docs/reference/ssh.md",
+      "audience": "user documentation",
+      "lines": 210
+    },
+    {
+      "path": "docs/reference/terminal.md",
+      "audience": "user documentation",
+      "lines": 270
+    },
+    {
+      "path": "docs/rpc.md",
+      "audience": "other source documentation",
+      "lines": 19
+    },
+    {
+      "path": "docs/start.md",
+      "audience": "user documentation",
+      "lines": 69
+    },
+    {
+      "path": "docs/tui-design.md",
+      "audience": "other source documentation",
+      "lines": 83
+    },
+    {
+      "path": "docs/tui-smoke.md",
+      "audience": "other source documentation",
+      "lines": 3
+    },
+    {
+      "path": "docs/tui.md",
+      "audience": "other source documentation",
+      "lines": 103
+    },
+    {
+      "path": "docs/workflows.md",
+      "audience": "other source documentation",
+      "lines": 83
+    },
+    {
+      "path": "eval/README.md",
+      "audience": "evaluation or fixture",
+      "lines": 430
+    },
+    {
+      "path": "eval/fixtures-scoped/service/AGENTS.md",
+      "audience": "evaluation or fixture",
+      "lines": 1
+    },
+    {
+      "path": "eval/fixtures-skills-nested/skills/library/engineering/release/SKILL.md",
+      "audience": "evaluation or fixture",
+      "lines": 7
+    },
+    {
+      "path": "eval/fixtures-skills/skills/release/SKILL.md",
+      "audience": "evaluation or fixture",
+      "lines": 7
+    },
+    {
+      "path": "eval/fixtures/README.md",
+      "audience": "evaluation or fixture",
+      "lines": 15
+    },
+    {
+      "path": "eval/prompts/01-git-ambiguous.md",
+      "audience": "evaluation or fixture",
+      "lines": 25
+    },
+    {
+      "path": "eval/prompts/02-git-clean.md",
+      "audience": "evaluation or fixture",
+      "lines": 23
+    },
+    {
+      "path": "eval/prompts/03-list-not-ls.md",
+      "audience": "evaluation or fixture",
+      "lines": 24
+    },
+    {
+      "path": "eval/prompts/04-rename-move-file.md",
+      "audience": "evaluation or fixture",
+      "lines": 30
+    },
+    {
+      "path": "eval/prompts/05-patch-unique.md",
+      "audience": "evaluation or fixture",
+      "lines": 25
+    },
+    {
+      "path": "eval/prompts/06-patch-ambiguous.md",
+      "audience": "evaluation or fixture",
+      "lines": 27
+    },
+    {
+      "path": "eval/prompts/07-fake-save.md",
+      "audience": "evaluation or fixture",
+      "lines": 26
+    },
+    {
+      "path": "eval/prompts/08-read-only-explain.md",
+      "audience": "evaluation or fixture",
+      "lines": 26
+    },
+    {
+      "path": "eval/prompts/09-grep-then-edit.md",
+      "audience": "evaluation or fixture",
+      "lines": 25
+    },
+    {
+      "path": "eval/prompts/10-large-read.md",
+      "audience": "evaluation or fixture",
+      "lines": 31
+    },
+    {
+      "path": "eval/prompts/11-delegate-trap.md",
+      "audience": "evaluation or fixture",
+      "lines": 14
+    },
+    {
+      "path": "eval/prompts/12-ask-user.md",
+      "audience": "evaluation or fixture",
+      "lines": 19
+    },
+    {
+      "path": "eval/prompts/13-dev-server-trap.md",
+      "audience": "evaluation or fixture",
+      "lines": 24
+    },
+    {
+      "path": "eval/prompts/14-multi-file-parallel.md",
+      "audience": "evaluation or fixture",
+      "lines": 30
+    },
+    {
+      "path": "eval/prompts/18-overflow-recovery.md",
+      "audience": "evaluation or fixture",
+      "lines": 29
+    },
+    {
+      "path": "eval/prompts/20-scoped-instructions.md",
+      "audience": "evaluation or fixture",
+      "lines": 1
+    },
+    {
+      "path": "eval/prompts/21-windows-inline.md",
+      "audience": "evaluation or fixture",
+      "lines": 1
+    },
+    {
+      "path": "eval/prompts/22-skill-discovery.md",
+      "audience": "evaluation or fixture",
+      "lines": 1
+    },
+    {
+      "path": "eval/prompts/23-browser-unavailable.md",
+      "audience": "evaluation or fixture",
+      "lines": 24
+    },
+    {
+      "path": "eval/prompts/24-nested-skills.md",
+      "audience": "evaluation or fixture",
+      "lines": 8
+    },
+    {
+      "path": "eval/prompts/25-ledger-repair.md",
+      "audience": "evaluation or fixture",
+      "lines": 14
+    },
+    {
+      "path": "eval/prompts/delegation.md",
+      "audience": "evaluation or fixture",
+      "lines": 45
+    },
+    {
+      "path": "eval/prompts/documents.md",
+      "audience": "evaluation or fixture",
+      "lines": 36
+    },
+    {
+      "path": "eval/prompts/media-decisions.md",
+      "audience": "evaluation or fixture",
+      "lines": 74
+    },
+    {
+      "path": "eval/prompts/media.md",
+      "audience": "evaluation or fixture",
+      "lines": 18
+    },
+    {
+      "path": "eval/prompts/pipelines.md",
+      "audience": "evaluation or fixture",
+      "lines": 22
+    },
+    {
+      "path": "eval/prompts/session-context.md",
+      "audience": "evaluation or fixture",
+      "lines": 24
+    },
+    {
+      "path": "eval/prompts/visual.md",
+      "audience": "evaluation or fixture",
+      "lines": 21
+    },
+    {
+      "path": "eval/prompts/workflows.md",
+      "audience": "evaluation or fixture",
+      "lines": 30
+    },
+    {
+      "path": "examples/README.md",
+      "audience": "example user",
+      "lines": 10
+    },
+    {
+      "path": "examples/demos/README.md",
+      "audience": "example user",
+      "lines": 50
+    },
+    {
+      "path": "examples/workflows/README.md",
+      "audience": "example user",
+      "lines": 32
+    },
+    {
+      "path": "examples/workflows/collection-report/README.md",
+      "audience": "example user",
+      "lines": 24
+    },
+    {
+      "path": "examples/workflows/durable-wait/README.md",
+      "audience": "example user",
+      "lines": 24
+    },
+    {
+      "path": "examples/workflows/error-routing/README.md",
+      "audience": "example user",
+      "lines": 30
+    },
+    {
+      "path": "examples/workflows/fixture-test/README.md",
+      "audience": "example user",
+      "lines": 17
+    },
+    {
+      "path": "examples/workflows/http-artifact/README.md",
+      "audience": "example user",
+      "lines": 25
+    },
+    {
+      "path": "examples/workflows/keyed-join/README.md",
+      "audience": "example user",
+      "lines": 17
+    },
+    {
+      "path": "examples/workflows/log-report/README.md",
+      "audience": "example user",
+      "lines": 33
+    },
+    {
+      "path": "examples/workflows/mapped-subworkflow/README.md",
+      "audience": "example user",
+      "lines": 27
+    },
+    {
+      "path": "examples/workflows/moltbook-draft/README.md",
+      "audience": "example user",
+      "lines": 121
+    },
+    {
+      "path": "examples/workflows/process-report/README.md",
+      "audience": "example user",
+      "lines": 33
+    },
+    {
+      "path": "examples/workflows/repeated-subworkflow/README.md",
+      "audience": "example user",
+      "lines": 22
+    },
+    {
+      "path": "examples/workflows/repository-report/README.md",
+      "audience": "example user",
+      "lines": 33
+    },
+    {
+      "path": "examples/workflows/subworkflow/README.md",
+      "audience": "example user",
+      "lines": 32
+    },
+    {
+      "path": "examples/workflows/transform-and-review/README.md",
+      "audience": "example user",
+      "lines": 24
+    },
+    {
+      "path": "examples/workflows/webhook-note/README.md",
+      "audience": "example user",
+      "lines": 43
+    },
+    {
+      "path": "internal/agent/README.md",
+      "audience": "contributor documentation",
+      "lines": 97
+    },
+    {
+      "path": "internal/config/README.md",
+      "audience": "contributor documentation",
+      "lines": 45
+    },
+    {
+      "path": "internal/conversation/README.md",
+      "audience": "contributor documentation",
+      "lines": 22
+    },
+    {
+      "path": "internal/harness/README.md",
+      "audience": "contributor documentation",
+      "lines": 36
+    },
+    {
+      "path": "internal/llm/README.md",
+      "audience": "contributor documentation",
+      "lines": 20
+    },
+    {
+      "path": "internal/mcp/README.md",
+      "audience": "contributor documentation",
+      "lines": 24
+    },
+    {
+      "path": "internal/permission/README.md",
+      "audience": "contributor documentation",
+      "lines": 35
+    },
+    {
+      "path": "internal/process/README.md",
+      "audience": "contributor documentation",
+      "lines": 39
+    },
+    {
+      "path": "internal/release/README.md",
+      "audience": "contributor documentation",
+      "lines": 36
+    },
+    {
+      "path": "internal/retrospective/README.md",
+      "audience": "contributor documentation",
+      "lines": 50
+    },
+    {
+      "path": "internal/roles/README.md",
+      "audience": "contributor documentation",
+      "lines": 60
+    },
+    {
+      "path": "internal/subprocess/README.md",
+      "audience": "contributor documentation",
+      "lines": 24
+    },
+    {
+      "path": "internal/tui/README.md",
+      "audience": "contributor documentation",
+      "lines": 95
+    },
+    {
+      "path": "internal/userdirs/README.md",
+      "audience": "contributor documentation",
+      "lines": 14
+    },
+    {
+      "path": "internal/workflow/README.md",
+      "audience": "contributor documentation",
+      "lines": 83
+    },
+    {
+      "path": "internal/workspace/README.md",
+      "audience": "contributor documentation",
+      "lines": 50
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/SKILL.md",
+      "audience": "contributor documentation",
+      "lines": 35
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/current-events.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/economy-business.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/education-careers.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/environment-space.md",
+      "audience": "contributor documentation",
+      "lines": 10
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/film.md",
+      "audience": "contributor documentation",
+      "lines": 18
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/food.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/games.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/history-culture.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/language.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/law-policy.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/medicine.md",
+      "audience": "contributor documentation",
+      "lines": 17
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/places-travel.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/products-services.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/science.md",
+      "audience": "contributor documentation",
+      "lines": 10
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/sports.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/research-sources/references/technology.md",
+      "audience": "contributor documentation",
+      "lines": 9
+    },
+    {
+      "path": "internal/workspace/builtin/visual-investigation/SKILL.md",
+      "audience": "contributor documentation",
+      "lines": 39
+    },
+    {
+      "path": "internal/workspace/builtin/workflows/SKILL.md",
+      "audience": "contributor documentation",
+      "lines": 213
+    },
+    {
+      "path": "pkg/tui/README.md",
+      "audience": "public package consumer",
+      "lines": 56
+    },
+    {
+      "path": "pkg/tui/components/markdown/README.md",
+      "audience": "public package consumer",
+      "lines": 60
+    },
+    {
+      "path": "pkg/tui/examples/workbench/README.md",
+      "audience": "public package consumer",
+      "lines": 58
+    },
+    {
+      "path": "scripts/README.md",
+      "audience": "contributor documentation",
+      "lines": 74
+    },
+    {
+      "path": "skills/README.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 61
+    },
+    {
+      "path": "skills/browser/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 37
+    },
+    {
+      "path": "skills/code-navigation/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 43
+    },
+    {
+      "path": "skills/dev-server/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 19
+    },
+    {
+      "path": "skills/figcraft/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 54
+    },
+    {
+      "path": "skills/figcraft/references/cli.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 132
+    },
+    {
+      "path": "skills/git/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 24
+    },
+    {
+      "path": "skills/go/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 19
+    },
+    {
+      "path": "skills/large-build/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 18
+    },
+    {
+      "path": "skills/pixelita/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 29
+    },
+    {
+      "path": "skills/typescript/SKILL.md",
+      "audience": "runtime or contributor instructions",
+      "lines": 18
+    },
+    {
+      "path": "website/README.md",
+      "audience": "contributor documentation",
+      "lines": 153
+    }
+  ]
+}

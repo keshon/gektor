@@ -150,9 +150,25 @@ Output buffered by a child process appears only when that process flushes it.
 older producers may omit `failed`. A status of `skipped_for_input` means new
 user input prevented the tool from starting (`failed: false`).
 
-Direct runs also emit `outcome`: `completed`, `failed` or `cancelled`, with
-observed `files`, current `verification`, persistence `warnings`, open todos and
-the `resume` target.
+Direct runs also emit `outcome`: `completed`, `failed`, `cancelled` or `incomplete`,
+with observed `files`, text `verification`, persistence `warnings`, `open_todos`,
+`summary` and the `resume` target. Completion is separate from verification.
+
+`verification_receipt` records the configured check as a structured object:
+
+| Field | Meaning |
+|---|---|
+| `disposition` | `not_requested`, `not_run`, `passed`, `failed`, `cancelled` or `error` |
+| `command` | Configured command, when present |
+| `exit_code` | Observed exit code; omitted when unavailable |
+| `duration_ms` | Check duration in milliseconds; zero when no check ran |
+| `output` | Retained check output, when present |
+| `error` | Check execution error, when present |
+
+`not_requested` means no check was configured; `not_run` means a configured check
+did not run before the task stopped. A passed check does not establish overall
+task correctness. Older records or producers may omit the receipt or send null;
+treat that as unknown verification, without inferring a verdict from text.
 
 ## Context budgets
 

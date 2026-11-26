@@ -1,0 +1,7 @@
+javascript closed=1 bytes=41 rows=4 elapsed=1.5637ms
+javascript closed=1 bytes=41 rows=4 elapsed=0s
+javascript closed=4 bytes=164 rows=13 elapsed=555.2µs
+javascript closed=10 bytes=410 rows=31 elapsed=1.0809ms
+rust input="fn main(){let x=1 println!(\"{}\",x)}" elapsed=2.1217ms output="rust\n│ fn main(){let x=1 println!(\"{}\",x)}"
+rust input="fn main(){let x=1}" elapsed=0s output="rust\n│ fn main(){let x=1}"
+rust input="fn main(){let x=1; println!(\"{}\",x)}" elapsed=538.1µs output="rust\n│ fn main(){let x=1; println!(\"{}\",x)}"

@@ -127,7 +127,7 @@ func TestResumeWithAnswer_SuppliesWireCorrectToolResult(t *testing.T) {
 	}}
 	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
-	out, err := a.ResumeWithAnswer(context.Background(), pausedHistory, "call_q1", "sqlite please")
+	out, err := a.ResumeWithAnswer(context.Background(), pausedHistory, ResumeAnswer{CallID: "call_q1", Answer: "sqlite please"})
 	if err != nil {
 		t.Fatalf("ResumeWithAnswer: %v", err)
 	}

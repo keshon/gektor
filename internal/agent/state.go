@@ -187,24 +187,45 @@ func (a *Agent) resumeHistory(history []llm.Message) []llm.Message {
 	return history
 }
 
-// rehydrateTodo restores the checklist from history into the fresh
-// registry. The checklist tool takes the full list per call, so
-// replaying the LAST such call's args restores exact state through the
-// normal Run path. Best-effort: stale args fail validation and the
-// tracker stays empty, exactly as before.
-func (a *Agent) rehydrateTodo(ctx context.Context, history []llm.Message) {
+// rehydrateTodo restores the latest accepted checklist from the full archive.
+// Compaction can remove its call from context; attempted updates are not state.
+func (a *Agent) rehydrateTodo(ctx context.Context) {
 	cl := a.cfg.Tools.Checklist()
 	if cl == nil {
 		return
 	}
+	history := a.snapshot.History
+	results := map[string]llm.Message{}
 	for i := len(history) - 1; i >= 0; i-- {
-		calls := history[i].ToolCalls
+		message := history[i]
+		if message.Role == llm.RoleTool {
+			results[message.ToolCallID] = message
+			continue
+		}
+		if message.Role != llm.RoleAssistant {
+			continue
+		}
+		calls := message.ToolCalls
 		for j := len(calls) - 1; j >= 0; j-- {
-			if calls[j].Name != cl.Name() {
+			call := calls[j]
+			if call.Name != cl.Name() || call.InputError != "" {
 				continue
 			}
-			_, _ = a.cfg.Tools.Run(ctx, cl.Name(), calls[j].Arguments)
+			result, found := results[call.ID]
+			if !found || (result.ToolFailed != nil && *result.ToolFailed) {
+				continue
+			}
+			// Legacy results may lack a status but must still record success.
+			if result.ToolStatus != "success" && (result.ToolStatus != "" || result.ToolFailed == nil) {
+				continue
+			}
+			_, err := a.cfg.Tools.Run(ctx, cl.Name(), call.Arguments)
+			if err != nil {
+				a.report.Warnings = append(a.report.Warnings, "restore checklist: "+err.Error())
+			}
 			return
 		}
+		// Providers can reuse IDs in later turns; results belong to one group.
+		clear(results)
 	}
 }

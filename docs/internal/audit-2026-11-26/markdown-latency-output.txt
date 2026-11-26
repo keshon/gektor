@@ -1,0 +1,3 @@
+closed=1 input_bytes=9509 output_rows=203 elapsed=285.803ms
+closed=4 input_bytes=38036 output_rows=809 elapsed=897.6741ms
+closed=4 input_bytes=38036 output_rows=809 elapsed=903.7585ms

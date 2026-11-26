@@ -43,6 +43,27 @@ func TestMarkdownFence(t *testing.T) {
 	}
 }
 
+func TestCodeSyntaxErrorsRemainVisibleInConversation(t *testing.T) {
+	const broken = "fn main(){let x=1 println!(\"{}\",x)}"
+	const source = "~~~rust\n" + broken + "\n~~~"
+	for _, modern := range []bool{false, true} {
+		for _, r := range []role{roleUser, roleAnswer, roleThink} {
+			b := block{role: r, text: source}
+			out := renderBlock(b, defaultStyles(), renderOpts{modern: modern, expand: true}, 100)
+			if !strings.Contains(ansi.Strip(out), broken) {
+				t.Fatalf("modern=%t role=%v repaired the source: %q", modern, r, out)
+			}
+		}
+		for _, suffix := range []string{"", "\n\nExplain this error."} {
+			props := transcriptProps{live: source + suffix, styles: defaultStyles(), modern: modern}
+			out := strings.Join(renderLive(props, 100, renderOpts{modern: modern, expand: true}), "\n")
+			if !strings.Contains(ansi.Strip(out), broken) {
+				t.Fatalf("modern=%t live suffix=%q repaired the source: %q", modern, suffix, out)
+			}
+		}
+	}
+}
+
 func TestMarkdownBullets(t *testing.T) {
 	st := defaultStyles()
 	out := ansi.Strip(renderBlock(answerBlock("- item\n  * sub"), st, tagged(), 80))

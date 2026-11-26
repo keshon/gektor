@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
@@ -94,7 +95,7 @@ func TestComposedQuestionRecovery(t *testing.T) {
 	if interactiveAgentErr != nil {
 		t.Fatal(interactiveAgentErr)
 	}
-	if _, err := interactiveAgent.ResumeWithAnswer(t.Context(), s.Context(), "question", "yes"); err != nil {
+	if _, err := interactiveAgent.ResumeWithAnswer(t.Context(), s.Context(), agent.ResumeAnswer{CallID: "question", Answer: "yes"}); err != nil {
 		t.Fatal(err)
 	}
 	if called {

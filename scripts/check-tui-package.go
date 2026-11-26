@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -55,28 +56,7 @@ func checkPackage(keep bool) error {
 		{"pkg/tui/components", filepath.Join(candidate, "pkg", "tui", "components")},
 		{"pkg/tui/examples/workbench", consumer},
 	} {
-		err := filepath.WalkDir(tree.from, func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() || !strings.HasSuffix(path, ".go") {
-				return nil
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if err := checkImports(path, data); err != nil {
-				return err
-			}
-			fmt.Fprintf(hash, "%s\x00%d\x00", filepath.ToSlash(path), len(data))
-			hash.Write(data)
-			relative, err := filepath.Rel(tree.from, path)
-			if err != nil {
-				return err
-			}
-			return writeCandidate(filepath.Join(tree.to, relative), data)
-		})
+		err := copyPackageTree(tree.from, tree.to, hash)
 		if err != nil {
 			return err
 		}
@@ -115,6 +95,46 @@ func checkPackage(keep bool) error {
 	}
 	fmt.Println("Public TUI packages and separate local consumer passed with unchanged imports; no released version was tested.")
 	return nil
+}
+
+// Package assets, licenses and test fixtures travel with their Go source. This
+// keeps go:embed inputs intact without interpreting platform-specific patterns.
+func copyPackageTree(from, to string, digest io.Writer) error {
+	return filepath.WalkDir(from, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("package snapshot requires a regular file: %s", path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(path, ".go") {
+			err = checkImports(path, data)
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = fmt.Fprintf(digest, "%s\x00%d\x00", filepath.ToSlash(path), len(data))
+		if err != nil {
+			return err
+		}
+		_, err = digest.Write(data)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(from, path)
+		if err != nil {
+			return err
+		}
+		return writeCandidate(filepath.Join(to, relative), data)
+	})
 }
 
 func checkImports(path string, data []byte) error {

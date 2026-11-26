@@ -1,0 +1,101 @@
+package harness
+
+import (
+	"encoding/json"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/llm"
+)
+
+func TestAuditResumePendingQuestionRetainsNewInstructions(t *testing.T) {
+	client := &resumeClient{}
+	sess, err := New(Config{Env: testEnv(t, client, nil), ResumeAnswer: "staging"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	history := []llm.Message{
+		{Role: llm.RoleSystem, Content: "system"},
+		{Role: llm.RoleUser, Content: "inspect deployment"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "question", Name: "ask_user", Arguments: json.RawMessage(`{"question":"which environment?"}`)}}},
+	}
+	const correction = "Do not deploy. Only inspect staging."
+	_, err = sess.Resume(t.Context(), history, correction, "new-reference.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundNote, foundImage := false, false
+	for _, req := range client.requests {
+		for _, msg := range req.Messages {
+			foundNote = foundNote || strings.Contains(msg.Content, correction)
+			for _, path := range msg.Images {
+				foundImage = foundImage || path == "new-reference.png"
+			}
+		}
+	}
+	if !foundNote || !foundImage {
+		t.Fatalf("resume silently discarded accepted input: note=%v image=%v", foundNote, foundImage)
+	}
+}
+
+func TestAuditResumeDoesNotApplyRejectedChecklist(t *testing.T) {
+	client := &resumeClient{}
+	sess, err := New(Config{Env: testEnv(t, client, nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	success, failure := false, true
+	history := []llm.Message{
+		{Role: llm.RoleSystem, Content: "system"},
+		{Role: llm.RoleUser, Content: "finish important work"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "accepted", Name: "todo", Arguments: json.RawMessage(`{"items":[{"id":1,"state":"pending","text":"important work"}]}`)}}},
+		{Role: llm.RoleTool, ToolCallID: "accepted", Content: "todo: pending", ToolFailed: &success, ToolStatus: "success"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "rejected", Name: "todo", Arguments: json.RawMessage(`{"items":[{"id":1,"state":"done","text":"important work"}]}`)}}},
+		{Role: llm.RoleTool, ToolCallID: "rejected", Content: "blocked by policy", ToolFailed: &failure, ToolStatus: "rejected"},
+	}
+	_, err = sess.Resume(t.Context(), history, "continue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := sess.Report().OpenTodos
+	if len(open) != 1 || open[0] != "important work" {
+		t.Fatalf("rejected checklist update was replayed during resume; pending work=%v", open)
+	}
+}
+
+func TestAuditResumeRestoresChecklistFromCompactedArchive(t *testing.T) {
+	client := &resumeClient{}
+	path := filepath.Join(t.TempDir(), "state.json")
+	success := false
+	history := []llm.Message{
+		{Role: llm.RoleSystem, Content: "system"},
+		{Role: llm.RoleUser, Content: "finish important work"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "accepted", Name: "todo", Arguments: json.RawMessage(`{"items":[{"id":1,"state":"pending","text":"important work"}]}`)}}},
+		{Role: llm.RoleTool, ToolCallID: "accepted", Content: "todo: pending", ToolFailed: &success, ToolStatus: "success"},
+		{Role: llm.RoleAssistant, Content: "more inspection needed"},
+	}
+	saved := conversation.New(history)
+	saved.ContextStart = 4
+	saved.Summary = "Earlier work and checklist were compacted."
+	if err := saved.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	history, err := conversation.ReadHistory(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := New(Config{Env: testEnv(t, client, nil), StateFile: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = sess.Resume(t.Context(), history, "continue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := sess.Report().OpenTodos
+	if len(open) != 1 || open[0] != "important work" {
+		t.Fatalf("compacted accepted checklist was lost despite original archive: pending=%v", open)
+	}
+}
