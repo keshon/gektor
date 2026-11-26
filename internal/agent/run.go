@@ -54,13 +54,13 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			st.lastPromptEstimate = 0
 			history = a.withDirective(history)
 			history = a.withCapabilityInstructions(history)
-			req.Messages = a.reuseContext(history)
+			req = a.modelRequest(history)
 			estimate = llm.EstimatePromptTokens(req)
 			promptTokens = estimate
 			a.saveState(history)
 		}
 		if st.compactErr != nil {
-			return "", fmt.Errorf("checkpoint failed; previous context retained: %w", st.compactErr)
+			return "", fmt.Errorf("compaction failed; previous context retained: %w", st.compactErr)
 		}
 		req.MaxTokens = a.effectiveMaxTokens(promptTokens)
 		st.lastPromptEstimate = estimate
@@ -91,6 +91,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			}
 			continue
 		}
+		st.overflowRetried = false
 		resp, leakedText := a.recoverLeakedCalls(resp, step)
 		resp.Message.FinishReason = resp.FinishReason
 		message := recordableMessage(resp.Message)
@@ -190,6 +191,9 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 	if !llm.IsOverflow(err) {
 		return history, fmt.Errorf("step %d: chat: %w", step, err)
 	}
+	if st.overflowRetried {
+		return history, fmt.Errorf("step %d: context overflow persists after compaction — /compact the session, shorten the task, or use a larger-context model: %w", step, err)
+	}
 	shrunk := false
 	hasExchange := false
 	for _, message := range history {
@@ -210,17 +214,13 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		// refusal texts cite content that must really be gone.
 		if next := compactHistory(history, keep/2); len(next) < len(history) {
 			a.captureHistory(history)
-			var compactErr error
-			next, compactErr = retainArchivedInstructions(a.snapshot, next)
-			if compactErr == nil && a.cfg.Summarize {
-				ctx := context.Background()
-				if len(contexts) > 0 {
-					ctx = contexts[0]
-				}
-				next, compactErr = a.checkpoint(ctx, history, next)
+			ctx := context.Background()
+			if len(contexts) > 0 {
+				ctx = contexts[0]
 			}
+			next, compactErr := a.prepareCompaction(ctx, history, next, a.compactInputBudget())
 			if compactErr != nil {
-				return history, fmt.Errorf("overflow recovery checkpoint failed; original archive and context retained: %w", compactErr)
+				return history, fmt.Errorf("overflow recovery compaction failed; original archive and context retained: %w", compactErr)
 			}
 			a.compactContext(history, next)
 			history = next
@@ -238,7 +238,7 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		// what st.overflowRetried guards against.
 		shrunk = true
 	}
-	if !shrunk || st.overflowRetried {
+	if !shrunk {
 		return history, fmt.Errorf("step %d: context overflow persists after compaction — /compact the session, shorten the task, or use a larger-context model: %w", step, err)
 	}
 	st.overflowRetried = true

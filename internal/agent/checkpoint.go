@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -17,6 +18,38 @@ const checkpointGrammar = `root ::= "{" ws "\"goal\"" ws ":" ws string ws "," ws
 array ::= "[" ws (string ws ("," ws string ws)*)? "]"
 string ::= "\"" ([^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""
 ws ::= [ \t\n\r]*`
+
+// prepareCompaction keeps the mechanical projection as a fallback while the
+// checkpoint model runs. A cancelled run keeps its previous projection.
+func (a *Agent) prepareCompaction(ctx context.Context, previous, next []llm.Message, budget int) ([]llm.Message, error) {
+	mechanical, err := retainArchivedInstructions(a.snapshot, next)
+	if err != nil || !a.cfg.Summarize {
+		return mechanical, err
+	}
+
+	summarized, summaryErr := a.checkpoint(ctx, previous, mechanical)
+	if summaryErr == nil && budget > 0 {
+		summarized, summaryErr = a.fitCheckpoint(summarized, budget)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if summaryErr == nil {
+		return summarized, nil
+	}
+
+	if budget > 0 {
+		fitted, fitErr := a.fitCheckpoint(mechanical, budget)
+		if fitErr != nil {
+			return nil, errors.Join(summaryErr, fitErr)
+		}
+		mechanical = fitted
+	}
+	if a.cfg.OnProgress != nil {
+		a.cfg.OnProgress(llm.Progress{Phase: "checkpoint", Detail: "Checkpoint unavailable. Retaining verifiable facts and recent turns."})
+	}
+	return mechanical, nil
+}
 
 // Checkpoints summarize work, never replace the verbatim user instructions
 // carried by compactHistory. No tool execution, silent repair or retry loop.

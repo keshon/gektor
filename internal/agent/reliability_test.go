@@ -144,14 +144,36 @@ func TestScopedRulesArriveBeforeMutation(t *testing.T) {
 	}
 }
 
-func TestCheckpointFailureLeavesPreviousProjectionUntouched(t *testing.T) {
+func TestExhaustedCheckpointFallsBackToMechanicalProjection(t *testing.T) {
 	h := longHistory(12, 200)
-	original := append([]llm.Message(nil), h...)
-	c := &repeatSeqClient{responses: []llm.ChatResponse{say(`{"goal":"cut`)}}
+	h[3].Content = "Preserve exports"
+	c := &repeatSeqClient{responses: []llm.ChatResponse{{
+		FinishReason: "length",
+		Message:      llm.Message{Reasoning: strings.Repeat("x", 7696)},
+	}}}
 	a := New(Config{Client: c, Tools: NewRegistry(), Summarize: true, ContextLimit: 4096, CompactKeepSteps: 2})
 	st := &runState{}
-	if a.maybeCompact(&h, llm.Usage{PromptTokens: 4000}, st, t.Context()) || st.compactErr == nil || !reflect.DeepEqual(h, original) {
-		t.Fatal("failed checkpoint committed a partial projection")
+	before := len(h)
+	if !a.maybeCompact(&h, llm.Usage{PromptTokens: 4000}, st, t.Context()) || st.compactErr != nil || len(h) >= before {
+		t.Fatalf("automatic compaction did not fall back: %v", st.compactErr)
+	}
+	facts, ok := parseFacts(strings.TrimPrefix(h[2].Content, harnessPrefix))
+	if !ok || !containsStr(facts.asks, "Preserve exports") || facts.checkpoint != "" {
+		t.Fatal("fallback projection lost the archived requirement or kept a partial summary", facts)
+	}
+}
+
+func TestResumedCompactionPromptsArchiveRetrieval(t *testing.T) {
+	h := compactHistory(longHistory(12, 200), 2)
+	notice := h[2].Content
+	a := New(Config{Tools: NewRegistry(readStub{name: "read_history"})})
+	req := a.modelRequest(h)
+	if !strings.Contains(req.Messages[2].Content, archiveRecoveryHint) || h[2].Content != notice {
+		t.Fatal("archive retrieval guidance should appear only in the outgoing request")
+	}
+	a = New(Config{Tools: NewRegistry()})
+	if a.modelRequest(h).Messages[2].Content != notice {
+		t.Fatal("archive retrieval guidance appeared without the history tool")
 	}
 }
 
@@ -170,9 +192,9 @@ func TestCheckpointRejectionReportsCause(t *testing.T) {
 			original := append([]llm.Message(nil), h...)
 			c := &repeatSeqClient{responses: []llm.ChatResponse{tc.response}}
 			a := New(Config{Client: c, Tools: NewRegistry(), Summarize: true, ContextLimit: 4096, CompactKeepSteps: 2})
-			st := &runState{}
-			if a.maybeCompact(&h, llm.Usage{PromptTokens: 4000}, st, t.Context()) || st.compactErr == nil || !strings.Contains(st.compactErr.Error(), tc.want) {
-				t.Fatalf("unexpected checkpoint result: %v", st.compactErr)
+			_, err := a.checkpoint(t.Context(), h, compactHistory(h, 2))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unexpected checkpoint result: %v", err)
 			}
 			if !reflect.DeepEqual(h, original) {
 				t.Fatal("failed checkpoint changed the previous context")

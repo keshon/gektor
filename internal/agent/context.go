@@ -39,9 +39,20 @@ func (a *Agent) requestIdentity(req *llm.ChatRequest) {
 func (a *Agent) modelRequest(history []llm.Message) llm.ChatRequest {
 	history = a.withCapabilityInstructions(history)
 	req := llm.ChatRequest{Messages: a.reuseContext(history), Tools: a.cfg.Tools.Defs()}
+	if len(req.Messages) > 2 && a.cfg.Tools != nil && a.cfg.Tools.Has("read_history") {
+		notice := &req.Messages[2]
+		body, marked := strings.CutPrefix(notice.Content, harnessPrefix)
+		if marked {
+			if _, ok := parseFacts(body); ok {
+				notice.Content += "\n" + archiveRecoveryHint
+			}
+		}
+	}
 	a.requestIdentity(&req)
 	return req
 }
+
+const archiveRecoveryHint = "If the current request depends on an earlier decision, exact wording, identifier, or result missing from the visible messages, call read_history before answering or repeating work. Search with query using a distinctive term, or use start for a known archive ID. Read the matching record and surrounding messages as needed."
 
 // situationHints names, per nudge situation, the tools that could help.
 // A situation whose tools are all absent yields nothing.

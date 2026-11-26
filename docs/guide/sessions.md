@@ -64,7 +64,8 @@ Existing sessions and forks keep their titles.
 ## Compaction and earlier decisions
 
 Long conversations may be compacted to fit the model's context window.
-The full saved archive remains available to read and search.
+If the model cannot produce a usable checkpoint, automatic compaction can
+continue with recorded facts and recent turns. The full saved archive remains available to read and search.
 You can also use `/compact` while idle.
 A session is not a backup of project files.
 

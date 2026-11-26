@@ -101,10 +101,7 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	compacted := compactHistory(*history, a.cfg.CompactKeepSteps)
 	// A few large results can exceed the window before eight groups exist.
 	// Reduce the retained tail only when its estimate is already at the limit.
-	inputBudget := a.cfg.ContextLimit - 256
-	if a.cfg.ContextLimit >= 2048 {
-		inputBudget = a.cfg.ContextLimit - min(a.cfg.MaxTokens, max(1024, a.cfg.ContextLimit/4)) - 512
-	}
+	inputBudget := a.compactInputBudget()
 	for keep := a.cfg.CompactKeepSteps / 2; keep > 0 && llm.EstimatePromptTokens(a.modelRequest(compacted)) > inputBudget; keep /= 2 {
 		compacted = compactHistory(*history, keep)
 	}
@@ -112,28 +109,14 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 		return false
 	}
 	a.captureHistory(*history)
-	var archiveErr error
-	compacted, archiveErr = retainArchivedInstructions(a.snapshot, compacted)
-	if archiveErr != nil {
-		st.compactErr = archiveErr
-		return false
+	ctx := context.Background()
+	if len(contexts) > 0 {
+		ctx = contexts[0]
 	}
-	if a.cfg.Summarize {
-		ctx := context.Background()
-		if len(contexts) > 0 {
-			ctx = contexts[0]
-		}
-		var err error
-		compacted, err = a.checkpoint(ctx, *history, compacted)
-		if err != nil {
-			st.compactErr = err
-			return false
-		}
-		compacted, err = a.fitCheckpoint(compacted, inputBudget)
-		if err != nil {
-			st.compactErr = err
-			return false
-		}
+	compacted, err := a.prepareCompaction(ctx, *history, compacted, inputBudget)
+	if err != nil {
+		st.compactErr = err
+		return false
 	}
 	a.compactContext(*history, compacted)
 	*history = compacted
@@ -147,4 +130,12 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 		a.notifyNudge(NudgeCompact, compacted[2].Content)
 	}
 	return true
+}
+
+func (a *Agent) compactInputBudget() int {
+	inputBudget := a.cfg.ContextLimit - 256
+	if a.cfg.ContextLimit >= 2048 {
+		inputBudget = a.cfg.ContextLimit - min(a.cfg.MaxTokens, max(1024, a.cfg.ContextLimit/4)) - 512
+	}
+	return inputBudget
 }
