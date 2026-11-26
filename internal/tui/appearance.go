@@ -41,13 +41,21 @@ func (m *Model) openAppearance() {
 	if caret == "" {
 		caret = "bar"
 	}
+	animation := appearance.StatusAnimation
+	if animation == "" {
+		animation = config.DefaultStatusAnimation(appearance.Style == "modern")
+	}
 	f.Fields = []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
 		{Key: "frame", Label: "Borders", Value: appearance.Frame},
 		{Key: "style", Label: "UI style", Value: appearance.Style},
 		{Key: "caret", Label: "Caret", Value: caret},
+		{Key: "status_animation", Label: "Status animation", Value: animation},
 	}
 
+	f.Choices["status_animation"] = []string{"braille", "square", "text"}
+	f.Labels["status_animation"] = map[string]string{"braille": "Braille spinner", "square": "Blinking square", "text": "Blinking text"}
+	f.InlineChoices["status_animation"] = 3
 	f.Choices["caret"] = []string{"block", "bar", "underline"}
 	f.Labels["caret"] = map[string]string{"block": "Block", "bar": "Vertical bar", "underline": "Underline"}
 	f.InlineChoices["caret"] = 3
@@ -70,6 +78,7 @@ func (m *Model) openAppearance() {
 		appearance.Frame = frame
 		appearance.Style = values["style"]
 		appearance.Caret = values["caret"]
+		appearance.StatusAnimation = values["status_animation"]
 		if err := appearance.Validate(); err != nil {
 			return err
 		}
@@ -85,10 +94,11 @@ func (m *Model) openAppearance() {
 
 func setAppearance(theme string, appearance config.Appearance) {
 	screen.SetAppearance(screen.Appearance{
-		Name:     theme,
-		Caret:    appearance.Caret,
-		Modern:   appearance.Style == "modern",
-		Outlined: appearance.Frame == "outlined",
+		Name:            theme,
+		Caret:           appearance.Caret,
+		StatusAnimation: appearance.StatusAnimation,
+		Modern:          appearance.Style == "modern",
+		Outlined:        appearance.Frame == "outlined",
 	})
 }
 

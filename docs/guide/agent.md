@@ -55,7 +55,9 @@ The **View** menu controls how history looks:
 Tool names remain clickable in every mode. View choices and the theme are saved. Hidden content remains in saved history.
 
 Settings > Appearance offers Dark, Light, One Half Dark, One Half Light, Solarized
-Dark and Solarized Light. Choose a theme and press Apply to save it.
+Dark and Solarized Light. **Status animation** sets how Agent signals active
+work in either UI style. Choose **Braille spinner**, **Blinking square**, or
+**Blinking text**, then press Apply to save your choices.
 The `/theme <name>` command saves and applies it immediately; use `/theme` to
 list the names.
 
@@ -66,9 +68,10 @@ If a popup is open, Esc may close it first.
 
 You can send another message while Agent is working.
 It waits for a model/tool boundary and does not interrupt a running tool.
-The line above the draft shows how many messages are queued and previews the
-latest one. Click the count in Commander or the summary row in Modern to
-open **Message queue**. In both styles, use `Alt+Q` or **Run > Message queue**
+The queue summary shows how many messages are queued and previews the latest
+one. It appears above the draft in Commander and below it in Modern. Click the
+count in Commander or the summary row in Modern to open **Message queue**. In
+both styles, use `Alt+Q` or **Run > Message queue**
 even when the queue is empty. Commander also shows **Queue** in its bottom
 strip while a turn runs.
 Messages appear oldest first. Select any message, then use:

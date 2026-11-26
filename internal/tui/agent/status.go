@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
@@ -36,7 +37,7 @@ func (m *Model) statusLine() string {
 	if !m.transcript.Follow && m.state == stDone {
 		if currentPalette().Modern {
 			const indicator = "Scrolled up"
-			width := m.transcript.Viewport.Width() - len(indicator) - 2
+			width := m.transcript.Viewport.Width() - modernNoticeInset - len(indicator) - 2
 			shortcuts := popup.Shortcuts(width, m.shortcutStyles(),
 				popup.Shortcut{Key: "Ctrl+End", Action: "Latest"},
 				popup.Shortcut{Key: "Enter", Action: "send"},
@@ -113,12 +114,36 @@ func kTokens(n int) string {
 	return fmt.Sprintf("%d", n)
 }
 
-func (m *Model) activitySymbol() string {
-	if currentPalette().Modern {
-		if m.spinnerFrame%2 == 0 {
-			return "▪"
-		}
-		return "▫"
+func (m *Model) statusAnimation() string {
+	palette := currentPalette()
+	if palette.StatusAnimation != "" {
+		return palette.StatusAnimation
 	}
-	return string(activityFrames[m.spinnerFrame%len(activityFrames)])
+	return config.DefaultStatusAnimation(palette.Modern)
+}
+
+func (m *Model) activityLabel(phase string) string {
+	switch m.statusAnimation() {
+	case "text":
+		return phase
+	case "square":
+		return "▪ " + phase
+	default:
+		return string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " " + phase
+	}
+}
+
+func (m *Model) paintActivity(phase string) string {
+	// Each half of the spinner cycle holds for half a second.
+	if (m.state != stRunning && m.evaluation == nil) || m.spinnerFrame < len(activityFrames)/2 {
+		return phase
+	}
+	switch m.statusAnimation() {
+	case "square":
+		return " " + strings.TrimPrefix(phase, "▪")
+	case "text":
+		return strings.Repeat(" ", len(phase))
+	default:
+		return phase
+	}
 }

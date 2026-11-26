@@ -68,10 +68,11 @@ func (m *Model) testControls() *screen.Controls { m.syncControls(); return m.chr
 
 func (m *Model) applyAppearance(appearance config.Appearance) {
 	screen.SetAppearance(screen.Appearance{
-		Name:     currentPalette().Name,
-		Caret:    appearance.Caret,
-		Modern:   appearance.Style == "modern",
-		Outlined: appearance.Frame == "outlined",
+		Name:            currentPalette().Name,
+		Caret:           appearance.Caret,
+		StatusAnimation: appearance.StatusAnimation,
+		Modern:          appearance.Style == "modern",
+		Outlined:        appearance.Frame == "outlined",
 	})
 	m.ApplyHistoryAppearance(appearance)
 }

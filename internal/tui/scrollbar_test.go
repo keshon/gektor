@@ -52,8 +52,8 @@ func TestAppearanceScrollbarDragThroughBothScreens(t *testing.T) {
 			if m.chrome.DialogID() != dialog || f.Index != len(f.Fields)-1 || f.Values()["theme"] != values["theme"] || f.Values()["frame"] != values["frame"] || f.Values()["style"] != values["style"] {
 				t.Fatal("drag missed the last field, changed a choice or activated toolbar", workflow, width, f.Index)
 			}
-			if !strings.Contains(ansi.Strip(m.View().Content), "Caret") {
-				t.Fatal("caret field remained hidden after dragging")
+			if !strings.Contains(ansi.Strip(m.View().Content), f.Fields[f.Index].Label) {
+				t.Fatal("last field remained hidden after dragging")
 			}
 		}
 	}

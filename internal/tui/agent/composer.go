@@ -11,6 +11,8 @@ import (
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
+const modernNoticeInset = 1
+
 type composerLayout struct {
 	panel    pane.Layout
 	rows     []string
@@ -29,7 +31,7 @@ func (m *Model) composerLayout() composerLayout {
 	layout := composerLayout{badges: m.headerBadges()}
 	blank := strings.Repeat(" ", width)
 	status := m.composerStatus()
-	if status != "" {
+	if status != "" && (!palette.Modern || m.state == stPermission || m.chrome.DialogInfo().Kind != screen.NoDialog) {
 		layout.rows = append(layout.rows, cellLine(status, width))
 	}
 
@@ -47,7 +49,7 @@ func (m *Model) composerLayout() composerLayout {
 			layout.note = pane.Rect{Y: len(layout.rows) - 1, Width: width, Height: 1}
 		}
 	default:
-		m.composeDraft(&layout, palette, blank, width)
+		m.composeDraft(&layout, palette, blank, status, width)
 	}
 
 	layout.panel = m.panelGeometry(m.mainWidth(), len(layout.rows), false, true)
@@ -64,12 +66,12 @@ func (m *Model) composerLayout() composerLayout {
 	return layout
 }
 
-func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, blank string, width int) {
+func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, blank, status string, width int) {
 	if palette.Modern && !palette.Outlined {
 		layout.rows = append([]string{blank}, layout.rows...)
 	}
 	var queueLabels []string
-	var queuePreview string
+	var queuePreview, attachment string
 	if m.state != stAsk {
 		queueLabels, queuePreview = m.queueSummary()
 		if len(queueLabels) > 0 && !palette.Modern {
@@ -79,7 +81,10 @@ func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, bl
 			layout.rows = append(layout.rows, cellLine(summary, width))
 		}
 		if len(m.draftImages) > 0 || m.clipboardBusy {
-			layout.rows = append(layout.rows, cellLine(m.attachmentLine(), width))
+			attachment = m.attachmentLine()
+			if !palette.Modern {
+				layout.rows = append(layout.rows, cellLine(attachment, width))
+			}
 		}
 	}
 
@@ -102,12 +107,21 @@ func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, bl
 		return
 	}
 
-	if len(queueLabels) > 0 {
+	indent := strings.Repeat(" ", modernNoticeInset)
+	noticeWidth := max(width-modernNoticeInset, 0)
+	if len(queueLabels) > 0 || attachment != "" || status != "" {
 		layout.rows = append(layout.rows, blank)
-		queueWidth := max(width-1, 0)
-		layout.queue = pane.Rect{X: 1, Y: len(layout.rows), Width: queueWidth, Height: 1}
-		summary := m.modernQueueRow(queueLabels, queuePreview, queueWidth)
-		layout.rows = append(layout.rows, " "+summary)
+	}
+	if len(queueLabels) > 0 {
+		layout.queue = pane.Rect{X: modernNoticeInset, Y: len(layout.rows), Width: noticeWidth, Height: 1}
+		summary := m.modernQueueRow(queueLabels, queuePreview, noticeWidth)
+		layout.rows = append(layout.rows, indent+summary)
+	}
+	if attachment != "" {
+		layout.rows = append(layout.rows, indent+cellLine(attachment, noticeWidth))
+	}
+	if status != "" {
+		layout.rows = append(layout.rows, indent+cellLine(status, noticeWidth))
 	}
 	layout.rows = append(layout.rows, blank)
 	layout.badgeRow = len(layout.rows)

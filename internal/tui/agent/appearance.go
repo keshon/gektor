@@ -30,15 +30,16 @@ func (m *Model) ApplyHistoryAppearance(a config.Appearance) {
 func (m *Model) currentAppearance() config.Appearance {
 	palette := currentPalette()
 	a := config.Appearance{
-		Caret:          palette.Caret,
-		Frame:          "outlined",
-		HideNames:      m.hideNames,
-		HideLabels:     m.hideLabels,
-		HideSystem:     m.hideSYS,
-		HideTools:      m.hideTools,
-		ExpandThinking: !m.transcript.compact,
-		HideThinking:   m.hideThinking,
-		ToolNamesOnly:  m.toolNamesOnly,
+		Caret:           palette.Caret,
+		StatusAnimation: palette.StatusAnimation,
+		Frame:           "outlined",
+		HideNames:       m.hideNames,
+		HideLabels:      m.hideLabels,
+		HideSystem:      m.hideSYS,
+		HideTools:       m.hideTools,
+		ExpandThinking:  !m.transcript.compact,
+		HideThinking:    m.hideThinking,
+		ToolNamesOnly:   m.toolNamesOnly,
 	}
 	if !palette.Outlined {
 		a.Frame = "minimal"

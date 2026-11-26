@@ -98,3 +98,25 @@ func TestCaretChoicePersistsAcrossScreensAndThemes(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusAnimationPersistsAcrossThemeChanges(t *testing.T) {
+	previous := screen.CurrentPalette().Appearance
+	defer screen.SetAppearance(previous)
+	m := sizeModelTo(t, settingsModel(t), 120, 30)
+	m.runAction("appearance")
+	values := formSnapshot(m).Values()
+	values["status_animation"] = "text"
+	err := m.applyValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefs, err := config.LoadPreferences(m.application.PreferencePath)
+	if err != nil || prefs.Appearance.StatusAnimation != "text" {
+		t.Fatal("status animation was not saved", prefs.Appearance, err)
+	}
+	m.applyAppearance("dark", prefs.Appearance)
+	m.applyTheme("light")
+	if m.agent.Appearance().StatusAnimation != "text" {
+		t.Fatal("theme change lost the status animation")
+	}
+}

@@ -88,10 +88,11 @@ func (p *Palette) PopupStyles() (lipgloss.Style, lipgloss.Style, lipgloss.Style)
 
 // Appearance selects the shared terminal colors, layout style, borders and caret.
 type Appearance struct {
-	Name     string
-	Caret    string
-	Modern   bool
-	Outlined bool
+	StatusAnimation string
+	Name            string
+	Caret           string
+	Modern          bool
+	Outlined        bool
 }
 
 // Palette is an immutable appearance snapshot shared by both screens.
@@ -177,6 +178,7 @@ func SetTheme(name string) {
 func SetAppearance(appearance Appearance) {
 	p := paletteFor(appearance.Name)
 	p.Caret, p.Outlined = appearance.Caret, appearance.Outlined
+	p.StatusAnimation = appearance.StatusAnimation
 	applyModern(p, appearance.Modern)
 	selectedPalette.Store(p)
 }

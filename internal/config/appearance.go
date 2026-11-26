@@ -4,19 +4,28 @@ import "fmt"
 
 // Appearance changes rendering only, independently of session/model settings.
 type Appearance struct {
-	Caret          string `json:"caret,omitempty"`
-	Style          string `json:"style,omitempty"`
-	Frame          string `json:"frame,omitempty"`
-	HideNames      bool   `json:"hide_names,omitempty"`
-	HideLabels     bool   `json:"hide_labels,omitempty"`
-	HideSystem     bool   `json:"hide_system,omitempty"`
-	HideTools      bool   `json:"hide_tools,omitempty"`
-	HideThinking   bool   `json:"hide_thinking,omitempty"`
-	ToolNamesOnly  bool   `json:"tool_names_only,omitempty"`
-	ExpandThinking bool   `json:"expand_thinking,omitempty"`
+	StatusAnimation string `json:"status_animation,omitempty"`
+	Caret           string `json:"caret,omitempty"`
+	Style           string `json:"style,omitempty"`
+	Frame           string `json:"frame,omitempty"`
+	HideNames       bool   `json:"hide_names,omitempty"`
+	HideLabels      bool   `json:"hide_labels,omitempty"`
+	HideSystem      bool   `json:"hide_system,omitempty"`
+	HideTools       bool   `json:"hide_tools,omitempty"`
+	HideThinking    bool   `json:"hide_thinking,omitempty"`
+	ToolNamesOnly   bool   `json:"tool_names_only,omitempty"`
+	ExpandThinking  bool   `json:"expand_thinking,omitempty"`
 }
 
-// Validate accepts the default Commander style and supported frame choices.
+// DefaultStatusAnimation returns the indicator for an unset preference.
+func DefaultStatusAnimation(modern bool) string {
+	if modern {
+		return "square"
+	}
+	return "braille"
+}
+
+// Validate checks the supported appearance choices.
 func (a Appearance) Validate() error {
 	if a.Style != "" && a.Style != "commander" && a.Style != "modern" {
 		return fmt.Errorf("unknown UI style %q", a.Style)
@@ -27,6 +36,11 @@ func (a Appearance) Validate() error {
 
 	if a.Caret != "" && a.Caret != "bar" && a.Caret != "block" && a.Caret != "underline" {
 		return fmt.Errorf("unknown caret shape %q", a.Caret)
+	}
+	switch a.StatusAnimation {
+	case "", "braille", "square", "text":
+	default:
+		return fmt.Errorf("unknown status animation %q", a.StatusAnimation)
 	}
 	return nil
 }

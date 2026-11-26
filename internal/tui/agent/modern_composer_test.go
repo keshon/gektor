@@ -62,6 +62,38 @@ func TestModernQueueRowTracksComposerPadding(t *testing.T) {
 	}
 }
 
+func TestModernDraftNoticesShareQueueSpacing(t *testing.T) {
+	previous := screen.CurrentPalette().Appearance
+	defer screen.SetAppearance(previous)
+	for _, frame := range []string{"minimal", "outlined"} {
+		for _, reading := range []bool{false, true} {
+			m := queuedModel(t)
+			m.testUpdate(tea.WindowSizeMsg{Width: 60, Height: 32})
+			m.applyAppearance(config.Appearance{Style: "modern", Frame: frame})
+			m.clipboardBusy = reading
+			m.progress.Phase, m.progress.Detail = "retry", "Retrying connection"
+			m.fitBottom()
+
+			notice := "Images [1]"
+			if reading {
+				notice = "Reading clipboard"
+			}
+			view := m.testView()
+			rows := strings.Split(ansi.Strip(view.Content), "\n")
+			queue := m.composerLayout().queue
+			if view.Cursor == nil || queue.Y != view.Cursor.Y+2 {
+				t.Fatal("queue shifted away from the draft", frame, reading)
+			}
+			for i, label := range []string{notice, "Retrying connection"} {
+				row := rows[queue.Y+1+i]
+				if x := strings.Index(row, label); x < 0 || ansi.StringWidth(row[:x]) != queue.X {
+					t.Fatal("composer notice did not align with the queue", frame, label, x, queue.X)
+				}
+			}
+		}
+	}
+}
+
 func TestModernQueueKeepsShortcutWhenPreviewIsClipped(t *testing.T) {
 	m := testModel()
 	label := []string{"Queued 1"}

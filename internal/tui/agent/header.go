@@ -34,7 +34,7 @@ func (m *Model) headerBadges() []screen.Badge {
 		case "checkpoint":
 			phase = "COMPACT"
 		}
-		activity = m.activitySymbol() + " " + phase
+		activity = m.activityLabel(phase)
 	case stPermission, stAsk:
 		activity = "WAIT"
 	case stStopping:
@@ -45,7 +45,7 @@ func (m *Model) headerBadges() []screen.Badge {
 		}
 	}
 	if m.evaluation != nil {
-		activity = m.activitySymbol() + " EVAL"
+		activity = m.activityLabel("EVAL")
 	}
 	ctx := kTokens(m.tokens)
 	if m.tokensEst {
@@ -96,7 +96,7 @@ func (m *Model) headerBadges() []screen.Badge {
 // Composer metadata prioritizes the selected mode and model, then live state.
 func (m *Model) composerBadges(mode, activity, context string, width int) []screen.Badge {
 	mode = strings.ToUpper(mode[:1]) + strings.ToLower(mode[1:])
-	if m.state == stDone && m.runErr == nil {
+	if m.state == stDone && m.runErr == nil && m.evaluation == nil {
 		activity = ""
 	}
 	badges := []screen.Badge{{ID: "mode", Label: mode}}
@@ -178,7 +178,7 @@ func (m *Model) badgeLine(badges []screen.Badge) string {
 			} else if m.limit > 0 && float64(m.tokens)/float64(m.limit) >= 0.85 {
 				contextStyle = m.styles.Warn
 			}
-			phaseText := style.Render(" "+phase) + dim.Render("  ")
+			phaseText := style.Render(" "+m.paintActivity(phase)) + dim.Render("  ")
 			if currentPalette().Modern && phase == "" {
 				phaseText = " "
 			}

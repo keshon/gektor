@@ -38,15 +38,47 @@ func TestModernMarkersPreserveContentPunctuation(t *testing.T) {
 		if returned != strings.TrimSpace(marker) {
 			t.Fatal("returned marker differs", modern, returned)
 		}
-		var model Model
-		for i := 0; i < len(activityFrames); i++ {
-			model.spinnerFrame = i
-			glyph := model.activitySymbol()
-			if modern && glyph != "▪" && glyph != "▫" {
-				t.Fatal("round spinner in Modern", glyph)
+	}
+}
+
+func TestStatusAnimationsKeepBadgePositions(t *testing.T) {
+	previous := screen.CurrentPalette().Appearance
+	defer screen.SetAppearance(previous)
+	for _, modern := range []bool{false, true} {
+		for _, choice := range []string{"braille", "square", "text"} {
+			m := sizeModelTo(t, testModel(), 80, 30)
+			screen.SetAppearance(screen.Appearance{Modern: modern, StatusAnimation: choice})
+			m.state, m.progress.Phase = stRunning, "prefill"
+			m.tokens, m.limit = 1200, 32000
+
+			onBadges := m.headerBadges()
+			on := ansi.Strip(m.badgeLine(onBadges))
+			m.spinnerFrame = len(activityFrames) / 2
+			offBadges := m.headerBadges()
+			off := ansi.Strip(m.badgeLine(offBadges))
+			for i, badge := range onBadges {
+				if badge.Start != offBadges[i].Start || badge.End != offBadges[i].End {
+					t.Fatal("badges moved during animation", modern, choice)
+				}
 			}
-			if !modern && glyph != string(activityFrames[i]) {
-				t.Fatal("Commander spinner changed", glyph)
+			onContext := strings.Index(on, "1.2k/32.0k")
+			offContext := strings.Index(off, "1.2k/32.0k")
+			if on == off || onContext < 0 || offContext < 0 || ansi.StringWidth(on[:onContext]) != ansi.StringWidth(off[:offContext]) {
+				t.Fatal("animation did not change or moved context", modern, choice, on, off)
+			}
+			switch choice {
+			case "braille":
+				if !strings.Contains(on, "⠋ READ") || !strings.Contains(off, "⠴ READ") {
+					t.Fatal("Braille spinner lost its frames", on, off)
+				}
+			case "square":
+				if !strings.Contains(on, "▪ READ") || !strings.Contains(off, " READ") || strings.ContainsAny(off, "▪▫") {
+					t.Fatal("square should blink between filled and absent", on, off)
+				}
+			case "text":
+				if !strings.Contains(on, "READ") || strings.Contains(off, "READ") || strings.ContainsAny(on, "▪▫⠋") {
+					t.Fatal("text should blink without a symbol", on, off)
+				}
 			}
 		}
 	}
