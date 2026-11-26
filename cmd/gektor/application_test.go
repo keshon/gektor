@@ -248,7 +248,7 @@ func TestGeneratedProfileKeepsResolvedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := launchProfile(o, 65536)
+	p := launchProfile(o)
 	if p.Identity.UserName != "Alice" || p.Identity.SystemPrompt != "CUSTOM" || p.Identity.PostHistory != "POST" {
 		t.Fatalf("identity lost: %+v", p.Identity)
 	}

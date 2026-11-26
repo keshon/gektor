@@ -173,6 +173,8 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 				field.Value = kind
 			case "endpoint":
 				field.Value = server.URL
+			case "auth":
+				field.Value = "environment"
 			case "key-env":
 				field.Value = "GEKTOR_TEST_MODEL_KEY"
 			case "model":

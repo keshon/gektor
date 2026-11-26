@@ -16,8 +16,9 @@ workflow to try saved steps without a model connection.
 2. On Windows, open `start-tui-agent.cmd`. On Linux, run `./gektor -tui`.
 3. Choose **Change workspace…** in **GEKTOR** and select a project folder.
    In the folder browser, **Select folder** selects the folder currently displayed.
-4. Check **Settings > Model connection**. Set the provider, server address and model,
-   then choose **Apply**. GEKTOR does not install or supervise the model server.
+4. Open **Settings > Model connection**. Set the provider, address and model.
+   If your server needs a key, choose its source under **Authentication**.
+   Then choose **Apply**.
 5. Choose **Plan** in **Run**. Send a small request:
 
    > Read the README and find where this project saves settings. Explain the path without changing files.

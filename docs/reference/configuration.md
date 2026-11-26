@@ -73,11 +73,11 @@ configuration.
 
 Preferences, sessions and retained tool output live under `~/.gektor`.
 On Windows, `~` means your user folder, usually `C:\Users\<name>`.
-`GEKTOR_API_KEY` is the generic API key variable.
 
 | Data | Location | What it is for |
 |---|---|---|
 | TUI preferences | `~/.gektor/application.json` | Workspace and display preferences |
+| Provider API keys | `~/.gektor/credentials/providers/` | Saved bearer keys scoped to provider and server address |
 | Custom profiles | `~/.gektor/profiles/custom/` | Saved model and identity settings |
 | SSH connections | `~/.gektor/ssh.json` | Named endpoints, trusted-hosts file, key paths and credential/environment references; no literal secrets |
 | SSH credentials | `~/.gektor/credentials/ssh/` | Password/passphrase values addressed by opaque profile references; Windows TUI entry encrypts them for the current account |
@@ -226,14 +226,19 @@ The repository includes two profiles under `profiles/`:
 You can also set `-backend` and `-model` without loading a profile.
 
 A profile carries three blocks. `provider` names the protocol, endpoint and
-model. `generation` sets the response budget, context window and
-temperature. `identity` sets the persona:
+model. `generation` sets the response budget, context cap and temperature.
+A `context_limit` of `0` selects Auto. `identity` sets the persona:
 `user_name`, `share_user_name`, `system_prompt`, `post_history`, `name`,
 `user_persona` and `prompt_preset`.
 
 **Share name with Agent** adds the configured user name to model requests as
 part of the Agent prompt. It is off by default. When enabled, the name may be
 retained in saved prompt records. Existing message text is kept as written.
+
+For bearer providers, `provider.key_mode` selects `none`, `environment`, or
+`saved`. Environment mode also needs `provider.api_key_env`. Saved mode resolves
+the key for the profile's provider kind and URL. Profiles store the source and
+address alone. Configure the key through [Model connection](../guide/models.md#local-server-or-openai-compatible-api).
 
 Decoding is strict. An unrecognized key is an error, so a misspelled setting fails at
 load instead of being silently ignored, and a profile written for a removed schema is

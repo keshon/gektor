@@ -17,10 +17,11 @@ import (
 )
 
 type EditSession struct {
-	Draft                    *Draft
-	Section, LoadedPath      string
-	Advanced, PersistCurrent bool
-	AccountLabel             string
+	Draft               *Draft
+	Section, LoadedPath string
+	PersistCurrent      bool
+	AccountLabel        string
+	SavedKey            bool
 }
 
 // Model owns staged preference policy and copied page values. Controls own the
@@ -53,7 +54,7 @@ func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
 	f.DiscoveryFields = map[string]string{"model": "model", "reasoning-effort": "reasoning"}
 	f.NoSearchFields = map[string]bool{"theme": true}
 	f.InlineChoices = map[string]int{"theme": 6, "share-user-name": 2}
-	for i, field := range f.Fields {
+	for _, field := range f.Fields {
 		if len(f.Choices[field.Key]) == 0 {
 			f.Choices[field.Key] = Choices(field.Key)
 		}
@@ -62,7 +63,6 @@ func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
 			labels[value] = ChoiceLabel(field.Key, value)
 		}
 		f.Labels[field.Key] = labels
-		f.Hidden[field.Key] = !f.FieldVisible(i)
 		if field.Key == "kind" {
 			if f.previousKind != "" && f.previousKind != field.Value {
 				next, nextErr := providers.Lookup(field.Value)
@@ -76,10 +76,25 @@ func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
 						} else {
 							f.Fields[j].Value = SuggestedBackendURL(f.Fields[j].Value, f.previousKind, field.Value)
 						}
-					case "key-env", "model":
+					case "model":
 						if switchingPreset {
 							f.Fields[j].Value = ""
 						}
+					}
+				}
+				var endpoint string
+				for _, current := range f.Fields {
+					if current.Key == "endpoint" {
+						endpoint = current.Value
+					}
+				}
+				mode, env := authenticationFields(config.Provider{Kind: field.Value, URL: endpoint})
+				for j := range f.Fields {
+					switch f.Fields[j].Key {
+					case "auth":
+						f.Fields[j].Value = string(mode)
+					case "key-env":
+						f.Fields[j].Value = env
 					}
 				}
 			}
@@ -107,8 +122,16 @@ func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
 		f.Note = f.note()
 		f.DisablePrimary = !f.Dirty() || f.loadError != nil
 		f.Shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Ctrl+S", Action: "apply"}, {Key: "Tab", Action: "controls"}}
+		if _, _, ok := f.SavedKeyProvider(); ok {
+			f.Shortcuts = append([]popup.Shortcut{{Key: "F6", Action: "API key"}}, f.Shortcuts...)
+			f.Note = "F6 opens the API key dialog."
+			if f.EditSession.SavedKey {
+				f.Note = "API key saved. Pick a model or apply the connection."
+			}
+		}
 	}
 	for i, field := range f.Fields {
+		f.Hidden[field.Key] = !f.FieldVisible(i)
 		if field.Value != snapshot.Fields[i].Value {
 			f.Values[field.Key] = field.Value
 		}
@@ -122,9 +145,6 @@ func (f *Model) Shortcut(key string) (fieldform.Intent, bool) {
 		return fieldform.Intent{}, false
 	}
 	switch key {
-	case "f4":
-		f.EditSession.Advanced = !f.EditSession.Advanced
-		return fieldform.Intent{}, true
 	case "ctrl+d":
 		if f.EditSession.Section == "profiles" {
 			return fieldform.Intent{Action: fieldform.SaveCopy}, true
@@ -152,10 +172,10 @@ func (f *Model) FieldVisible(index int) bool {
 				if !descriptor.OutputLimit {
 					return false
 				}
+			case "auth":
+				return descriptor.Auth == providers.Bearer
 			case "key-env":
-				if descriptor.Auth != providers.Bearer {
-					return false
-				}
+				return descriptor.Auth == providers.Bearer && f.fieldValue("auth") == string(providers.KeyEnv)
 			case "endpoint":
 				if descriptor.FixedURL != "" {
 					return false
@@ -164,15 +184,26 @@ func (f *Model) FieldVisible(index int) bool {
 		}
 	}
 
-	if index >= len(f.Fields) || f.EditSession == nil || f.EditSession.Section != "model" {
-		return true
-	}
-
-	if f.Fields[index].Key == "key-env" {
-		return f.EditSession.Advanced
-	}
-
 	return true
+}
+
+func (f *Model) SavedKeyProvider() (string, string, bool) {
+	if f.EditSession == nil || f.EditSession.Section != "model" || f.fieldValue("auth") != string(providers.KeySaved) {
+		return "", "", false
+	}
+
+	d, err := providers.Lookup(f.providerKind())
+	endpoint := f.fieldValue("endpoint")
+	return d.ID, endpoint, err == nil && d.Auth == providers.Bearer
+}
+
+func (f *Model) fieldValue(key string) string {
+	for _, field := range f.Fields {
+		if field.Key == key {
+			return field.Value
+		}
+	}
+	return ""
 }
 
 func (f *Model) providerKind() string {
@@ -208,7 +239,7 @@ func (f *Model) Dirty() bool {
 		return true
 	}
 
-	return f.EditSession.PersistCurrent || f.EditSession.Draft.Dirty(f.EditSession.Section, f.Fields)
+	return f.EditSession.PersistCurrent || f.EditSession.SavedKey || f.EditSession.Draft.Dirty(f.EditSession.Section, f.Fields)
 }
 func (f *Model) note() string {
 	descriptor, lookupErr := providers.Lookup(f.providerKind())

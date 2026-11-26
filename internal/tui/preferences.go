@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/credentials"
+	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
@@ -63,6 +66,16 @@ func (m *Model) editSettings(section string) {
 			return err
 		}
 
+		provider := profile.Provider
+		if provider.KeyMode != "" || provider.APIKeyEnv != "" {
+			err = app.CheckProviderAuthentication(app.BackendOptions{
+				Kind: provider.Kind, URL: provider.URL, KeyMode: provider.KeyMode, APIKeyEnv: provider.APIKeyEnv,
+			})
+			if err != nil {
+				return err
+			}
+		}
+
 		// Applying settings restarts the launch so the new profile is composed
 		// into fresh services. Nothing is applied in place: the session that
 		// reads the old one must not keep running against the new.
@@ -84,4 +97,39 @@ func (m *Model) preparePreferences() {
 		return
 	}
 	m.chrome.ConfigureForm(m.preferencesDialog, m.preferences.Prepare(snapshot))
+}
+
+func (m *Model) openProviderKey() bool {
+	kind, endpoint, ok := m.preferences.SavedKeyProvider()
+	if !ok {
+		return false
+	}
+
+	d, err := providers.Lookup(kind)
+	if err != nil {
+		return false
+	}
+	m.chrome.Suspend()
+	hint := "Paste the key and press Ctrl+S. " + credentials.Protection() + "."
+	m.chrome.PresentSecret(d.Label+" API key", hint)
+	m.providerKeyDialog = m.chrome.DialogID()
+	m.providerKeyKind = kind
+	m.providerKeyURL = endpoint
+	return true
+}
+
+func (m *Model) applyProviderKey(dialog screen.DialogID) {
+	value, ok := m.chrome.TakeSecret(dialog)
+	if !ok {
+		return
+	}
+	kind := m.providerKeyKind
+	err := app.SaveProviderKey(kind, m.providerKeyURL, value)
+	if err != nil {
+		m.chrome.SetSecretError(dialog, err)
+		return
+	}
+
+	m.preferences.EditSession.SavedKey = true
+	m.chrome.Close()
 }

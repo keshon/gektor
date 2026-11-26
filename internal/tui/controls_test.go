@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
+	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
 
@@ -155,5 +157,71 @@ func TestToolsIntentCannotActAfterReplacementBeforeEventsDrain(t *testing.T) {
 	m.applySSHSecret(old)
 	if m.chrome.DialogID() != current {
 		t.Fatal("stale secret submission changed replacement")
+	}
+}
+
+func TestProviderKeyPasteReturnsToModelConnection(t *testing.T) {
+	homeVariable := "HOME"
+	if runtime.GOOS == "windows" {
+		homeVariable = "USERPROFILE"
+	}
+	t.Setenv(homeVariable, t.TempDir())
+	m := settingsModel(t)
+
+	m.editSettings("model")
+	formID := m.chrome.DialogID()
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF6})
+	if m.chrome.DialogID() != formID {
+		t.Fatal("provider without saved key support opened a dialog")
+	}
+	m.chrome.ConfigureForm(formID, fieldform.Presentation{Values: map[string]string{"kind": "llama"}})
+	m.preparePreferences()
+	m.chrome.ConfigureForm(formID, fieldform.Presentation{Values: map[string]string{"model": "staged-model", "auth": "saved", "endpoint": "http://localhost:9981"}})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF6})
+	if m.chrome.DialogInfo().Kind != screen.SecretDialog {
+		t.Fatal("selected provider did not open its key dialog")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.chrome.DialogID() != formID {
+		t.Fatal("cancel did not restore the original model form")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF6})
+	if m.chrome.DialogInfo().Kind != screen.SecretDialog {
+		t.Fatal("provider key did not open the masked dialog")
+	}
+	const sentinel = "private-provider-key-fixture"
+	m.Update(tea.PasteMsg{Content: sentinel})
+	if strings.Contains(m.chrome.DialogView(), sentinel) {
+		t.Fatal("pasted key appeared in the dialog")
+	}
+	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.chrome.DialogID() != formID || m.preferences.EditSession.Section != "model" {
+		t.Fatal("saving the key did not return to Model connection")
+	}
+	for _, field := range formSnapshot(m).Fields {
+		if field.Key == "model" && field.Value != "staged-model" {
+			t.Fatal("model draft changed after saving the key")
+		}
+		if strings.Contains(field.Value, sentinel) {
+			t.Fatal("key was copied into the profile form")
+		}
+	}
+}
+
+func TestApplyRejectsMissingEnvironmentKeyBeforeRelaunch(t *testing.T) {
+	t.Setenv("GEKTOR_MISSING_MODEL_KEY", "")
+	m := settingsModel(t)
+	m.editSettings("model")
+	id := m.chrome.DialogID()
+	m.chrome.ConfigureForm(id, fieldform.Presentation{Values: map[string]string{
+		"auth": "environment", "key-env": "GEKTOR_MISSING_MODEL_KEY",
+	}})
+
+	m.applyForm()
+	if m.modeChange != nil || m.chrome.DialogID() != id {
+		t.Fatal("invalid authentication left the connection form")
+	}
+	if !strings.Contains(formSnapshot(m).Error, "GEKTOR_MISSING_MODEL_KEY is empty or unset") {
+		t.Fatal("missing variable was not reported in the connection form")
 	}
 }

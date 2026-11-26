@@ -55,7 +55,14 @@ func (m *Model) headerBadges() []screen.Badge {
 		ctx = "~" + ctx
 	}
 	if m.limit > 0 {
-		ctx += "/" + kTokens(m.limit)
+		ctx += "/"
+		if m.contextEstimated {
+			ctx += "~"
+		}
+		ctx += kTokens(m.limit)
+		if m.contextWindow > m.limit {
+			ctx += " · " + kTokens(m.contextWindow) + " model"
+		}
 	}
 	width := m.transcript.Viewport.Width()
 	if currentPalette().Modern {
@@ -229,7 +236,12 @@ func (m *Model) badgeItems(menu string) []screen.MenuItem {
 		if m.streaming {
 			transport = "Streaming"
 		}
-		rows := []screen.MenuItem{info("Model: " + nonEmpty(m.displayedModel())), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context window: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
+		rows := []screen.MenuItem{info("Model: " + nonEmpty(m.displayedModel())), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context budget: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
+		if m.contextWindow > 0 {
+			rows = append(rows, info(fmt.Sprintf("Model context limit: %d tokens", m.contextWindow)))
+		} else if m.contextEstimated {
+			rows = append(rows, info("Context budget is an estimate"))
+		}
 		if !m.usage.liveModel && m.usage.historical {
 			rows = append(rows, info("Current backend model: "+nonEmpty(m.modelName)))
 		}

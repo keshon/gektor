@@ -400,7 +400,9 @@ func (m *Model) handleEvent(ev harness.Event) {
 			m.modelName = name
 		}
 		if limit, _ := ev.Fields["context_limit"].(int); limit > 0 {
-			m.limit = int(limit)
+			m.limit = limit
+			m.contextWindow, _ = ev.Fields["context_window"].(int)
+			m.contextEstimated, _ = ev.Fields["context_estimated"].(bool)
 		}
 	case "step":
 		m.acceptStepEvent(ev)

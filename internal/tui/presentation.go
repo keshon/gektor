@@ -49,8 +49,8 @@ func (m *Model) syncPresentation() {
 		snapshot, formOpen := m.chrome.FormSnapshot(m.preferencesDialog)
 		if m.preferences != nil && formOpen && !snapshot.PickerOpen && !snapshot.FeedbackOpen {
 			ws := m.preferences.EditSession
-			if ws.Section == "model" {
-				m.chrome.Props.Actions = append(m.chrome.Props.Actions, screen.Action{Key: tea.KeyF4, Name: "F4", Label: "Advanced", Short: "Advanced", Enabled: true})
+			if _, _, ok := m.preferences.SavedKeyProvider(); ok {
+				m.chrome.Props.Actions = append(m.chrome.Props.Actions, screen.Action{Key: tea.KeyF6, Name: "F6", Label: "API key", Short: "Key", Enabled: true})
 			}
 			if ws.Section == "profiles" {
 				m.chrome.Props.Actions = append(m.chrome.Props.Actions, screen.Action{Key: 'd', Mod: tea.ModCtrl, Name: "Ctrl+D", Label: "Save copy", Short: "Copy", Enabled: true})

@@ -44,3 +44,19 @@ func TestChooserFieldsUseFilledButtons(t *testing.T) {
 		t.Fatal("chooser activation changed", intent)
 	}
 }
+
+func TestDiscoveryButtonSpacing(t *testing.T) {
+	field := form.Field{Key: "model", Label: "Model identifier"}
+	f := NewModel([]form.Field{field}, textarea.New())
+	f.DiscoveryFields = map[string]string{"model": "models"}
+
+	for _, filled := range []bool{false, true} {
+		styles := form.Styles{FilledButtons: filled}
+		button := f.fieldButton(field, "Discover…", styles)
+		empty, _ := f.display(field, "", styles)
+		selected, _ := f.display(field, "local", styles)
+		if empty != button || selected != "local  "+button {
+			t.Fatalf("unexpected discovery button spacing: empty %q, selected %q", empty, selected)
+		}
+	}
+}

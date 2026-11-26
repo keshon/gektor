@@ -51,7 +51,7 @@ type Client struct {
 
 	// APIKey, when set, is sent as a bearer token on every request. Local
 	// servers ignore it; hosted OpenAI-compatible APIs require it. Prefer
-	// WithAPIKey or APIKeyFromEnv over embedding a secret in a flag.
+	// WithAPIKey with a securely resolved secret.
 	APIKey string
 
 	// ExtraHeaders are sent on every chat request alongside auth, e.g.

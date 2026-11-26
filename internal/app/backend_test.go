@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 
 	"github.com/keshon/gektor/internal/app"
@@ -114,16 +115,27 @@ func TestStrictInspectionRejectsFallbackWithoutBackendEvidence(t *testing.T) {
 	}
 }
 
-func TestProviderPresetsDiscoverAndStreamWithRouteCredentials(t *testing.T) {
+func TestBearerProvidersDiscoverAndStreamWithRouteCredentials(t *testing.T) {
+	homeVariable := "HOME"
+	if runtime.GOOS == "windows" {
+		homeVariable = "USERPROFILE"
+	}
+	t.Setenv(homeVariable, t.TempDir())
 	t.Setenv("OPENROUTER_API_KEY", "default-hosted-key")
 	t.Setenv("GEKTOR_PRESET_TEST_KEY", "explicit-gateway-key")
 
 	for _, route := range []struct {
 		kind, keyEnv, authorization string
+		saved                       bool
 	}{
 		{kind: "openrouter", keyEnv: "GEKTOR_PRESET_TEST_KEY", authorization: "Bearer explicit-gateway-key"},
 		{kind: "openrouter"},
 		{kind: "lmstudio"},
+		{kind: "llama", saved: true, authorization: "Bearer saved-fixture-key"},
+		{kind: "kobold", saved: true, authorization: "Bearer saved-fixture-key"},
+		{kind: "openai", saved: true, authorization: "Bearer saved-fixture-key"},
+		{kind: "lmstudio", saved: true, authorization: "Bearer saved-fixture-key"},
+		{kind: "openrouter", saved: true, authorization: "Bearer saved-fixture-key"},
 	} {
 		t.Run(route.kind+"/"+route.keyEnv, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +145,8 @@ func TestProviderPresetsDiscoverAndStreamWithRouteCredentials(t *testing.T) {
 				switch r.URL.Path {
 				case "/v1/models":
 					fmt.Fprint(w, `{"data":[{"id":"fixture-model"}]}`)
+				case "/api/v1/model":
+					fmt.Fprint(w, `{"result":"fixture-model"}`)
 				case "/v1/chat/completions":
 					w.Header().Set("Content-Type", "text/event-stream")
 					fmt.Fprintln(w, `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"read_file","arguments":"{}"}}]}}]}`)
@@ -146,7 +160,14 @@ func TestProviderPresetsDiscoverAndStreamWithRouteCredentials(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			options := app.BackendOptions{Kind: route.kind, URL: srv.URL + "/v1", APIKeyEnv: route.keyEnv}
+			options := app.BackendOptions{Kind: route.kind, URL: srv.URL, APIKeyEnv: route.keyEnv}
+			if route.saved {
+				err := app.SaveProviderKey(route.kind, options.URL, "saved-fixture-key")
+				if err != nil {
+					t.Fatal(err)
+				}
+				options.KeyMode = providers.KeySaved
+			}
 			models, err := app.DiscoverModels(t.Context(), options)
 			if err != nil || len(models) != 1 || models[0] != "fixture-model" {
 				t.Fatal(models, err)
@@ -167,5 +188,42 @@ func TestProviderPresetsDiscoverAndStreamWithRouteCredentials(t *testing.T) {
 				t.Fatal(calls)
 			}
 		})
+	}
+}
+
+func TestCatalogContextWindowAndWorkingCap(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
+		fmt.Fprint(w, `{"data":[{"id":"big","context_length":1048576},{"id":"small","context_length":32768},{"id":"unknown"}]}`)
+	}))
+	defer server.Close()
+
+	for _, tc := range []struct {
+		model               string
+		cap, window, budget int
+		estimated           bool
+	}{
+		{model: "big", window: 1048576, budget: 1048576},
+		{model: "big", cap: 65536, window: 1048576, budget: 65536},
+		{model: "small", cap: 65536, window: 32768, budget: 32768},
+		{model: "unknown", budget: 128000, estimated: true},
+		{model: "unknown", cap: 65536, budget: 65536},
+	} {
+		options := app.BackendOptions{Kind: "openrouter", URL: server.URL + "/api/v1", Model: tc.model}
+		backend, err := app.NewBackend(t.Context(), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		facts, err := backend.Inspect(t.Context(), options.URL, tc.cap, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facts.ContextWindow != tc.window || facts.ContextLimit != tc.budget || facts.ContextEstimated != tc.estimated {
+			t.Fatalf("%s cap %d: unexpected context facts %+v", tc.model, tc.cap, facts)
+		}
 	}
 }

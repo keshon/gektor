@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"os"
 	"strconv"
 
 	"github.com/keshon/gektor/internal/config"
@@ -48,8 +49,12 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 	case "generation":
 		add("temperature", "Temperature", temperatureValue(profile.Generation.Temperature), false)
 		add("max", "Response budget (tokens)", strconv.Itoa(profile.Generation.MaxTokens), false)
-		if d, err := providers.Lookup(profile.Provider.Kind); err == nil && d.SelectModel {
-			add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
+		if _, err := providers.Lookup(profile.Provider.Kind); err == nil {
+			value := "Auto"
+			if profile.Generation.ContextLimit > 0 {
+				value = strconv.Itoa(profile.Generation.ContextLimit)
+			}
+			add("context", "Context window (Auto or tokens)", value, false)
 		}
 		effort := profile.Generation.ReasoningEffort
 		if effort == "" {
@@ -66,7 +71,9 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("kind", "Provider", profile.Provider.Kind, false)
 		add("endpoint", "Backend URL", profile.Provider.URL, false)
 		add("model", "Model identifier", profile.Provider.Model, false)
-		add("key-env", "API key environment variable", profile.Provider.APIKeyEnv, false)
+		mode, env := authenticationFields(profile.Provider)
+		add("auth", "Authentication", string(mode), false)
+		add("key-env", "API key environment variable", env, false)
 	case "network":
 		network := preferences.Network
 		add("network-type", "Proxy type", network.Type, false)
@@ -74,4 +81,23 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("network-port", "Proxy port", network.Port, false)
 	}
 	return title, fields
+}
+
+func authenticationFields(provider config.Provider) (providers.KeyMode, string) {
+	if provider.KeyMode != "" {
+		return provider.KeyMode, provider.APIKeyEnv
+	}
+
+	d, err := providers.Lookup(provider.Kind)
+	if err != nil || d.Auth != providers.Bearer {
+		return providers.KeyNone, ""
+	}
+	mode := d.DefaultKeyMode(provider.URL, provider.APIKeyEnv)
+	if mode != "" {
+		return mode, provider.APIKeyEnv
+	}
+	if os.Getenv(d.DefaultKeyEnv) != "" {
+		return providers.KeyEnv, d.DefaultKeyEnv
+	}
+	return providers.KeySaved, ""
 }

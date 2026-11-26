@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"strings"
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/checks"
@@ -13,36 +12,22 @@ import (
 	"github.com/keshon/gektor/internal/tui"
 )
 
-type launchModelFacts struct {
-	contextLimit        int
-	model               string
-	vision, visionKnown bool
-}
+func inspectLaunchBackend(ctx context.Context, client *app.Backend, o resolvedLaunch, emitter *events.Emitter, note func(string, ...any)) (llm.ModelFacts, error) {
+	facts, err := client.Inspect(ctx, o.backendURL, o.contextLimit, false)
+	if err != nil {
+		return llm.ModelFacts{}, err
+	}
+	if !facts.ModelKnown {
+		facts.Model = o.model
+	}
 
-func inspectLaunchBackend(ctx context.Context, client *app.Backend, o resolvedLaunch, emitter *events.Emitter, note func(string, ...any)) (launchModelFacts, error) {
-	contextLimit, err := backendContext(ctx, client, o)
-	if err != nil {
-		return launchModelFacts{}, err
-	}
-	note("context limit: %d tokens", contextLimit)
-	emitter.Emit("context", map[string]any{"context_limit": contextLimit})
-	displayModel := o.model
-	if name, err := client.ModelName(ctx); err == nil && strings.TrimSpace(name) != "" {
-		displayModel = name
-	}
-	// Capability, not a flag: a text-only backend must not be offered a
-	// read_file that would attach pictures and fail the turn at the wire
-	// encoder. An unknown answer is treated as "no".
-	vision, err := client.SupportsVision(ctx)
-	visionKnown := err == nil
-	if err != nil {
-		vision = false
-	}
-	if vision {
+	note("context budget: %d tokens", facts.ContextLimit)
+	emitter.Emit("context", map[string]any{"context_limit": facts.ContextLimit, "context_window": facts.ContextWindow, "context_estimated": facts.ContextEstimated})
+	if facts.Vision {
 		note("vision: image files can be read by the agent")
 	}
 
-	return launchModelFacts{contextLimit, displayModel, vision, visionKnown}, nil
+	return facts, nil
 }
 
 // launchRunConfiguration prepares settings before choosing a frontend.

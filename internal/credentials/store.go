@@ -70,6 +70,43 @@ func (s Store) Put(value []byte) (string, error) {
 	return name, nil
 }
 
+// Replace writes a caller-owned credential slot atomically.
+func (s Store) Replace(id string, value []byte) error {
+	if !ValidReference(id) || len(value) == 0 || len(value) > maxStoredBytes {
+		return fmt.Errorf("invalid credential reference or size")
+	}
+
+	raw, err := protect(value)
+	if err != nil {
+		return fmt.Errorf("cannot protect credential")
+	}
+	err = os.MkdirAll(s.Directory, 0700)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.CreateTemp(s.Directory, ".credential-*")
+	if err != nil {
+		return err
+	}
+	temp := file.Name()
+	defer os.Remove(temp) // A failed write must not replace the previous credential.
+
+	_, err = file.Write(raw)
+	if err == nil {
+		err = file.Sync()
+	}
+	closeErr := file.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+
+	return os.Rename(temp, filepath.Join(s.Directory, id))
+}
+
 func (s Store) Resolve(id string) ([]byte, error) {
 	if !ValidReference(id) {
 		return nil, fmt.Errorf("invalid credential reference")

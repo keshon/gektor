@@ -93,7 +93,7 @@ func TestGeneratedProfileCarriesAnIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := launchProfile(resolvedLaunch{launchOptions: o}, 32768)
+	p := launchProfile(resolvedLaunch{launchOptions: o})
 	if p.Identity == nil {
 		t.Fatal("generated profile has no identity block")
 	}
@@ -116,14 +116,14 @@ func TestLaunchWithoutProfileStillValid(t *testing.T) {
 	}
 	// The flag defaults alone must pass validation, or the fix would turn
 	// a greyed menu into a startup failure.
-	p := launchProfile(o, 32768)
+	p := launchProfile(o)
 	if err := p.Validate(); err != nil {
 		t.Fatalf("generated profile rejected: %v", err)
 	}
 	if p.Version != 1 || p.Provider.Kind != "llama" || p.Provider.URL != "http://127.0.0.1:8080" || p.Provider.Model != o.model {
 		t.Fatalf("generated profile lost the launch flags: %+v", p)
 	}
-	if p.Generation.MaxTokens != o.maxTokens || p.Generation.ContextLimit != 32768 {
+	if p.Generation.MaxTokens != o.maxTokens || p.Generation.ContextLimit != o.contextLimit {
 		t.Fatalf("generated generation: %+v", p.Generation)
 	}
 	if applicationControl(launchRequest{}, p, "", ".") == nil {
@@ -131,20 +131,16 @@ func TestLaunchWithoutProfileStillValid(t *testing.T) {
 	}
 }
 
-// An unknown window needs a fallback, but an actual small server window
-// must never be inflated just to exceed the requested response ceiling.
-func TestLaunchProfileContextFloor(t *testing.T) {
-	o, err := parseLaunchOptions([]string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, probed := range []int{0, 1000, 65536} {
-		p := launchProfile(resolvedLaunch{launchOptions: o}, probed)
-		if err := p.Validate(); err != nil {
-			t.Fatalf("probed %d: generated profile rejected: %v", probed, err)
+func TestLaunchProfilePreservesAutoAndExplicitContextCaps(t *testing.T) {
+	for _, cap := range []int{0, 1000, 65536} {
+		o := resolvedLaunch{launchOptions: launchOptions{backendKind: "llama", backendURL: "http://127.0.0.1:9931", model: "local", maxTokens: 100, contextLimit: cap}}
+		p := launchProfile(o)
+		err := p.Validate()
+		if err != nil {
+			t.Fatal(err)
 		}
-		if probed > 0 && p.Generation.ContextLimit != probed {
-			t.Fatalf("probed %d: reported window replaced by %d", probed, p.Generation.ContextLimit)
+		if p.Generation.ContextLimit != cap {
+			t.Fatalf("cap %d became %d", cap, p.Generation.ContextLimit)
 		}
 	}
 }

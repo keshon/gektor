@@ -88,6 +88,25 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 	var commands []tea.Cmd
 
+	if event.ID == m.providerKeyDialog && m.providerKeyDialog != (screen.DialogID{}) {
+		switch event.Kind {
+		case screen.SecretApply:
+			m.applyProviderKey(event.ID)
+		case screen.Closed:
+			m.providerKeyDialog = screen.DialogID{}
+			m.providerKeyKind = ""
+			m.providerKeyURL = ""
+			m.chrome.ResumeID(m.preferencesDialog)
+		case screen.Replaced, screen.Suspended:
+			m.preferences = nil
+			m.preferencesDialog = screen.DialogID{}
+			m.form = pendingForm{}
+			m.providerKeyDialog = screen.DialogID{}
+			m.providerKeyKind = ""
+			m.providerKeyURL = ""
+		}
+	}
+
 	if event.ID == m.toolsDialog && m.toolsDialog != (screen.DialogID{}) {
 		if event.Kind == screen.SecretApply && m.chrome.DialogID() == event.ID && m.sshSecret != nil {
 			m.applySSHSecret(event.ID)
@@ -159,6 +178,9 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 	if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
 		if m.actionsDialog == event.ID {
 			m.actionsDialog = screen.DialogID{}
+		}
+		if event.Kind == screen.Suspended && m.preferencesDialog == event.ID && m.providerKeyDialog != (screen.DialogID{}) {
+			return commands
 		}
 		if m.preferencesDialog == event.ID {
 			m.preferences = nil

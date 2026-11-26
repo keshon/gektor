@@ -56,7 +56,15 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		profile.Provider.URL = strings.TrimSpace(values["endpoint"])
 		profile.Provider.Model = strings.TrimSpace(values["model"])
 		profile.Provider.APIKeyEnv = strings.TrimSpace(values["key-env"])
+		profile.Provider.KeyMode = providers.KeyMode(values["auth"])
+		if profile.Provider.KeyMode != "" && profile.Provider.KeyMode != providers.KeyEnv {
+			profile.Provider.APIKeyEnv = ""
+		}
 		descriptor, err := providers.Lookup(profile.Provider.Kind)
+		if err == nil && descriptor.Auth != providers.Bearer {
+			profile.Provider.KeyMode = ""
+			profile.Provider.APIKeyEnv = ""
+		}
 		// Unknown providers remain staged for Profile.Validate to reject.
 		if err == nil && !descriptor.Reasoning {
 			profile.Generation.ReasoningEffort = ""
@@ -103,9 +111,13 @@ func applyGeneration(generation *Generation, values map[string]string) error {
 	}
 
 	if value, ok := values["context"]; ok {
-		generation.ContextLimit, err = strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("context window must be an integer")
+		if strings.EqualFold(strings.TrimSpace(value), "auto") {
+			generation.ContextLimit = 0
+		} else {
+			generation.ContextLimit, err = strconv.Atoi(strings.TrimSpace(value))
+			if err != nil {
+				return fmt.Errorf("context window must be Auto or a nonnegative integer")
+			}
 		}
 	}
 

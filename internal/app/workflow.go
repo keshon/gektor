@@ -134,18 +134,26 @@ func loadWorkflowModel(ctx context.Context, ws *workspace.Workspace, path string
 		URL:              profile.Provider.URL,
 		Model:            profile.Provider.Model,
 		APIKeyEnv:        profile.Provider.APIKeyEnv,
+		KeyMode:          profile.Provider.KeyMode,
 		ReasoningEffort:  profile.Generation.ReasoningEffort,
 		ReasoningSummary: profile.Generation.ReasoningSummary,
 	}
 	client, err := NewBackend(ctx, options)
+	if err != nil {
+		return modelnode.Connection{}, err
+	}
+	contextFacts, err := ResolveContext(ctx, options.Kind, options.URL, options.Model, profile.Generation.ContextLimit, client)
+	if err != nil {
+		return modelnode.Connection{}, err
+	}
 
 	return modelnode.Connection{
 		Client:       client,
 		Name:         profile.Provider.Kind + "/" + profile.Provider.Model,
 		MaxTokens:    profile.Generation.MaxTokens,
-		ContextLimit: profile.Generation.ContextLimit,
+		ContextLimit: contextFacts.ContextLimit,
 		Temperature:  profile.Generation.Temperature,
-	}, err
+	}, nil
 }
 
 // NewWorkflow composes the headless application service and its policy.

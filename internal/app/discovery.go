@@ -35,7 +35,11 @@ func DiscoverModels(ctx context.Context, o BackendOptions) ([]string, error) {
 		}
 		return bound.Models(ctx)
 	}
-	probe, err := newInspector(d, o.URL, o.Model, connectionHTTP(o.URL, backendAPIKey(d, o), ExtraHeadersFromEnv()))
+	key, err := backendAPIKey(d, o)
+	if err != nil {
+		return nil, err
+	}
+	probe, err := newInspector(d, o.URL, o.Model, connectionHTTP(o.URL, key, ExtraHeadersFromEnv()))
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +59,8 @@ func (b *Backend) RefreshModelFacts(ctx context.Context) llm.ModelFacts {
 	if local {
 		limit, err := b.MaxContextLength(ctx)
 		if err == nil && limit > 0 {
-			facts.ContextLimit = limit
+			facts.ContextLimit = contextBudget(b.contextCap, limit)
+			facts.ContextWindow = limit
 			facts.ContextKnown = true
 		}
 		name, err := b.ModelName(ctx)
@@ -72,44 +77,55 @@ func (b *Backend) RefreshModelFacts(ctx context.Context) llm.ModelFacts {
 	return facts
 }
 
-// ContextLimit preserves local reported windows over configured fallbacks.
-func ContextLimit(ctx context.Context, kind, endpoint, model string, configured int, probe interface {
+func contextBudget(cap, window int) int {
+	if cap > 0 && (window <= 0 || cap < window) {
+		return cap
+	}
+	return window
+}
+
+// ResolveContext keeps the provider window separate from the effective working budget.
+func ResolveContext(ctx context.Context, kind, endpoint, model string, configured int, probe interface {
 	MaxContextLength(context.Context) (int, error)
-}) (int, error) {
+}) (llm.ModelFacts, error) {
 	d, err := providers.Lookup(kind)
 	if err != nil {
-		return 0, err
+		return llm.ModelFacts{}, err
 	}
-	if d.Discovery == providers.AccountModels {
-		if configured > 0 {
-			return configured, nil
-		}
-		return d.DefaultContext, nil
-	}
-	var detected int
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var reported int
 	var probeErr error
-	if d.Discovery == providers.LocalProbe {
-		detected, probeErr = probe.MaxContextLength(ctx)
+	if d.Discovery == providers.LocalProbe || d.Discovery == providers.ModelList {
+		reported, probeErr = probe.MaxContextLength(ctx)
 	}
-	if probeErr != nil || d.Discovery == providers.ModelList {
+	if (d.Discovery == providers.LocalProbe && probeErr != nil) || (d.ID == "openai" && reported <= 0) {
 		var hc *http.Client
 		if b, ok := probe.(*Backend); ok {
 			hc = b.httpClient
 		}
 		if actual := DetectKind(ctx, endpoint, hc); actual != "" && actual != d.ID {
-			return 0, fmt.Errorf("-backend-kind is %q but %s is answering at %s; re-run with -backend-kind %s", kind, actual, endpoint, actual)
+			return llm.ModelFacts{}, fmt.Errorf("-backend-kind is %q but %s is answering at %s; re-run with -backend-kind %s", kind, actual, endpoint, actual)
 		}
 	}
-	if detected > 0 {
-		return detected, nil
+
+	limit := contextBudget(configured, max(0, reported))
+	facts := llm.ModelFacts{ContextLimit: limit, ContextWindow: max(0, reported), ContextKnown: true}
+	if limit > 0 {
+		return facts, nil
 	}
-	if configured > 0 {
-		return configured, nil
+
+	facts.ContextEstimated = true
+	switch d.Discovery {
+	case providers.AccountModels:
+		facts.ContextLimit = d.DefaultContext
+	case providers.ModelList:
+		facts.ContextLimit = openaicompat.ContextLimit(model)
+	default:
+		facts.ContextLimit = 8192
 	}
-	if d.Discovery == providers.ModelList {
-		return openaicompat.ContextLimit(model), nil
-	}
-	return 0, nil
+	return facts, nil
 }
 
 // Inspect is the startup snapshot. Strict evaluation refuses wholly unknown local
@@ -117,11 +133,10 @@ func ContextLimit(ctx context.Context, kind, endpoint, model string, configured 
 func (b *Backend) Inspect(ctx context.Context, endpoint string, configured int, strict bool) (llm.ModelFacts, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	limit, err := ContextLimit(ctx, b.descriptor.ID, endpoint, b.model, configured, b)
+	f, err := ResolveContext(ctx, b.descriptor.ID, endpoint, b.model, configured, b)
 	if err != nil {
 		return llm.ModelFacts{}, err
 	}
-	f := llm.ModelFacts{ContextLimit: limit, ContextKnown: limit > 0}
 	if name, e := b.ModelName(ctx); e == nil && strings.TrimSpace(name) != "" {
 		f.Model = name
 		f.ModelKnown = true

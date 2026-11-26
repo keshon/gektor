@@ -136,6 +136,12 @@ func recoverTUIWorkspace(request launchRequest) (launchRequest, error) {
 // task-only arguments must not replay when opening another session.
 func relaunchOptions(previous launchOptions, p config.Preferences, keepAct bool) launchOptions {
 	previous.explicitFlags = map[string]bool{"browser-profile": previous.explicitFlags["browser-profile"]}
+	if p.Profile != nil {
+		next := p.Profile.Provider
+		if next.Kind != previous.backendKind || next.URL != previous.backendURL || next.KeyMode != previous.keyMode || next.APIKeyEnv != previous.apiKeyEnv {
+			previous.apiKey = ""
+		}
+	}
 	previous.profilePath, previous.workspace = p.ProfilePath, p.Workspace
 	previous.task, previous.resume, previous.fork, previous.images, previous.answer = "", "", "", "", ""
 	previous.plan = !keepAct
@@ -171,17 +177,12 @@ func initialTUILaunch(options launchOptions, p config.Preferences, path string) 
 }
 
 // Materialize the resolved settings so the editor and the runner agree.
-func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
+func launchProfile(o resolvedLaunch) config.Profile {
 	generation := config.Generation{
 		ReasoningEffort: o.reasoningEffort, ReasoningSummary: o.reasoningSummary,
 		MaxTokens:    o.maxTokens,
-		ContextLimit: contextLimit,
+		ContextLimit: o.contextLimit,
 		Temperature:  o.temperature,
-	}
-	if generation.ContextLimit <= 0 {
-		// This fallback is used only when the backend reports no window.
-		// A detected window is preserved even below the response ceiling.
-		generation.ContextLimit = max(4*generation.MaxTokens, 8192)
 	}
 	return config.Profile{
 		Version: 1,
@@ -190,6 +191,7 @@ func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 			URL:       o.backendURL,
 			Model:     o.model,
 			APIKeyEnv: o.apiKeyEnv,
+			KeyMode:   o.keyMode,
 		},
 		Generation: generation,
 		// Written rather than left nil for PrepareProfile to substitute:

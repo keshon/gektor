@@ -100,7 +100,7 @@ func TestBackendContextUsesServerThenConfiguredFallback(t *testing.T) {
 		name                    string
 		configured, probe, want int
 	}{
-		{"server-wins", 8192, 4096, 4096}, {"detected", 0, 4096, 4096}, {"probe-down", 8192, 0, 8192}, {"unknown", 0, 0, 0},
+		{"server-wins", 8192, 4096, 4096}, {"detected", 0, 4096, 4096}, {"probe-down", 8192, 0, 8192}, {"unknown", 0, 0, 8192}, {"manual-cap", 2048, 4096, 2048},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +116,8 @@ func TestBackendContextUsesServerThenConfiguredFallback(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := backendContext(t.Context(), backend, o)
+			facts, err := app.ResolveContext(t.Context(), o.backendKind, o.backendURL, o.model, o.contextLimit, backend)
+			got := facts.ContextLimit
 			if err != nil || got != tt.want {
 				t.Fatalf("limit=%d err=%v want=%d", got, err, tt.want)
 			}

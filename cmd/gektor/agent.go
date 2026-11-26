@@ -110,7 +110,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	client, err := app.NewBackend(ctx, app.BackendOptions{Kind: o.backendKind, URL: o.backendURL, Model: o.model, APIKey: o.apiKey, APIKeyEnv: o.apiKeyEnv, NoGrammar: !o.grammar, ReasoningEffort: o.reasoningEffort, ReasoningSummary: o.reasoningSummary})
+	client, err := app.NewBackend(ctx, app.BackendOptions{Kind: o.backendKind, URL: o.backendURL, Model: o.model, APIKey: o.apiKey, APIKeyEnv: o.apiKeyEnv, KeyMode: o.keyMode, ContextCap: o.contextLimit, NoGrammar: !o.grammar, ReasoningEffort: o.reasoningEffort, ReasoningSummary: o.reasoningSummary})
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	base := roles.Env{
 		Client: client, RefreshModelFacts: client.RefreshModelFacts, WS: ws, Procs: bgProcs,
-		ContextLimit: facts.contextLimit, Model: facts.model, Vision: facts.vision, VisionKnown: facts.visionKnown,
+		ContextLimit: facts.ContextLimit, ContextWindow: facts.ContextWindow, ContextEstimated: facts.ContextEstimated, Model: facts.Model, Vision: facts.Vision, VisionKnown: facts.VisionKnown,
 		MCPTools: mcpTools, Browser: browser, Capabilities: capabilities, CapabilitySources: managedMCP.Sources,
 	}
 	cfg, err := launchRunConfiguration(o, base, note)
@@ -272,13 +272,6 @@ func parseRuleSpecs(spec string, eff permission.Effect) []permission.Rule {
 	return out
 }
 
-// Local servers own their actual window; configured limits are fallbacks.
-func backendContext(ctx context.Context, client interface {
-	MaxContextLength(context.Context) (int, error)
-}, o resolvedLaunch) (int, error) {
-	return app.ContextLimit(ctx, o.backendKind, o.backendURL, o.model, o.contextLimit, client)
-}
-
 func loadAgentCapabilities(o resolvedLaunch) (toolextension.CapabilityConfig, error) {
 	if err := buildPolicy(o.allow, o.deny).Validate(); err != nil {
 		return toolextension.CapabilityConfig{}, err
@@ -376,11 +369,8 @@ func runAgentTUI(ctx context.Context, launch launchRequest, o resolvedLaunch, cf
 	// at all. Build the profile this launch would have loaded.
 	profile := o.selectedProfile
 	if profile.Version == 0 {
-		profile = launchProfile(o, cfg.Env.ContextLimit)
+		profile = launchProfile(o)
 		note("no -profile: using a generated one so Settings stays reachable")
-	}
-	if cfg.Env.ContextLimit > 0 {
-		profile.Generation.ContextLimit = cfg.Env.ContextLimit
 	}
 
 	prepared, err := app.PrepareProfile(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))

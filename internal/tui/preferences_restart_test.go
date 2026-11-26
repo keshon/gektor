@@ -13,6 +13,7 @@ import (
 )
 
 func TestPreferenceRestartHelper(t *testing.T) {
+	t.Setenv("GEKTOR_TEST_KEY", "fixture-key")
 	path := os.Getenv("GEKTOR_TEST_PREFERENCES")
 	if path == "" {
 		t.Skip("subprocess helper")
@@ -40,7 +41,7 @@ func TestPreferenceRestartHelper(t *testing.T) {
 			t.Fatal("theme/mode/step limit lost", p.Theme, p.Mode, p.Harness)
 		}
 		profile := p.Profile
-		if profile.Provider.Kind != "openai" || profile.Provider.URL != "http://127.0.0.1:12345/v1" || profile.Provider.Model != "fixture-model" || profile.Provider.APIKeyEnv != "GEKTOR_TEST_KEY" {
+		if profile.Provider.Kind != "openai" || profile.Provider.URL != "http://127.0.0.1:12345/v1" || profile.Provider.Model != "fixture-model" || profile.Provider.APIKeyEnv != "GEKTOR_TEST_KEY" || profile.Provider.KeyMode != "environment" {
 			t.Fatal("model settings lost", profile.Provider)
 		}
 		if profile.Generation.Temperature != .42 || profile.Generation.MaxTokens != 1536 || profile.Generation.ContextLimit != 12288 {
@@ -90,16 +91,13 @@ func TestPreferenceRestartHelper(t *testing.T) {
 	m.command("mode plan")
 	m.command("max-steps 42")
 	for _, edit := range [][3]string{
-		{"model", "kind", "openai"}, {"model", "endpoint", "http://127.0.0.1:12345/v1"}, {"model", "model", "fixture-model"}, {"model", "key-env", "GEKTOR_TEST_KEY"},
+		{"model", "kind", "openai"}, {"model", "endpoint", "http://127.0.0.1:12345/v1"}, {"model", "model", "fixture-model"}, {"model", "auth", "environment"}, {"model", "key-env", "GEKTOR_TEST_KEY"},
 		{"generation", "temperature", "0.42"}, {"generation", "max", "1536"}, {"generation", "context", "12288"},
 		{"you", "user", "Operator"}, {"you", "persona", "Precise"},
 		{"prompts", "prompt-preset", "custom"}, {"prompts", "system", "BASE_RULES"}, {"prompts", "post", "POST_RULES"},
 		{"workspace", "app-workspace", filepath.Join(filepath.Dir(path), "workspace")},
 	} {
 		m.editSettings(edit[0])
-		if edit[1] == "key-env" {
-			m.formKey(tea.KeyPressMsg{Code: tea.KeyF4})
-		}
 		focusSetting(m, edit[1])
 		replaceFormText(m, edit[2])
 	}

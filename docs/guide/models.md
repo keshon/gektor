@@ -23,11 +23,27 @@ Open **Settings > Model connection** and choose a **Provider**.
 
 - **llama.cpp** uses `http://127.0.0.1:9931` by default.
 - **LM Studio** uses `http://127.0.0.1:1234/v1` by default. Start its local server and load a model first.
-- **OpenRouter** reads `OPENROUTER_API_KEY` at its default endpoint. For a custom endpoint, press `F4` in Model connection and set **API key environment variable**.
+- **OpenRouter** uses `https://openrouter.ai/api/v1` by default.
 - **OpenAI-compatible** takes the API root supplied by your service, including `/v1` where required.
 
+For a provider that accepts bearer keys, choose **Authentication**:
+
+- **None** sends no key. Use it for a server that allows unauthenticated requests.
+- **Environment variable** reads the named variable from GEKTOR's environment.
+- **Saved key** uses a key stored for this provider and server address. Press
+  `F6`, paste the key into the masked field, and press `Ctrl+S`. If you change
+  the address, enter the key for the new address.
+
+Keys are stored under `~/.gektor/credentials/providers/` (Windows account
+encryption or owner-only files on Unix).
+
 Choose a model from the picker or type its ID, then apply the settings.
-Set a context limit in **Response settings** if you need a different budget.
+In **Response settings**, set **Context window** to `Auto` to use the selected
+model's reported limit. GEKTOR reads it from llama.cpp and KoboldCpp server
+probes or from the model catalog when the endpoint supplies it, as OpenRouter
+does. Without metadata, GEKTOR labels its fallback as an estimate. Enter a
+number to cap the working budget. The status menu shows the working budget
+and the reported model limit when available.
 
 From the extracted application folder on Windows:
 
@@ -37,13 +53,11 @@ From the extracted application folder on Windows:
 ```
 
 These are alternative connections. On Linux, replace `.\gektor.exe` with `./gektor`.
-For a hosted service, set its API key in the environment; see
+To use an environment variable from the CLI, pass `-api-key-env NAME`. See
 [authentication precedence](../reference/cli.md#authentication-remote-providers).
 GEKTOR does not automatically load `.env`.
 
-Choose a context budget your server and model can support. A local server's
-reported window takes precedence over the fallback flag. Cached tokens still
-occupy context. Use `/context` to inspect estimated costs and `/compact` while
+Cached tokens still occupy context. Use `/context` to inspect estimated costs and `/compact` while
 idle to shorten a long conversation. See [sessions and context](sessions.md).
 
 ## ChatGPT account

@@ -170,8 +170,10 @@ type Model struct {
 	// context window from Env. Together they drive the status meter.
 	// limit is display only and never overridden: the window is the server's
 	// to report, so the harness does not get to pretend otherwise.
-	tokens int
-	limit  int
+	tokens           int
+	limit            int
+	contextWindow    int
+	contextEstimated bool
 	// tokensEst marks estimated numbers (streaming backends that report
 	// no usage block); the meter prefixes "~" so estimates never pose
 	// as measurements.
@@ -468,19 +470,21 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 	}
 
 	m := &Model{
-		chrome:       controls,
-		identityName: cfg.Env.IdentityName,
-		identityUser: cfg.Env.UserName,
-		events:       eventsCh,
-		hub:          hub,
-		cancel:       cancel,
-		base:         uiCtx,
-		started:      time.Now(),
-		styles:       defaultStyles(),
-		limit:        cfg.Env.ContextLimit,
-		maxSteps:     envMaxSteps(cfg.Env),
-		transcript:   newTranscript(),
-		plan:         cfg.Plan,
+		chrome:           controls,
+		identityName:     cfg.Env.IdentityName,
+		identityUser:     cfg.Env.UserName,
+		events:           eventsCh,
+		hub:              hub,
+		cancel:           cancel,
+		base:             uiCtx,
+		started:          time.Now(),
+		styles:           defaultStyles(),
+		limit:            cfg.Env.ContextLimit,
+		contextWindow:    cfg.Env.ContextWindow,
+		contextEstimated: cfg.Env.ContextEstimated,
+		maxSteps:         envMaxSteps(cfg.Env),
+		transcript:       newTranscript(),
+		plan:             cfg.Plan,
 
 		stateFile: cfg.StateFile,
 		note:      newNote(),

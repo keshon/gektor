@@ -41,6 +41,25 @@ type Descriptor struct {
 	Reasoning, Preset                  bool
 }
 
+type KeyMode string
+
+const (
+	KeyNone  KeyMode = "none"
+	KeyEnv   KeyMode = "environment"
+	KeySaved KeyMode = "saved"
+)
+
+// DefaultKeyMode interprets profiles created before Authentication was explicit.
+func (d Descriptor) DefaultKeyMode(endpoint, env string) KeyMode {
+	if env != "" {
+		return KeyEnv
+	}
+	if d.DefaultKeyEnv != "" && strings.TrimSuffix(endpoint, "/") == d.DefaultURL {
+		return ""
+	}
+	return KeyNone
+}
+
 var catalog = []Descriptor{
 	{
 		ID:          "llama",

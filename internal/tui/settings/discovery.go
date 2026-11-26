@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/providers"
 	fieldform "github.com/keshon/gektor/pkg/tui/components/fields"
 )
 
@@ -16,6 +17,7 @@ func (f *Model) Provider(request fieldform.DiscoveryRequest) (config.Provider, e
 			Kind:      request.Values["kind"],
 			URL:       request.Values["endpoint"],
 			APIKeyEnv: request.Values["key-env"],
+			KeyMode:   providers.KeyMode(request.Values["auth"]),
 		}, nil
 	}
 	if f.EditSession == nil {

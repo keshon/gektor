@@ -58,6 +58,8 @@ func PrepareProfile(profile config.Profile, directory string) (PreparedProfile, 
 // BackendOptions supplies the selected route and its launch-scoped settings.
 type BackendOptions struct {
 	Kind, URL, Model, APIKey, APIKeyEnv string
+	KeyMode                             providers.KeyMode
+	ContextCap                          int
 	ReasoningEffort                     string
 	ReasoningSummary                    bool
 	NoGrammar, DRY                      bool
@@ -71,6 +73,7 @@ type Backend struct {
 	usageClient
 	AccountLabel  string
 	descriptor    providers.Descriptor
+	contextCap    int
 	httpClient    *http.Client
 	model         string
 	backendName   string
@@ -102,6 +105,7 @@ func NewBackend(ctx context.Context, o BackendOptions) (*Backend, error) {
 
 	b := &Backend{
 		descriptor:  d,
+		contextCap:  o.ContextCap,
 		model:       o.Model,
 		backendName: d.ID,
 	}
@@ -143,8 +147,10 @@ func NewBackend(ctx context.Context, o BackendOptions) (*Backend, error) {
 			return nil, err
 		}
 
-		key := backendAPIKey(d, o)
-		c.WithAPIKey(key)
+		key, err := backendAPIKey(d, o)
+		if err != nil {
+			return nil, err
+		}
 		b.httpClient = connectionHTTP(o.URL, key, ExtraHeadersFromEnv())
 		c.WithHTTPClient(b.httpClient)
 		c.ExtraHeaders = ExtraHeadersFromEnv()

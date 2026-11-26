@@ -35,6 +35,7 @@ type launchOptions struct {
 	backendKind      string
 	apiKey           string
 	apiKeyEnv        string
+	keyMode          providers.KeyMode
 	contextLimit     int
 	allow            string
 	deny             string
@@ -102,13 +103,11 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"A wrong value is caught at startup rather "+
 		"than run: the dialects disagree about grammar, sampler fields and structured "+
 		"output, so a mismatched run completes and measures nothing")
-	flags.StringVar(&o.apiKey, "api-key", "", "bearer token for a remote provider; prefer the "+
-		"GEKTOR_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY env vars so the secret never lands in shell history")
+	flags.StringVar(&o.apiKey, "api-key", "", "bearer token; prefer "+
+		"-api-key-env so the secret stays out of shell history")
 	flags.StringVar(&o.apiKeyEnv, "api-key-env", "", "name of the env var holding the bearer token, "+
-		"e.g. OPENROUTER_API_KEY — overrides the built-in lookup order")
-	flags.IntVar(&o.contextLimit, "context-limit", 0, "context window in tokens; local server detection takes precedence. "+
-		"Required knowledge for -backend-kind openai, which has no probe endpoint: defaults to a "+
-		"per-model estimate when 0")
+		"e.g. OPENROUTER_API_KEY")
+	flags.IntVar(&o.contextLimit, "context-limit", 0, "working context cap in tokens; 0 uses the reported model window or an estimate")
 	flags.StringVar(&o.allow, "allow", "", "comma-separated tool=pattern rules to allow, e.g. \"run_shell=go *,read_file=*.go\" (wins over defaults)")
 	flags.StringVar(&o.deny, "deny", "", "comma-separated tool=pattern rules to deny, e.g. \"run_shell=rm *,read_file=.env\" (wins over -allow)")
 	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai, llama and koboldcpp)")
@@ -246,6 +245,7 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		}
 		if !explicit["api-key-env"] {
 			o.apiKeyEnv = p.Provider.APIKeyEnv
+			o.keyMode = p.Provider.KeyMode
 		}
 		if !explicit["max-tokens"] {
 			o.maxTokens = p.Generation.MaxTokens
@@ -281,6 +281,7 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 			p.Identity = &config.Identity{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, ShareUserName: profileSharesUserName(p), SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
 		}
 		providerLaunchDefaults(&o)
+		p.Provider.KeyMode = o.keyMode
 		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = o.backendKind, o.backendURL, o.model, o.apiKeyEnv
 		p.Generation.MaxTokens, p.Generation.ContextLimit = o.maxTokens, o.contextLimit
 		if err := p.Validate(); err != nil {
@@ -303,11 +304,13 @@ func providerLaunchDefaults(o *resolvedLaunch) {
 		return
 	}
 
-	if d.Preset && o.explicitFlags["backend-kind"] && (o.selectedProfile.Version == 0 || o.selectedProfile.Provider.Kind != d.ID) {
-		if !o.explicitFlags["backend"] {
-			o.backendURL = d.DefaultURL
-		}
-		if !o.explicitFlags["api-key-env"] {
+	switchingKind := o.explicitFlags["backend-kind"] && o.selectedProfile.Provider.Kind != d.ID
+	if switchingKind && d.Preset && !o.explicitFlags["backend"] {
+		o.backendURL = d.DefaultURL
+	}
+	if switchingKind || o.explicitFlags["api-key-env"] {
+		o.keyMode = ""
+		if switchingKind && !o.explicitFlags["api-key-env"] {
 			o.apiKeyEnv = ""
 		}
 	}

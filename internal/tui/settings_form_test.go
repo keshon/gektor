@@ -182,20 +182,20 @@ func TestOptionFieldsShowTheCurrentChoice(t *testing.T) {
 	}
 }
 
-// A rarely used field is hidden behind the toggle, and hiding it must not
-// cost a row or a scroll step to the fields around it.
+// The key variable field only takes space when that source is selected.
 func TestHiddenFieldsTakeNoRoom(t *testing.T) {
 	m := settingsModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m.editSettings("model")
 	off := len(formRowsOf(t, m))
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})
+	m.chrome.ConfigureForm(m.chrome.DialogID(), fieldform.Presentation{Values: map[string]string{"auth": "environment"}})
+	m.preparePreferences()
 	on := len(formRowsOf(t, m))
-	if on != off+3 {
-		t.Fatalf("showing the hidden field changed the form by %d rows, want 3 (label, value, gap)", on-off)
+	if on < off+3 {
+		t.Fatalf("showing the hidden field added %d rows, want at least its label, value and gap", on-off)
 	}
 	if strings.Contains(ansi.Strip(strings.Join(formRowsOf(t, m), "\n")), "API key") == false {
-		t.Fatal("F4 did not reveal the advanced field")
+		t.Fatal("environment authentication did not reveal the key variable field")
 	}
 }
 

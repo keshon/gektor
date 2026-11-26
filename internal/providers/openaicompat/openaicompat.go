@@ -29,11 +29,17 @@ func New(baseURL, model string, client *http.Client) *Inspector {
 	}
 }
 
-// A hosted gateway has no probe endpoint for the context window. Report
-// that plainly so the caller falls back to its configured model table or
-// an explicit override instead of silently running with no budget.
 func (p *Inspector) MaxContextLength(ctx context.Context) (int, error) {
-	return 0, fmt.Errorf("openai-compatible backends do not report a context window; pass it explicitly")
+	list, err := p.modelMetadata(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, item := range list.Data {
+		if item.ID == p.model && item.ContextLength > 0 {
+			return item.ContextLength, nil
+		}
+	}
+	return 0, fmt.Errorf("model catalog has no context limit for %s", p.model)
 }
 
 func (p *Inspector) ModelName(ctx context.Context) (string, error) {
@@ -45,19 +51,16 @@ func (p *Inspector) ModelName(ctx context.Context) (string, error) {
 // OpenAI itself publishes only ids.
 type openaiModels struct {
 	Data []struct {
-		ID           string `json:"id"`
-		Architecture struct {
+		ID            string `json:"id"`
+		ContextLength int    `json:"context_length"`
+		Architecture  struct {
 			Modality        string   `json:"modality"`
 			InputModalities []string `json:"input_modalities"`
 		} `json:"architecture"`
 	} `json:"data"`
 }
 
-// vision asks the provider's model list before falling back to a name
-// heuristic. A provider that reports capabilities is authoritative even
-// when it says no; one that reports only ids cannot answer, and there the
-// name is the only evidence available.
-func (p *Inspector) SupportsVision(ctx context.Context) (bool, error) {
+func (p *Inspector) modelMetadata(ctx context.Context) (openaiModels, error) {
 	path := "/v1/models"
 	if strings.HasSuffix(strings.TrimRight(p.baseURL, "/"), "/v1") {
 		path = "/models"
@@ -65,18 +68,18 @@ func (p *Inspector) SupportsVision(ctx context.Context) (bool, error) {
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, probe.Endpoint(p.baseURL, path), nil)
 	if err != nil {
-		return modelVisionName(p.model), err
+		return openaiModels{}, err
 	}
 
 	resp, err := p.http.Do(request)
 	if err != nil {
-		return modelVisionName(p.model), err
+		return openaiModels{}, err
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return modelVisionName(p.model), fmt.Errorf("%s returned %s", request.URL, resp.Status)
+		return openaiModels{}, fmt.Errorf("%s returned %s", request.URL, resp.Status)
 	}
 
 	var list openaiModels
@@ -84,7 +87,16 @@ func (p *Inspector) SupportsVision(ctx context.Context) (bool, error) {
 	// past a megabyte; truncating early would lose the entry this probe
 	// needs. The limit still bounds a hostile or broken endpoint.
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&list); err != nil {
-		return modelVisionName(p.model), fmt.Errorf("decode model list: %w", err)
+		return openaiModels{}, fmt.Errorf("decode model list: %w", err)
+	}
+
+	return list, nil
+}
+
+func (p *Inspector) SupportsVision(ctx context.Context) (bool, error) {
+	list, err := p.modelMetadata(ctx)
+	if err != nil {
+		return modelVisionName(p.model), err
 	}
 
 	for _, item := range list.Data {

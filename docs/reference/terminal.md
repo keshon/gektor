@@ -104,7 +104,16 @@ Source checkouts rebuild through the Windows launcher; release archives use
 the supplied binary.
 
 For a local model, start its server first and wait for it to load.
-Open **Settings**, then **Model connection**, to set the protocol, address and model.
+Open **Settings > Model connection** to set the provider, server address and
+model. Under **Authentication**, choose **None**, **Environment variable**, or
+**Saved key** for a bearer connection. With **Saved key** selected, press
+`F6` to enter or replace the key for that address. See
+[Connect a model](../guide/models.md#local-server-or-openai-compatible-api).
+
+Set **Context window** under **Settings > Response settings**. Use `Auto`
+to follow the model's reported limit, or enter a working cap in tokens.
+The status menu shows the working budget and the model limit when available.
+A tilde before the budget marks an estimate.
 For the ChatGPT connection, run `gektor auth login` first.
 See [setup](configuration.md) and [connection options](cli.md).
 

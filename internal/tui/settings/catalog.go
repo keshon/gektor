@@ -41,6 +41,15 @@ func ChoiceLabel(key, value string) string {
 		case "socks5":
 			return "SOCKS5"
 		}
+	case "auth":
+		switch providers.KeyMode(value) {
+		case providers.KeyNone:
+			return "None"
+		case providers.KeyEnv:
+			return "Environment variable"
+		case providers.KeySaved:
+			return "Saved key"
+		}
 	case "kind":
 		if descriptor, err := providers.Lookup(value); err == nil {
 			return descriptor.Label
@@ -117,6 +126,8 @@ func Choices(key string) []string {
 		return []string{"true", "false"}
 	case "network-type":
 		return []string{"", "http", "https", "socks5"}
+	case "auth":
+		return []string{string(providers.KeyNone), string(providers.KeyEnv), string(providers.KeySaved)}
 	case "kind":
 		return providers.Kinds()
 	}

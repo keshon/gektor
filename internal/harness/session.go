@@ -25,7 +25,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	// Refresh once before construction so display and execution share model facts.
 	if env.RefreshModelFacts != nil {
 		env = env.Refreshed(ctx)
-		emitter.Emit("backend", map[string]any{"model": env.Model, "context_limit": env.ContextLimit})
+		emitter.Emit("backend", map[string]any{"model": env.Model, "context_limit": env.ContextLimit, "context_window": env.ContextWindow, "context_estimated": env.ContextEstimated})
 	}
 
 	var a *agent.Agent

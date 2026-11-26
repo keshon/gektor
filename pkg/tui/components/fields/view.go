@@ -55,7 +55,11 @@ func (f *Model) display(field form.Field, value string, styles form.Styles) (str
 		}
 		return shown + "  " + f.fieldButton(field, "Choose…", styles), false
 	case f.DiscoveryFields[field.Key] != "":
-		return value + "  " + f.fieldButton(field, "Discover…", styles), false
+		button := f.fieldButton(field, "Discover…", styles)
+		if value == "" {
+			return button, false
+		}
+		return value + "  " + button, false
 	}
 	return value, true
 }

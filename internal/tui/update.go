@@ -122,12 +122,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
 				m.preparePreferences()
 				snapshot, _ := m.chrome.FormSnapshot(m.preferencesDialog)
 				if !snapshot.FeedbackOpen {
+					if msg.String() == "f6" && !snapshot.PickerOpen && m.openProviderKey() {
+						return m, nil
+					}
 					intent, handled := m.preferences.Shortcut(msg.String())
 					if handled {
 						m.preparePreferences()
-						if msg.String() == "f4" {
-							m.chrome.FocusForm(0)
-						}
 						return m, m.chrome.HandleIntent(intent)
 					}
 				}

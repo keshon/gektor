@@ -37,6 +37,8 @@ type Env struct {
 	MaxTokens         int
 	Temperature       float64
 	ContextLimit      int
+	ContextWindow     int
+	ContextEstimated  bool
 	Policy            permission.Policy
 	BackendKind       string
 
@@ -142,6 +144,8 @@ func (e Env) Refreshed(ctx context.Context) Env {
 	facts := e.RefreshModelFacts(ctx)
 	if facts.ContextKnown && facts.ContextLimit > 0 {
 		e.ContextLimit = facts.ContextLimit
+		e.ContextWindow = facts.ContextWindow
+		e.ContextEstimated = facts.ContextEstimated
 	}
 	if facts.ModelKnown {
 		e.Model = facts.Model

@@ -1,47 +1,118 @@
 package app
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/providers"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
-// ResolvedAPIKey selects the bearer token at composition. Precedence
-// is the flag, then the named env var, then the built-in lookup order.
-// Local backends need no key and are left alone.
-func ResolvedAPIKey(flagVal, envName string) string {
-	if v := strings.TrimSpace(flagVal); v != "" {
-		return v
-	}
-	if name := strings.TrimSpace(envName); name != "" {
-		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
-			return v
-		}
-	}
-	return APIKeyFromEnv()
+const previousProviderKeySlot = "00000000000000000000000000000000"
+
+func providerKeyStore(provider providers.Descriptor) credentials.Store {
+	return credentials.Store{Directory: userdirs.Sub("credentials", "providers", provider.ID)}
 }
 
-func backendAPIKey(d providers.Descriptor, o BackendOptions) string {
-	if !d.Preset {
-		return ResolvedAPIKey(o.APIKey, o.APIKeyEnv)
+func providerKeySlot(endpoint string) string {
+	// Callers validate the endpoint before deriving the slot.
+	parsed, _ := url.Parse(endpoint)
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	parsed.Host = strings.ToLower(parsed.Host)
+	identity := strings.TrimRight(parsed.String(), "/")
+	hash := sha256.Sum256([]byte(identity))
+	return fmt.Sprintf("%x", hash[:16])
+}
+
+func SaveProviderKey(kind, endpoint, value string) error {
+	d, err := providers.Lookup(kind)
+	if err != nil {
+		return err
+	}
+	if d.Auth != providers.Bearer {
+		return fmt.Errorf("provider does not support an API key")
+	}
+	err = d.ValidateEndpoint(endpoint)
+	if err != nil {
+		return err
 	}
 
+	value = strings.TrimSpace(value)
+	if value == "" || strings.IndexFunc(value, func(r rune) bool { return r <= ' ' || r >= 127 }) >= 0 {
+		return fmt.Errorf("paste one API key")
+	}
+
+	store := providerKeyStore(d)
+	return store.Replace(providerKeySlot(endpoint), []byte(value))
+}
+
+// CheckProviderAuthentication catches an unusable credential before a TUI relaunch.
+func CheckProviderAuthentication(o BackendOptions) error {
+	d, err := providers.Lookup(o.Kind)
+	if err != nil || d.Auth != providers.Bearer {
+		return err
+	}
+
+	err = d.ValidateEndpoint(o.URL)
+	if err != nil {
+		return err
+	}
+	_, err = backendAPIKey(d, o)
+	return err
+}
+
+func backendAPIKey(d providers.Descriptor, o BackendOptions) (string, error) {
 	if key := strings.TrimSpace(o.APIKey); key != "" {
-		return key
+		return key, nil
 	}
+
 	name := strings.TrimSpace(o.APIKeyEnv)
-	if name == "" && strings.TrimSuffix(o.URL, "/") == d.DefaultURL {
-		name = d.DefaultKeyEnv
+	mode := o.KeyMode
+	if mode == "" {
+		mode = d.DefaultKeyMode(o.URL, name)
 	}
-	if name == "" {
-		return ""
+	switch mode {
+	case providers.KeyNone:
+		return "", nil
+	case providers.KeyEnv:
+		if !credentials.ValidEnvironment(name) {
+			return "", fmt.Errorf("enter a valid API key environment variable name")
+		}
+		key := strings.TrimSpace(os.Getenv(name))
+		if key == "" {
+			return "", fmt.Errorf("API key environment variable %s is empty or unset", name)
+		}
+		return key, nil
+	case "":
+		key := strings.TrimSpace(os.Getenv(d.DefaultKeyEnv))
+		if key != "" {
+			return key, nil
+		}
+	case providers.KeySaved:
+	default:
+		return "", fmt.Errorf("invalid authentication mode")
 	}
-	return strings.TrimSpace(os.Getenv(name))
+
+	store := providerKeyStore(d)
+	raw, err := store.Resolve(providerKeySlot(o.URL))
+	if err != nil && d.DefaultKeyEnv != "" && strings.TrimSuffix(o.URL, "/") == d.DefaultURL {
+		raw, err = store.Resolve(previousProviderKeySlot)
+	}
+	if err != nil {
+		if mode == "" {
+			return "", nil
+		}
+		return "", fmt.Errorf("no usable API key saved for %s at this address", d.Label)
+	}
+	defer clear(raw)
+	return string(raw), nil
 }
 
 // ExtraHeadersFromEnv supplies gateway-specific headers without new flags:
@@ -57,25 +128,6 @@ func ExtraHeadersFromEnv() map[string]string {
 		out["X-Title"] = v
 	}
 	return out
-}
-
-// APIKeyFromEnv returns the first bearer token found under the usual
-// names, or "". Flag values win over this; this is the unattended path.
-func APIKeyFromEnv() string {
-	for _, name := range []string{
-		"GEKTOR_API_KEY",
-		"OPENAI_API_KEY",
-		"OPENROUTER_API_KEY",
-		"DEEPSEEK_API_KEY",
-		"GROQ_API_KEY",
-		"TOGETHER_API_KEY",
-		"ANTHROPIC_API_KEY",
-	} {
-		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 // connectionTransport adds connection headers only for the configured origin.

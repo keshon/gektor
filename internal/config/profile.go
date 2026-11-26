@@ -23,10 +23,11 @@ func (p Profile) Clone() Profile {
 
 // Provider identifies an external backend. APIKeyEnv names an environment variable, not a secret.
 type Provider struct {
-	Kind      string `json:"kind"`
-	URL       string `json:"url"`
-	Model     string `json:"model"`
-	APIKeyEnv string `json:"api_key_env,omitempty"`
+	Kind      string            `json:"kind"`
+	URL       string            `json:"url"`
+	Model     string            `json:"model"`
+	APIKeyEnv string            `json:"api_key_env,omitempty"`
+	KeyMode   providers.KeyMode `json:"key_mode,omitempty"`
 }
 
 // Generation stores request limits and sampling controls. Zero temperature uses the transport default.
@@ -50,9 +51,8 @@ func DefaultProfile() Profile {
 			Model: "local",
 		},
 		Generation: Generation{
-			MaxTokens:    8192,
-			ContextLimit: 8192,
-			Temperature:  0.7,
+			MaxTokens:   8192,
+			Temperature: 0.7,
 		},
 		Identity: &Identity{
 			UserName:     DefaultUserName,
@@ -131,6 +131,21 @@ func (p Profile) Validate() error {
 		return fmt.Errorf("profile: %w", err)
 	}
 
+	if p.Provider.KeyMode != "" {
+		if descriptor.Auth != providers.Bearer {
+			return fmt.Errorf("profile: %s uses account sign-in", descriptor.Label)
+		}
+		switch p.Provider.KeyMode {
+		case providers.KeyNone, providers.KeySaved:
+		case providers.KeyEnv:
+			if p.Provider.APIKeyEnv == "" {
+				return fmt.Errorf("profile: API key environment variable is required")
+			}
+		default:
+			return fmt.Errorf("profile: invalid authentication mode")
+		}
+	}
+
 	if p.Identity != nil && len(p.Identity.Name) > 100 {
 		return fmt.Errorf("profile: assistant name must be at most 100 characters")
 	}
@@ -141,8 +156,8 @@ func (p Profile) Validate() error {
 
 	// MaxTokens is a ceiling; the agent reduces it to the room left in the
 	// server's window on each request, including after a smaller model loads.
-	if p.Generation.MaxTokens <= 0 || p.Generation.ContextLimit <= 0 {
-		return fmt.Errorf("profile: context_limit and max_tokens must be positive")
+	if p.Generation.MaxTokens <= 0 || p.Generation.ContextLimit < 0 {
+		return fmt.Errorf("profile: context_limit must be nonnegative and max_tokens must be positive")
 	}
 
 	return nil

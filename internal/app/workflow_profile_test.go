@@ -48,6 +48,17 @@ func TestWorkflowModelLoadsProfileOnExecutionAndPreservesLimits(t *testing.T) {
 	}
 	requests := make(chan observedRequest, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			if r.URL.Path == "/v1/models" {
+				_, err := w.Write([]byte(`{"data":[{"id":"workflow-test","context_length":8192}]}`))
+				if err != nil {
+					t.Error(err)
+				}
+				return
+			}
+			http.NotFound(w, r)
+			return
+		}
 		var request observedRequest
 		err := json.NewDecoder(r.Body).Decode(&request)
 		if err != nil {

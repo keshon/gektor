@@ -40,6 +40,9 @@ type Model struct {
 	toolLoadCancel      context.CancelFunc
 	toolLoadDone        chan struct{}
 	sshSecret           *toolsui.SSHSettings
+	providerKeyDialog   screen.DialogID
+	providerKeyKind     string
+	providerKeyURL      string
 	form                pendingForm
 	preferences         *settings.Model
 	preferencesDialog   screen.DialogID

@@ -66,6 +66,7 @@ func (m *Model) discoverSettings(request fieldform.DiscoveryRequest) tea.Cmd {
 			URL:       provider.URL,
 			Model:     provider.Model,
 			APIKeyEnv: provider.APIKeyEnv,
+			KeyMode:   provider.KeyMode,
 		}
 
 		var items []string

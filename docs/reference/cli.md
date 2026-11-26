@@ -142,9 +142,8 @@ Local llama-server example:
 ```
 
 Select **LM Studio** or **OpenRouter** under Settings → Model connection,
-then open the model picker or enter a model ID directly. OpenRouter reads
-`OPENROUTER_API_KEY` at its default endpoint. For a custom endpoint, set its
-API key environment variable explicitly. LM Studio can connect without a key.
+then open the model picker or enter a model ID directly. Choose **Authentication**
+to set a key source. LM Studio can connect without a key.
 
 Use `openai` for other OpenAI-compatible endpoints.
 
@@ -153,7 +152,7 @@ Use `openai` for other OpenAI-compatible endpoints.
 ```
 
 For a hosted service, set a key in the environment or select its variable
-with `-api-key-env`; supply the provider's actual model ID and context limit.
+with `-api-key-env`; supply the provider's model ID.
 The terminal controls and local slash commands are in [tui.md](terminal.md).
 
 ### ChatGPT account
@@ -172,7 +171,7 @@ provider summary. These controls currently apply only to ChatGPT.
 | `-backend URL` | `http://127.0.0.1:9931` | Backend base URL: bare origin for a local server, API root for an OpenAI-compatible provider |
 | `-backend-kind KIND` | `llama` | `llama`, `openai`, `kobold`, `lmstudio`, `openrouter`, or `chatgpt`. `chatgpt` uses browser OAuth and Responses |
 | `-model NAME` | `local` | Model name. Ignored by most local servers (they serve whatever weights they started with); required for remote providers |
-| `-context-limit N` | `0` | Remote context window or local fallback. A reported local server window takes precedence; remote backends fall back to a per-model estimate unless set |
+| `-context-limit N` | `0` | Working context cap. Use `0` for the reported model window or an estimate. A cap cannot exceed a reported window |
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |
 | `-max-tokens N` | `8192` | Generation budget per response. Too low truncates large outputs mid-JSON, which looks like a model failure |
 | `-context-report` | off | Print a fresh-run context breakdown as JSON and exit; no model, adapters or workspace writes. Lists estimated sections and tool costs |
@@ -201,9 +200,11 @@ filesystem path. Normal history paging and search still apply.
 
 ## Authentication (remote providers)
 
-The key resolves as `-api-key`, then `-api-key-env`, then the first token
-found under `GEKTOR_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
-`DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `TOGETHER_API_KEY`, `ANTHROPIC_API_KEY`.
+An explicit CLI key flag overrides the profile's key source. Without a flag,
+GEKTOR uses the profile's **Authentication** setting. Saved keys are scoped to
+the provider and server address. Profiles without an explicit setting use a
+named `api_key_env` when present. At OpenRouter's default address they can also
+use `OPENROUTER_API_KEY` or a saved key. Other unconfigured connections send no key.
 
 | Flag | Default | Meaning |
 |---|---|---|
