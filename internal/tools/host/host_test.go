@@ -71,18 +71,20 @@ func TestSystemInfoReturnsValidSkillsAlongsideWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	text, err := (Tool{WS: ws}).Run(t.Context(), json.RawMessage(`{"group":"skills"}`))
+	text, err := (Tool{WS: ws}).Run(t.Context(), json.RawMessage(`{"group":"skills","limit":1}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var page struct {
-		Skills   []workspace.Skill
-		Warnings []string
+		Skills       []workspace.Skill
+		Warnings     []string
+		Total        int
+		SourceCounts map[string]int `json:"source_counts"`
 	}
 	if err := json.Unmarshal([]byte(text), &page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Skills) == 0 || page.Skills[0].ID != "good" || len(page.Warnings) == 0 {
+	if len(page.Skills) != 1 || page.Skills[0].ID != "good" || len(page.Warnings) == 0 || page.Total != 4 || page.SourceCounts["builtin"] != 3 || page.SourceCounts["workspace"] != 1 || page.SourceCounts["library"] != 0 {
 		t.Fatal(text)
 	}
 }

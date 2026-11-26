@@ -70,18 +70,20 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		entries, discoveryErr := t.WS.Skills()
 		matches := []workspace.Skill{}
 		scores := map[string]int{}
+		counts := map[string]int{"builtin": 0, "workspace": 0, "library": 0}
 		for _, skill := range entries {
 			score := discovery.Score(in.Filter, skill.ID, skill.Path, skill.Description)
 			if score > 0 {
 				matches = append(matches, skill)
 				scores[skill.ID] = score
+				counts[skill.SourceKind()]++
 			}
 		}
 
 		sort.SliceStable(matches, func(i, j int) bool { return scores[matches[i].ID] > scores[matches[j].ID] })
 		start := min(in.Offset, len(matches))
 		end := start + min(limit, len(matches)-start)
-		page := map[string]any{"skills": matches[start:end], "total": len(matches), "more": end < len(matches)}
+		page := map[string]any{"skills": matches[start:end], "total": len(matches), "source_counts": counts, "more": end < len(matches)}
 		if len(matches) == 0 {
 			page["hint"] = "Try fewer words, or omit filter to list skills."
 		}

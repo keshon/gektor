@@ -46,6 +46,18 @@ type Skill struct {
 	project        bool
 }
 
+// SourceKind groups a resolved skill by the kind of root it came from.
+func (s Skill) SourceKind() string {
+	switch {
+	case s.Source == "builtin":
+		return "builtin"
+	case s.project:
+		return "workspace"
+	default:
+		return "library"
+	}
+}
+
 func DefaultSkillRoots() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -312,19 +324,12 @@ func (w *Workspace) skillCatalog() string {
 		warning = fmt.Sprintf("\n\nSkill discovery warnings (invalid entries skipped): %s. Query system_info group=skills for details.", string(detail))
 	}
 	if len(entries) == 0 {
-		return "\n\nNo valid workspace skills found. Query system_info group=skills after adding packages." + warning
+		return "\n\nNo skills available. Query system_info group=skills after adding packages." + warning
 	}
 	header := "\n\nSkills by source. Discover with system_info group=skills, load with load_skill(id):\n"
 	var b strings.Builder
 	for _, skill := range entries {
-		source := "library"
-		switch {
-		case skill.Source == "builtin":
-			source = "builtin"
-		case skill.project:
-			source = "workspace"
-		}
-		fmt.Fprintf(&b, "- %s [%s]", skill.ID, source)
+		fmt.Fprintf(&b, "- %s [%s]", skill.ID, skill.SourceKind())
 		if skill.Description != "" {
 			description := []rune(strings.Join(strings.Fields(skill.Description), " "))
 			if len(description) > 120 {
@@ -335,7 +340,7 @@ func (w *Workspace) skillCatalog() string {
 		b.WriteByte('\n')
 	}
 	if len(header)+b.Len() > 2048 {
-		return fmt.Sprintf("\n\n%d workspace skills discovered. Search metadata with system_info group=skills (filter, offset, limit); then load_skill by ID. Full guides are not loaded.", len(entries)) + warning
+		return fmt.Sprintf("\n\n%d skills available. Search metadata with system_info group=skills (filter, offset, limit); then load_skill by ID. Full guides are not loaded.", len(entries)) + warning
 	}
 	return header + b.String() + warning
 }

@@ -33,7 +33,7 @@ func TestNestedSkillDiscoveryAndBoundedCatalog(t *testing.T) {
 		t.Fatal(list[79])
 	}
 	got := w.Instructions()
-	if !strings.Contains(got, "83 workspace skills") || !strings.Contains(got, "group=skills") || strings.Contains(got, "PRIVATE GUIDE") || len(got) > 2048 {
+	if !strings.Contains(got, "83 skills available") || !strings.Contains(got, "group=skills") || strings.Contains(got, "PRIVATE GUIDE") || len(got) > 2048 {
 		t.Fatal(got)
 	}
 	// Discovery is live; the cached prompt remains stable.
