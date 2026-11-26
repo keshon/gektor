@@ -30,6 +30,7 @@ const (
 
 type Descriptor struct {
 	ID, Label, DefaultURL, FixedURL, Dialect string
+	DefaultKeyEnv                            string
 	DefaultContext                           int
 	Protocol                                 Protocol
 	Auth                                     Auth
@@ -37,7 +38,7 @@ type Descriptor struct {
 	Inspection                               Inspection
 	// Sampling and output limits are route capabilities, not model guarantees.
 	Sampling, OutputLimit, SelectModel bool
-	Reasoning                          bool
+	Reasoning, Preset                  bool
 }
 
 var catalog = []Descriptor{
@@ -71,6 +72,35 @@ var catalog = []Descriptor{
 		Dialect:     "openai",
 		Label:       "OpenAI-compatible",
 		DefaultURL:  "http://127.0.0.1:8080/v1",
+		Protocol:    ChatCompletions,
+		Auth:        Bearer,
+		Discovery:   ModelList,
+		Sampling:    true,
+		OutputLimit: true,
+		SelectModel: true,
+	},
+	{
+		ID:            "openrouter",
+		Preset:        true,
+		Label:         "OpenRouter",
+		DefaultURL:    "https://openrouter.ai/api/v1",
+		DefaultKeyEnv: "OPENROUTER_API_KEY",
+		Inspection:    CompatibleInspection,
+		Dialect:       "openai",
+		Protocol:      ChatCompletions,
+		Auth:          Bearer,
+		Discovery:     ModelList,
+		Sampling:      true,
+		OutputLimit:   true,
+		SelectModel:   true,
+	},
+	{
+		ID:          "lmstudio",
+		Preset:      true,
+		Label:       "LM Studio",
+		DefaultURL:  "http://127.0.0.1:1234/v1",
+		Inspection:  CompatibleInspection,
+		Dialect:     "openai",
 		Protocol:    ChatCompletions,
 		Auth:        Bearer,
 		Discovery:   ModelList,

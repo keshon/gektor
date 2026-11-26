@@ -16,7 +16,7 @@ workflow to try saved steps without a model connection.
 2. On Windows, open `start-tui-agent.cmd`. On Linux, run `./gektor -tui`.
 3. Choose **Change workspace…** in **GEKTOR** and select a project folder.
    In the folder browser, **Select folder** selects the folder currently displayed.
-4. Check **Settings > Model connection**. Set the protocol, address and model,
+4. Check **Settings > Model connection**. Set the provider, server address and model,
    then choose **Apply**. GEKTOR does not install or supervise the model server.
 5. Choose **Plan** in **Run**. Send a small request:
 
@@ -63,6 +63,6 @@ and save an artifact. [Run and edit a workflow](guide/workflows.md) explains the
 ## If you get stuck
 
 Press `F1` for help. For connection failures, check the server's readiness,
-protocol and address first. For a failed operation, inspect its error before
+provider and server address first. For a failed operation, inspect its error before
 retrying. See [Troubleshooting](guide/troubleshooting.md) and
 [Terminal controls](reference/terminal.md).

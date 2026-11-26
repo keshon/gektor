@@ -35,7 +35,7 @@ func DiscoverModels(ctx context.Context, o BackendOptions) ([]string, error) {
 		}
 		return bound.Models(ctx)
 	}
-	probe, err := newInspector(d, o.URL, o.Model, connectionHTTP(o.URL, ResolvedAPIKey(o.APIKey, o.APIKeyEnv), ExtraHeadersFromEnv()))
+	probe, err := newInspector(d, o.URL, o.Model, connectionHTTP(o.URL, backendAPIKey(d, o), ExtraHeadersFromEnv()))
 	if err != nil {
 		return nil, err
 	}

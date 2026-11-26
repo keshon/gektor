@@ -46,8 +46,7 @@ npm --prefix website run preview
 
 ## Screenshot and copy
 
-The page uses a system sans-serif font. IBM Plex Mono is bundled for the logo
-and command examples, with its license notice in `public/licenses/`.
+The page uses a system sans-serif font. IBM Plex Mono is bundled for the wordmark and examples, with its license notice in `public/licenses/`.
 
 The terminal screenshot source is `../docs/images/gektor-demo.webp`.
 Run `npm --prefix website run assets` after replacing it. The script copies the
@@ -76,6 +75,11 @@ work on GitHub Pages. It also serves those routes during `npm run dev`. Relative
 article links become site routes; omitted sources point to the build revision
 on GitHub. Documentation images are copied into `doc-assets/`. New Markdown
 features with local links or assets must be covered by the renderer and checks.
+
+The Development TUI gallery uses the checked-in captures and stylesheets in
+`docs/design/tui/`. From the repository root, run
+`python docs/design/tui/export-gallery.py` to regenerate the captures.
+
 
 Pages identify themselves as development documentation and link to their source
 revision. A local preview can contain uncommitted edits; the revision link names

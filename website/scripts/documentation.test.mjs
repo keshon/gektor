@@ -26,6 +26,18 @@ test('every published article has a full document, source link and working outli
   }
 });
 
+test('the TUI gallery uses the Development navigation and scoped capture styles', () => {
+  const page = pages.find(p => p.route === '/docs/development/tui-gallery/');
+  const html = renderPage(page, '/gektor/');
+  assert.match(html, /href="\/gektor\/docs\/development\/tui-gallery\/" aria-current="page"/);
+  assert.match(html, /href="\/gektor\/doc-assets\/docs\/design\/tui\/gallery\.css"/);
+  assert.match(html, /href="\/gektor\/doc-assets\/docs\/design\/tui\/gallery-ansi\.css"/);
+  assert.match(html, /<div class="terminal-gallery">[\s\S]*id="modern-narrow-light"/);
+
+  const architecture = pages.find(p => p.route === '/docs/development/tui/');
+  assert.doesNotMatch(renderPage(architecture, '/gektor/'), /gallery-ansi\.css/);
+});
+
 test('production metadata stays independent of the preview base and navigation label', () => {
   const page = pages.find(p => p.source === 'docs/guide/models.md');
   const metadata = pageMetadata(page);

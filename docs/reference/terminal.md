@@ -88,7 +88,7 @@ conversation history or application preferences. Terminal paste is accepted;
 control characters and oversized input are rejected. Other platforms use key
 files or environment variables under Advanced; there is no plaintext fallback.
 Workers need the same account and credential directory for saved secrets, or must
-inherit the selected environment variable. See [credential setup](operations.md#supplying-credentials-in-the-cli-and-tui).
+inherit the selected environment variable. See [credential setup](ssh.md#supplying-credentials-in-the-cli-and-tui).
 
 Old credentials are retained when profiles change or are deleted, since other
 connections and worker snapshots may still reference them. Session-only secret

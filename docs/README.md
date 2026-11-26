@@ -5,17 +5,16 @@ or a workflow that needs no model. Choose the path that fits your task.
 
 ## Guides
 
+- [Connect a model](guide/models.md)
 - [Work on a project with Agent](guide/agent.md)
-- [Schedule and queue workflows](guide/automation.md)
+- [Run and edit a workflow](guide/workflows.md)
+- [Reopen a conversation and manage context](guide/sessions.md)
+- [Read documents and attach files](guide/files-and-images.md)
 - [Check an app in a browser](guide/browser.md)
 - [Connect tools and skill libraries](guide/extensions.md)
-- [Read documents and attach files](guide/files-and-images.md)
-- [Download audio or video](guide/files-and-images.md#download-audio-or-video)
-- [Connect a model](guide/models.md)
+- [Schedule and queue workflows](guide/automation.md)
 - [Review permissions and changes](guide/permissions.md)
-- [Reopen a conversation and manage context](guide/sessions.md)
 - [Diagnose a failed task](guide/troubleshooting.md)
-- [Run and edit a workflow](guide/workflows.md)
 
 ## Reference
 
@@ -23,6 +22,7 @@ or a workflow that needs no model. Choose the path that fits your task.
 - [Configuration and stored data](reference/configuration.md)
 - [Workflow HTTP API](reference/http-api.md)
 - [Operations and tool limits](reference/operations.md)
+- [SSH commands and file transfers](reference/ssh.md)
 - [Recipe format and execution](reference/recipes.md)
 - [Agent stdio RPC](reference/rpc.md)
 - [Terminal controls](reference/terminal.md)

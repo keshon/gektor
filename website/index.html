@@ -30,7 +30,7 @@
       <main>
         <section class="hero" aria-labelledby="hero-title">
           <h1 id="hero-title">A coding agent and workflow runner for the terminal.</h1>
-          <p class="hero__description">GEKTOR is a terminal app for working on code with an AI agent and running saved workflows. Connect a local model server, an API, or an eligible ChatGPT account.</p>
+          <p class="hero__description">Connect a local model server, an API, or an eligible ChatGPT account. A workflow needs a model connection only when one of its steps calls a model.</p>
           <div class="hero__links">
             <a class="button" href="https://github.com/keshon/gektor/releases">Download GEKTOR</a>
             <a class="inline-link" href="#quick-start">How to get started <span aria-hidden="true">↓</span></a>
@@ -107,30 +107,15 @@
         </section>
         <section class="setup" id="quick-start" aria-labelledby="setup-title">
           <h2 id="setup-title">Get started</h2>
-          <ol class="setup-steps">
-            <li><h3>Download and extract a release</h3><p>Choose the build for your operating system. Release binaries do not need Go installed.</p></li>
-            <li>
-              <h3>Launch Agent</h3><p>Open a terminal in the extracted folder and run:</p>
-              <div class="launch-panel">
-                <div class="launch-panel__head">
-                  <div class="platform-tabs" role="tablist" aria-label="Operating system">
-                    <button id="tab-windows" type="button" role="tab" aria-selected="true" aria-controls="launch-windows" data-platform="windows">Windows</button>
-                    <button id="tab-linux" type="button" role="tab" aria-selected="false" aria-controls="launch-linux" tabindex="-1" data-platform="linux">Linux</button>
-                  </div>
-                  <button id="copy-command" class="copy-command" type="button">Copy command</button>
-                </div>
-                <div class="command" id="launch-windows" role="tabpanel" aria-labelledby="tab-windows" tabindex="0"><code>.\start-tui-agent.cmd</code></div>
-                <div class="command" id="launch-linux" role="tabpanel" aria-labelledby="tab-linux" tabindex="0" hidden><code>./gektor -tui</code></div>
-              </div>
-              <p class="copy-status" id="copy-status" role="status" aria-live="polite"></p>
-            </li>
-            <li><h3>Connect a model and choose your project</h3><p>Open <strong>Settings → Model connection</strong>. Use llama.cpp, KoboldCPP, an OpenAI-compatible API, or an eligible ChatGPT account. Local models need a separately running server and tool-call support.</p><p>Choose your folder under <strong>GEKTOR → Change workspace</strong>.</p><a class="inline-link" href="https://github.com/keshon/gektor/blob/main/docs/bootstrap.md">Connection and setup guide <span aria-hidden="true">↗</span></a></li>
-          </ol>
+          <p><a href="https://github.com/keshon/gektor/releases">Download a release</a> for Windows or Linux, then extract it.</p>
+          <ul>
+            <li><a href="%BASE_URL%docs/start/#run-your-first-agent-task">Run your first Agent task</a> with a tool-calling model.</li>
+            <li><a href="%BASE_URL%docs/start/#run-a-workflow-without-a-model">Run a workflow without a model</a> using the bundled example.</li>
+          </ul>
           <p class="software-note">GEKTOR is experimental. Agent results depend on the model, connection settings, and task.</p>
         </section>
       </main>
       <footer class="site-footer"><span>GEKTOR · Written in Go</span><div><a href="https://github.com/keshon/gektor/blob/main/LICENSE">MIT license</a><a href="https://github.com/keshon/gektor/issues">Report an issue</a></div></footer>
     </div>
-    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

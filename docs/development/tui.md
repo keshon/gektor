@@ -13,6 +13,8 @@ For the application's state and service boundaries, see
 [architecture](../../ARCHITECTURE.md#ui-and-settings). This document owns shared UI
 appearance, interaction and layout decisions.
 
+See the [TUI gallery](tui-gallery.md) for current terminal captures.
+
 The editable [FigCraft project and mockups](../design/tui/README.md) illustrate
 controls, layouts, interaction states and palettes. Verify input behavior
 against the running TUI.

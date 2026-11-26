@@ -39,7 +39,7 @@ func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
 	f.Fields = slices.Clone(snapshot.Fields)
 	f.Error, f.FieldErrors = snapshot.Error, maps.Clone(snapshot.FieldErrors)
 	f.Values = map[string]string{}
-	f.FieldLabels = map[string]string{"kind": "Protocol", "endpoint": "Server address"}
+	f.FieldLabels = map[string]string{"kind": "Provider", "endpoint": "Server address"}
 	if f.Choices == nil {
 		f.Choices = map[string][]string{}
 	}
@@ -65,9 +65,21 @@ func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
 		f.Hidden[field.Key] = !f.FieldVisible(i)
 		if field.Key == "kind" {
 			if f.previousKind != "" && f.previousKind != field.Value {
+				next, nextErr := providers.Lookup(field.Value)
+				previous, previousErr := providers.Lookup(f.previousKind)
+				switchingPreset := nextErr == nil && previousErr == nil && (next.Preset || previous.Preset)
 				for j := range f.Fields {
-					if f.Fields[j].Key == "endpoint" {
-						f.Fields[j].Value = SuggestedBackendURL(f.Fields[j].Value, f.previousKind, field.Value)
+					switch f.Fields[j].Key {
+					case "endpoint":
+						if switchingPreset {
+							f.Fields[j].Value = next.DefaultURL
+						} else {
+							f.Fields[j].Value = SuggestedBackendURL(f.Fields[j].Value, f.previousKind, field.Value)
+						}
+					case "key-env", "model":
+						if switchingPreset {
+							f.Fields[j].Value = ""
+						}
 					}
 				}
 			}

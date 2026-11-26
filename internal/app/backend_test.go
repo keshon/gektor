@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/roles"
 )
@@ -110,5 +111,61 @@ func TestStrictInspectionRejectsFallbackWithoutBackendEvidence(t *testing.T) {
 	f, err := b.Inspect(t.Context(), srv.URL, 8192, false)
 	if err != nil || f.ContextLimit != 8192 {
 		t.Fatal("interactive fallback lost", f, err)
+	}
+}
+
+func TestProviderPresetsDiscoverAndStreamWithRouteCredentials(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "default-hosted-key")
+	t.Setenv("GEKTOR_PRESET_TEST_KEY", "explicit-gateway-key")
+
+	for _, route := range []struct {
+		kind, keyEnv, authorization string
+	}{
+		{kind: "openrouter", keyEnv: "GEKTOR_PRESET_TEST_KEY", authorization: "Bearer explicit-gateway-key"},
+		{kind: "openrouter"},
+		{kind: "lmstudio"},
+	} {
+		t.Run(route.kind+"/"+route.keyEnv, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if got := r.Header.Get("Authorization"); got != route.authorization {
+					t.Error("unexpected authorization for", r.URL.Path)
+				}
+				switch r.URL.Path {
+				case "/v1/models":
+					fmt.Fprint(w, `{"data":[{"id":"fixture-model"}]}`)
+				case "/v1/chat/completions":
+					w.Header().Set("Content-Type", "text/event-stream")
+					fmt.Fprintln(w, `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"read_file","arguments":"{}"}}]}}]}`)
+					fmt.Fprintln(w)
+					fmt.Fprintln(w, `data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`)
+					fmt.Fprintln(w)
+					fmt.Fprint(w, "data: [DONE]\n\n")
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+
+			options := app.BackendOptions{Kind: route.kind, URL: srv.URL + "/v1", APIKeyEnv: route.keyEnv}
+			models, err := app.DiscoverModels(t.Context(), options)
+			if err != nil || len(models) != 1 || models[0] != "fixture-model" {
+				t.Fatal(models, err)
+			}
+			options.Model = models[0]
+			backend, err := app.NewBackend(t.Context(), options)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			request := llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "Read the file."}}}
+			response, err := backend.Stream(t.Context(), request, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			calls := response.Message.ToolCalls
+			if len(calls) != 1 || calls[0].Name != "read_file" {
+				t.Fatal(calls)
+			}
+		})
 	}
 }

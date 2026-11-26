@@ -298,7 +298,20 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 }
 
 func providerLaunchDefaults(o *resolvedLaunch) {
-	if d, err := providers.Lookup(o.backendKind); err == nil && d.FixedURL != "" && !o.explicitFlags["backend"] {
+	d, err := providers.Lookup(o.backendKind)
+	if err != nil {
+		return
+	}
+
+	if d.Preset && o.explicitFlags["backend-kind"] && (o.selectedProfile.Version == 0 || o.selectedProfile.Provider.Kind != d.ID) {
+		if !o.explicitFlags["backend"] {
+			o.backendURL = d.DefaultURL
+		}
+		if !o.explicitFlags["api-key-env"] {
+			o.apiKeyEnv = ""
+		}
+	}
+	if d.FixedURL != "" && !o.explicitFlags["backend"] {
 		o.backendURL = d.FixedURL
 	}
 }

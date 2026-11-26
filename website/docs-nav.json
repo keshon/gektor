@@ -14,6 +14,14 @@
     "description": "Download GEKTOR, choose a workspace and run your first Agent task or a saved workflow that needs no model connection."
   },
   {
+    "source": "docs/guide/models.md",
+    "title": "Connect a model",
+    "section": "Guides",
+    "route": "/docs/guides/models/",
+    "description": "Configure a local model server, an OpenAI-compatible API or a ChatGPT account for GEKTOR. Check connection settings and context budgets.",
+    "seoTitle": "Connect llama.cpp, LM Studio or ChatGPT to GEKTOR"
+  },
+  {
     "source": "docs/guide/agent.md",
     "title": "Work on a project with Agent",
     "section": "Guides",
@@ -26,14 +34,6 @@
     "section": "Guides",
     "route": "/docs/guides/workflows/",
     "description": "Open, edit, validate and run a GEKTOR workflow recipe. Supply inputs, review paused steps and inspect saved results without needing a model for every operation."
-  },
-  {
-    "source": "docs/guide/models.md",
-    "title": "Connect a model",
-    "section": "Guides",
-    "route": "/docs/guides/models/",
-    "description": "Configure a local model server, an OpenAI-compatible API or a ChatGPT account for GEKTOR. Check connection settings and context budgets.",
-    "seoTitle": "Connect llama.cpp, LM Studio or ChatGPT to GEKTOR"
   },
   {
     "source": "docs/guide/sessions.md",
@@ -122,6 +122,13 @@
     "description": "Look up GEKTOR native tool and workflow operation contracts, including document readers, images, archives, HTTP requests, artifacts and local programs."
   },
   {
+    "source": "docs/reference/ssh.md",
+    "title": "SSH commands and file transfers",
+    "section": "Reference",
+    "route": "/docs/reference/ssh/",
+    "description": "Register and verify SSH connections, configure credentials and look up command and file transfer arguments."
+  },
+  {
     "source": "docs/reference/http-api.md",
     "title": "Workflow HTTP API",
     "section": "Reference",
@@ -144,11 +151,11 @@
     "description": "Build GEKTOR from source and find contributor guidance for architecture, conventions, testing, terminal components, documentation and release packaging."
   },
   {
-    "source": "docs/development/conventions.md",
-    "title": "Project conventions",
+    "source": "ARCHITECTURE.md",
+    "title": "Architecture",
     "section": "Development",
-    "route": "/docs/development/conventions/",
-    "description": "Read GEKTOR project conventions, including enforced dependency boundaries, code practices, CLI documentation coverage and the checks that maintain them."
+    "route": "/docs/development/architecture/",
+    "description": "Explore GEKTOR runtime ownership across the Agent loop, model providers, tools, sessions, permissions, terminal UI and workflow engine."
   },
   {
     "source": "docs/development/testing.md",
@@ -158,6 +165,13 @@
     "description": "Run GEKTOR project checks and verify session recovery in a real terminal. Find opt-in browser integration checks and links to the model eval runner."
   },
   {
+    "source": "docs/development/conventions.md",
+    "title": "Project conventions",
+    "section": "Development",
+    "route": "/docs/development/conventions/",
+    "description": "Read GEKTOR project conventions, including enforced dependency boundaries, code practices, CLI documentation coverage and the checks that maintain them."
+  },
+  {
     "source": "docs/development/tui.md",
     "title": "Terminal architecture and interaction contracts",
     "section": "Development",
@@ -165,18 +179,18 @@
     "description": "Understand GEKTOR terminal component ownership and interaction contracts for layouts, forms, menus, selection, inspectors and workflow graphs."
   },
   {
+    "source": "docs/development/tui-gallery.md",
+    "title": "TUI gallery",
+    "section": "Development",
+    "route": "/docs/development/tui-gallery/",
+    "description": "Compare Commander and Modern in light and dark themes and inspect terminal layouts, controls and dialogs."
+  },
+  {
     "source": "docs/development/writing.md",
     "title": "Write and maintain documentation",
     "section": "Development",
     "route": "/docs/development/writing/",
     "description": "Maintain human-first GEKTOR documentation with clear article ownership, readable technical prose, compatible links and checked website publication."
-  },
-  {
-    "source": "ARCHITECTURE.md",
-    "title": "Architecture",
-    "section": "Development",
-    "route": "/docs/development/architecture/",
-    "description": "Explore GEKTOR runtime ownership across the Agent loop, model providers, tools, sessions, permissions, terminal UI and workflow engine."
   },
   {
     "source": "SECURITY.md",

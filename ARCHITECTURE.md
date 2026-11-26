@@ -134,6 +134,9 @@ OAuth credentials stay in the protected user store. Each client binds one accoun
 registration and verified identity; changing the selected account cannot redirect
 an existing connection. Token renewal remains serialized across processes.
 
+The login callback checks state, PKCE, the signed ID token, nonce and the
+granted plan-usage scope.
+
 Responses replay preserves ordered native items separately from display text.
 The envelope is replayed only when its integration, model, account scope, and
 canonical message projection match. Mutation or incompatible native state falls
@@ -248,7 +251,7 @@ an explicit node with its own bounded context.
 SSH operations live in `internal/capabilities/ssh`. Agent tools and workflow
 nodes share its contract. Services snapshot named profiles at construction and
 resolve credential references for a connection; the TUI owns connection editing
-and masked credential entry. See [SSH operations](docs/reference/operations.md#ssh-commands-and-file-transfers).
+and masked credential entry. See [SSH operations](docs/reference/ssh.md#ssh-commands-and-file-transfers).
 
 Media operations share `internal/capabilities/media` across Agent and Workflows.
 Auto routes YouTube through kkdai and retries eligible source failures with

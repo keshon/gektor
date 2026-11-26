@@ -40,9 +40,33 @@ func TestModernPreview(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "modern-"+theme+".ansi"), []byte(m.View().Content), 0600); err != nil {
 			t.Fatal(err)
 		}
+		settings := sizeModelTo(t, settingsModel(t), 120, 30)
+		settings.colorProfile = colorprofile.TrueColor
+		settings.applyAppearance(theme, config.Appearance{Style: "modern", Frame: "minimal"})
+		settings.editSettings("model")
+		settings.settleControls()
+		err := os.WriteFile(filepath.Join(dir, "modern-settings-"+theme+".ansi"), []byte(settings.View().Content), 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sizeModelTo(t, m, 60, 22)
+		err = os.WriteFile(filepath.Join(dir, "modern-narrow-"+theme+".ansi"), []byte(m.View().Content), 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sizeModelTo(t, m, 120, 30)
 		m.runAction("about")
 		m.settleControls()
 		if err := os.WriteFile(filepath.Join(dir, "modern-modal-"+theme+".ansi"), []byte(m.View().Content), 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		m.closeDialog()
+		m.applyAppearance(screen.CurrentPalette().Name, config.Appearance{Style: "commander", Frame: "minimal", HideTools: true})
+		err = os.WriteFile(filepath.Join(dir, "commander-"+theme+".ansi"), []byte(m.View().Content), 0600)
+		if err != nil {
 			t.Fatal(err)
 		}
 

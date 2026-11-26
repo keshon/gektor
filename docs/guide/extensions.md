@@ -173,13 +173,13 @@ Built-in `native_images`, `native_files`, `native_documents`, `native_media`, `n
 
 `native_ssh` provides `ssh_exec`, `ssh_upload` and `ssh_download`. The same
 operations are workflow nodes. Configure named connections in the user's
-`.gektor/ssh.json`; see [SSH operations](../reference/operations.md#ssh-commands-and-file-transfers).
+`.gektor/ssh.json`; see [SSH operations](../reference/ssh.md#ssh-commands-and-file-transfers).
 Credentials stay outside tool arguments and recipes.
 Use **Run > Tools… > SSH** to add or edit connections, select password or
 key authentication, and test a saved connection. Windows offers protected
 password/passphrase entry in a separate masked prompt. CLI profiles and
 environment-variable setup are described in
-[credential setup](../reference/operations.md#supplying-credentials-in-the-cli-and-tui).
+[credential setup](../reference/ssh.md#supplying-credentials-in-the-cli-and-tui).
 `native_files` provides `download_file`, `archive_list`, `archive_create` and
 `archive_extract` as ordinary agent tools. The same operations are workflow
 nodes. ZIP, TAR, TAR.GZ and GZIP are supported. Listing is read-only; the other

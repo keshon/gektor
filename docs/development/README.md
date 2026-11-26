@@ -24,6 +24,7 @@ steps run without one.
 - [Conventions](conventions.md) contains enforced project rules.
 - [Built-in capabilities](capabilities.md) defines service, adapter and support-package boundaries.
 - [Testing](testing.md) covers automated checks and terminal recovery verification.
+- [TUI gallery](tui-gallery.md) shows terminal layouts and controls.
 - [Terminal architecture](tui.md) covers components and interaction contracts.
 - [Eval runner](../../eval/README.md) explains model scenarios and scoring.
 - [Writing documentation](writing.md) defines article ownership and editing checks.

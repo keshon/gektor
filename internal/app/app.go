@@ -143,7 +143,7 @@ func NewBackend(ctx context.Context, o BackendOptions) (*Backend, error) {
 			return nil, err
 		}
 
-		key := ResolvedAPIKey(o.APIKey, o.APIKeyEnv)
+		key := backendAPIKey(d, o)
 		c.WithAPIKey(key)
 		b.httpClient = connectionHTTP(o.URL, key, ExtraHeadersFromEnv())
 		c.WithHTTPClient(b.httpClient)

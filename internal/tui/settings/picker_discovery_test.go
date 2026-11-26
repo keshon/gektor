@@ -85,3 +85,21 @@ func TestReasoningDiscoveryUsesStagedModel(t *testing.T) {
 		t.Fatalf("lost staged provider: %+v", request)
 	}
 }
+
+func TestSwitchingProviderPresetUsesNewConnectionInModelPicker(t *testing.T) {
+	model := modelPicker(t)
+	model.Fields[0].Value = "openrouter"
+	model.Prepare()
+	model.Focus(3, model.FieldVisible)
+
+	command := model.OpenPicker(fieldform.Props{Width: 80, Height: 24})
+	request := command().(fieldform.DiscoveryRequest)
+	provider, err := model.Provider(request)
+	want := config.Provider{Kind: "openrouter", URL: "https://openrouter.ai/api/v1"}
+	if err != nil || provider != want {
+		t.Fatal(provider, err)
+	}
+	if model.Fields[3].Value != "" {
+		t.Fatal("model from the old endpoint survived the switch")
+	}
+}

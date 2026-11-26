@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/httptransport"
+	"github.com/keshon/gektor/internal/providers"
 )
 
 // ResolvedAPIKey selects the bearer token at composition. Precedence
@@ -23,6 +24,24 @@ func ResolvedAPIKey(flagVal, envName string) string {
 		}
 	}
 	return APIKeyFromEnv()
+}
+
+func backendAPIKey(d providers.Descriptor, o BackendOptions) string {
+	if !d.Preset {
+		return ResolvedAPIKey(o.APIKey, o.APIKeyEnv)
+	}
+
+	if key := strings.TrimSpace(o.APIKey); key != "" {
+		return key
+	}
+	name := strings.TrimSpace(o.APIKeyEnv)
+	if name == "" && strings.TrimSuffix(o.URL, "/") == d.DefaultURL {
+		name = d.DefaultKeyEnv
+	}
+	if name == "" {
+		return ""
+	}
+	return strings.TrimSpace(os.Getenv(name))
 }
 
 // ExtraHeadersFromEnv supplies gateway-specific headers without new flags:

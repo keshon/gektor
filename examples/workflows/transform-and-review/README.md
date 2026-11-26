@@ -20,5 +20,5 @@ From the application folder, select the example workspace:
 
 The first command only validates. The run transforms the input into three sets
 of node arguments, then waits for review. Approval executes those three items;
-the final output is `{"items":[4,6,10]}`. The completed preparation step is not
-repeated. Use `-decision reject` to stop instead. No model is involved.
+in the final inspection, the `double` step has three completed items with
+`output` values of `4`, `6`, and `10`. The preparation step runs once. Use `-decision reject` to stop instead. No model is involved.

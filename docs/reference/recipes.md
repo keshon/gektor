@@ -8,9 +8,6 @@ A recipe is a JSON file that describes steps, their inputs and their connections
 A run is one execution of that recipe. It records the input values, results and
 status separately from the recipe file.
 
-For the everyday TUI flow, read the [terminal guide](../guide/workflows.md#recipes-and-runs).
-This page covers operation names, data formats and execution rules.
-
 Recipes live inside the selected workspace. Runs and other workflow state live
 under `~/.gektor/workflows/`, separated by workspace. See
 [saved data](configuration.md#saved-data) for the locations.
@@ -22,153 +19,10 @@ Schedules start workflows at set times. Manage them in the
 [CLI and service](cli.md#workflow-queue-and-service). The workflow service must
 be running for scheduled jobs to execute.
 
-## Image recipe example
-
-Ask GEKTOR:
-
-> Create a recipe for input.png: inspect it, preview 320px and 800px variants,
-> then write those variants to a new directory called web-images. Save the
-> recipe as recipe.json, validate that file, then run it once and report the saved record path.
-
-```json
-{
-  "version": 4,
-  "name": "Prepare web images",
-  "steps": [
-    {"id": "inspect", "tool": "image_inspect", "args": {"paths": ["input.png"]}},
-    {"id": "preview", "tool": "image_preview", "args": {"paths": ["input.png"], "widths": [320, 800]}},
-    {"id": "write", "tool": "image_variants", "args": {"paths": ["input.png"], "widths": [320, 800], "out_dir": "web-images"}}
-  ]
-}
-```
-
-Runs, invocations, attempts, queued jobs and schedules are stored transactionally
-in `~/.gektor/workflows/<workspace-hash>/workflow.sqlite`.
-The workspace hash uses its absolute, symlink-resolved path (case-folded on
-Windows). Moving a workspace starts a separate history. The store must be outside
-the workspace. `database_path` is absolute; `run_id` is the inspection handle.
-The SQLite driver is pure Go and builds with `CGO_ENABLED=0`. Collection
-checkpoints update the changed invocation rather than rewriting the full run.
-Artifact payloads remain in per-run files. Existing JSON run histories and queue
-files are not read or imported.
-
-Use `gektor workflow runs -workspace .` to list runs, and
-`gektor workflow inspect -workspace . <run-id>` for the full record. The model
-can use `workflow_inspect` with `{"run_id":"..."}` for a compact summary.
-The summary includes execution status, timing, step counts, failures and declared
-outputs. A recipe's output, such as `status: stale`, keeps its own meaning;
-`completed` only describes execution.
-
-Use `view: "steps"` for a step list, or `view: "step"` with `step_id` for one
-step's resolved arguments and output. `view: "full"` returns the full stored
-record. Summary and step values use `{value, bytes, omitted}`: `value` contains
-the JSON value when present; values over 8 KiB are omitted with their byte size.
-Use `pointer` to select a small field before that limit is applied. In summary
-view it selects inside the declared outputs; in step view it selects inside
-that step's output. For example:
-
-```json
-{"run_id":"...","pointer":"/summary/status"}
-```
-
-Use `view: "invocations"` to page through invocation metadata without copying
-arguments or outputs. `offset` defaults to 0 and `limit` to 50 (maximum 100).
-The result includes `total` and, when more entries remain, `next_offset`.
-Entries include containers, child scopes and mapped/repeated items, with their
-scoped IDs, statuses and attempt/iteration counts. Use that exact ID with
-`view: "step"` for values or `view: "attempts"` for retry history. For example:
-
-```json
-{"run_id":"...","view":"attempts","step_id":"batch[0]"}
-```
-
-Attempt history contains attempt numbers, start/finish times, errors and typed
-failure codes, including failures before a later success. It does not contain
-separate argument/output snapshots for every attempt; step view shows the
-invocation's recorded values. An unfinished attempt stays unfinished in the
-record; inspection does not retry it. Pages reflect the current saved run;
-inspect a settled run for a stable list while paging.
-
-Inspection reports
-`interrupted` when a persisted running run no longer holds its OS process lock;
-the recorded status remains unchanged. A crash can leave partial step effects.
-Each completed step is saved before the next step is prepared. If saving fails,
-execution stops; an effect may have happened even when its result could not be
-persisted. Run checkpoints commit transactionally in SQLite. A failed checkpoint
-leaves the last committed record for inspection; it does not roll back workspace
-or remote effects.
-
-Steps run sequentially and stop on failure; remaining steps are marked skipped.
-Inspect outputs before deciding to rerun;
-the runner does not replay interrupted effects automatically. Earlier completed writes
-remain if a later step fails. Each rerun needs fresh output directories.
-
-The tool response contains step outcomes, item results and source hashes; full
-outputs and recipe source remain in the run record. Start a fresh GEKTOR session
-when an update changes tool schemas: old saved activations may be incompatible.
-
-## Fixture tests
-
-Use `workflow test -fixture fixture.json recipe.json` to check captured inputs,
-resolved operation arguments, routing and declared outputs with the normal
-workflow engine. `script_transform`, `workflow_join`, `workflow_call` input binding and internal
-output collection execute their registered pure implementations. Every other
-operation uses a fixture response; there is no fallback to real tool execution.
-Use an ordinary run to verify credentials, providers, files and external effects.
-
-`workflow capture -workspace . <run-id>` exports inputs and external operation
-responses from a completed saved run. Redirect its stdout to a UTF-8 fixture
-file, then test the current recipe. The export contains the saved input,
-argument and output values. Capture rejects unfinished runs, operator recovery,
-reviews and durable waits. Earlier retries need stored typed failure data;
-capture does not infer missing attempt outcomes or per-attempt outputs.
-
-A fixture is a separate version 1 JSON object, at most 4 MiB:
-
-```json
-{
-  "version": 1,
-  "inputs": {},
-  "calls": [
-    {
-      "step_id": "fetch",
-      "operation": "http_request",
-      "node_version": 1,
-      "args": {"url": "https://example.com/"},
-      "responses": [
-        {"output": {"status_code": 200, "headers": {}, "body": "ok"}}
-      ]
-    }
-  ],
-  "expect": {"status": "completed", "outputs": null}
-}
-```
-
-Each call uses an exact scoped invocation ID, operation name, node version and
-resolved JSON arguments. Supply 1–3 responses in attempt order. A response has
-exactly one `output` JSON value or a typed
-`failure: {"code":"http_status","message":"temporary"}`. The engine applies
-the recipe's retry and error-routing rules; fixture mismatches are terminal test
-errors. Missing, exhausted and unused entries all fail the test. Pure operations
-cannot be replaced by fixtures, so changed script logic is actually tested.
-Arguments and expected outputs ignore object property order and whitespace;
-array order and numeric literals are exact, preserving large integers.
-
-`expect.status` is `completed` or `failed`. Expected failures must be typed
-operation failures, with every supplied response consumed. An omitted or null
-`expect.outputs` expects no completed declared outputs. Output values are
-checked against current node schemas and the expected declared outputs.
-
-Tests run in memory, create no saved run or jobs, and do not approve reviews or
-continue durable waits. Those controls are rejected before executing test steps.
-Fixtures can exercise child calls, maps and repeats using their scoped IDs.
-The [fixture example](../../examples/workflows/fixture-test/README.md) combines
-a recorded HTTP response with an actual isolated script.
-
 ## Inputs and data flow
 
-Version 4 is the current recipe format. Other formats are not supported.
-Recipes support typed inputs and references to dependency outputs. For example:
+Set `version` to `4`. Use `$input` for a declared input and `$step` for
+another step's result.
 
 ```json
 {
@@ -220,15 +74,20 @@ can still change it. Do not pass secrets as inputs.
 
 ## Graphs, iteration and reviews
 
-Array order is not a dependency. Use `depends_on: ["prepare"]` for an ordering
-edge; `$step` references also create edges. The validator rejects cycles and
-unknown dependencies. Independent ready nodes execute in stable array order.
-Execution is currently sequential.
+### Ordering and conditions
+
+Use `depends_on: ["prepare"]` to wait for a step without reading its output.
+A `$step` reference adds a dependency automatically. The validator rejects
+cycles and unknown dependencies. The runner executes steps sequentially and
+uses array order to choose among ready steps. Within a collection step,
+items can run concurrently when the operation supports it.
 
 `when` accepts a boolean or a typed input/output reference resolving to one.
 False skips that node. `merge: "all"` (default) requires all dependencies to
 complete; `merge: "any"` requires at least one. A reference to a skipped output
 still fails; merges do not invent missing values. The run stops on failure.
+
+### Collection steps
 
 `for_each` accepts up to 10,000 complete argument objects, or a reference resolving
 to that array. The ordinary 64 KiB argument limit also applies. Set `args` to `{}`.
@@ -260,18 +119,21 @@ nodes do this; unclassified errors from other operations remain terminal.
 Permission, validation, malformed-output and checkpoint failures still stop the
 run. Cancellation is never collected as success. A completed map can contain
 failed items; inspect their statuses. Total collection output is bounded to 1 MiB.
-Checkpoints precede effects and preserve partial outcomes. All started workers
-are joined before execution returns. Cancellation cannot undo effects already
-performed. `concurrency` and `on_error` apply only to `for_each` steps.
+The runner checkpoints before effects and retains partial outcomes. It waits
+for all started workers before returning. Completed effects survive cancellation. `concurrency` and `on_error` apply only to `for_each` steps.
 
 The [collection report example](../../examples/workflows/collection-report/README.md)
 runs this behavior without a model or network.
+
+### Review before execution
 
 `review: true` pauses before an operation, after resolving its arguments.
 Use `workflow inspect` to examine it, then `workflow review -decision approve
 <run-id> <step-id>` to continue the saved snapshot. Completed steps are not
 repeated. `-decision reject` cancels the remaining work. Permissions are checked
 again when continuing. The agent cannot approve its own run.
+
+### Retry an operation
 
 `retry: {"max_attempts": 2, "delay_ms": 250}` is allowed only for nodes explicitly
 declared retry-safe. There are at most three attempts and a ten-second delay.
@@ -739,3 +601,145 @@ Constant and input-only outputs are still collected when all effect steps skip.
 A skipped call does not collect its child's outputs.
 
 See [the reusable report example](../../examples/workflows/subworkflow/README.md).
+
+## Run records and inspection
+
+Runs, invocations, attempts, queued jobs and schedules are stored transactionally
+in `~/.gektor/workflows/<workspace-hash>/workflow.sqlite`.
+The workspace hash uses its absolute, symlink-resolved path (case-folded on
+Windows). Moving a workspace starts a separate history. The store must be outside
+the workspace. `database_path` is absolute; `run_id` is the inspection handle.
+The pure-Go SQLite driver builds with `CGO_ENABLED=0`. Collection checkpoints
+update the changed invocation. Artifact payloads live in per-run files. GEKTOR does not import old JSON histories or queue files.
+
+Use `gektor workflow runs -workspace .` to list runs, and
+`gektor workflow inspect -workspace . <run-id>` for the full record. The model
+can use `workflow_inspect` with `{"run_id":"..."}` for a compact summary.
+The summary includes execution status, timing, step counts, failures and declared
+outputs. The run status `completed` reports execution. A recipe output such as
+`status: stale` describes the recipe's own result.
+
+Use `view: "steps"` for a step list, or `view: "step"` with `step_id` for one
+step's resolved arguments and output. `view: "full"` returns the full stored
+record. Summary and step values use `{value, bytes, omitted}`: `value` contains
+the JSON value when present; values over 8 KiB are omitted with their byte size.
+Use `pointer` to select a small field before that limit is applied. In summary
+view it selects inside the declared outputs; in step view it selects inside
+that step's output. For example:
+
+```json
+{"run_id":"...","pointer":"/summary/status"}
+```
+
+Use `view: "invocations"` to page through invocation metadata without copying
+arguments or outputs. `offset` defaults to 0 and `limit` to 50 (maximum 100).
+The result includes `total` and, when more entries remain, `next_offset`.
+Entries include containers, child scopes and mapped/repeated items, with their
+scoped IDs, statuses and attempt/iteration counts. Use that exact ID with
+`view: "step"` for values or `view: "attempts"` for retry history. For example:
+
+```json
+{"run_id":"...","view":"attempts","step_id":"batch[0]"}
+```
+
+Attempt history contains attempt numbers, start/finish times, errors and typed
+failure codes, including failures before a later success. It does not contain
+separate argument/output snapshots for every attempt; step view shows the
+invocation's recorded values. An unfinished attempt stays unfinished in the
+record; inspection does not retry it. Pages reflect the current saved run;
+inspect a settled run for a stable list while paging.
+
+Inspection reports
+`interrupted` when a persisted running run no longer holds its OS process lock;
+the recorded status remains unchanged. A crash can leave partial step effects.
+Each completed step is saved before the next step is prepared. If saving fails,
+execution stops; an effect may have happened even when its result could not be
+persisted. Run checkpoints commit transactionally in SQLite. A failed checkpoint
+leaves the last committed record for inspection; it does not roll back workspace
+or remote effects.
+
+Inspect outputs before rerunning. Earlier writes can survive a failed step.
+Use fresh output directories when a recipe creates them. For an interrupted
+run, see [Recovering interrupted execution](#recovering-interrupted-execution).
+
+The tool response contains step outcomes, item results and source hashes; full
+outputs and recipe source remain in the run record. Start a fresh GEKTOR session
+when an update changes tool schemas: old saved activations may be incompatible.
+
+## Image recipe example
+
+Ask GEKTOR:
+
+> Create a recipe for input.png: inspect it, preview 320px and 800px variants,
+> then write those variants to a new directory called web-images. Save the
+> recipe as recipe.json, validate that file, then run it once and report the saved record path.
+
+```json
+{
+  "version": 4,
+  "name": "Prepare web images",
+  "steps": [
+    {"id": "inspect", "tool": "image_inspect", "args": {"paths": ["input.png"]}},
+    {"id": "preview", "tool": "image_preview", "args": {"paths": ["input.png"], "widths": [320, 800]}},
+    {"id": "write", "tool": "image_variants", "args": {"paths": ["input.png"], "widths": [320, 800], "out_dir": "web-images"}}
+  ]
+}
+```
+
+## Fixture tests
+
+Use `workflow test -fixture fixture.json recipe.json` to check captured inputs,
+resolved operation arguments, routing and declared outputs with the normal
+workflow engine. `script_transform`, `workflow_join`, `workflow_call` input binding and internal
+output collection execute their registered pure implementations. Every other
+operation uses a fixture response; there is no fallback to real tool execution.
+Use an ordinary run to verify credentials, providers, files and external effects.
+
+`workflow capture -workspace . <run-id>` exports inputs and external operation
+responses from a completed saved run. Redirect its stdout to a UTF-8 fixture
+file, then test the current recipe. The export contains the saved input,
+argument and output values. Capture rejects unfinished runs, operator recovery,
+reviews and durable waits. Earlier retries need stored typed failure data;
+capture does not infer missing attempt outcomes or per-attempt outputs.
+
+A fixture is a separate version 1 JSON object, at most 4 MiB:
+
+```json
+{
+  "version": 1,
+  "inputs": {},
+  "calls": [
+    {
+      "step_id": "fetch",
+      "operation": "http_request",
+      "node_version": 1,
+      "args": {"url": "https://example.com/"},
+      "responses": [
+        {"output": {"status_code": 200, "headers": {}, "body": "ok"}}
+      ]
+    }
+  ],
+  "expect": {"status": "completed", "outputs": null}
+}
+```
+
+Each call uses an exact scoped invocation ID, operation name, node version and
+resolved JSON arguments. Supply 1–3 responses in attempt order. A response has
+exactly one `output` JSON value or a typed
+`failure: {"code":"http_status","message":"temporary"}`. The engine applies
+the recipe's retry and error-routing rules; fixture mismatches are terminal test
+errors. Missing, exhausted and unused entries all fail the test. Pure operations
+cannot be replaced by fixtures, so changed script logic is actually tested.
+Arguments and expected outputs ignore object property order and whitespace;
+array order and numeric literals are exact, preserving large integers.
+
+`expect.status` is `completed` or `failed`. Expected failures must be typed
+operation failures, with every supplied response consumed. An omitted or null
+`expect.outputs` expects no completed declared outputs. Output values are
+checked against current node schemas and the expected declared outputs.
+
+Tests run in memory, create no saved run or jobs, and do not approve reviews or
+continue durable waits. Those controls are rejected before executing test steps.
+Fixtures can exercise child calls, maps and repeats using their scoped IDs.
+The [fixture example](../../examples/workflows/fixture-test/README.md) combines
+a recorded HTTP response with an actual isolated script.

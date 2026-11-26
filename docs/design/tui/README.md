@@ -1,4 +1,10 @@
-# TUI mockups
+# TUI gallery and design archive
+
+Open [the TUI gallery](gallery.html) in a browser for current terminal captures.
+Keep both linked stylesheets beside the HTML for offline viewing. Regenerate the gallery and its ANSI stylesheet from the repository root with `python docs/design/tui/export-gallery.py`.
+Review keyboard, mouse and focus behavior in the running TUI.
+
+## FigCraft archive
 
 Use the mockups to review layout and interaction states. For application
 controls, see the [terminal reference](../../reference/terminal.md) and the

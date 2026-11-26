@@ -24,6 +24,10 @@ its bound account. Signing that account out makes further requests fail until it
 is connected again. Local model facts are refreshed before each run, while one
 run and its delegated agents share a consistent model/capability snapshot.
 
+ChatGPT credentials live under `~/.gektor/auth/chatgpt`. Windows protects the
+store with user-bound DPAPI. On Unix, GEKTOR uses a private directory and
+owner-only files. Tokens stay out of profiles, transcripts and debug output.
+
 Saved ChatGPT native state is reused only for a matching integration, model,
 account, and unchanged message. Otherwise GEKTOR sends the normal transcript.
 Only current versioned conversation snapshots are supported. Retired array
@@ -87,7 +91,7 @@ On Windows, `~` means your user folder, usually `C:\Users\<name>`.
 
 Manage SSH connections through **Run > Tools… > SSH**. CLI configuration,
 protected credential entry and environment references are described in
-[password and key setup](operations.md#supplying-credentials-in-the-cli-and-tui).
+[password and key setup](ssh.md#supplying-credentials-in-the-cli-and-tui).
 The environment must belong to the process doing the work, including a separate
 workflow worker. Model profiles and SSH connection profiles are different files.
 

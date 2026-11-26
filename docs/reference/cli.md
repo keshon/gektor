@@ -141,11 +141,15 @@ Local llama-server example:
 ./gektor.exe -tui -backend-kind llama -backend http://127.0.0.1:9931 -stream
 ```
 
-For LM Studio or a hosted OpenAI-compatible service, use the `openai` dialect
-and the provider's API root, including `/v1` when required:
+Select **LM Studio** or **OpenRouter** under Settings → Model connection,
+then open the model picker or enter a model ID directly. OpenRouter reads
+`OPENROUTER_API_KEY` at its default endpoint. For a custom endpoint, set its
+API key environment variable explicitly. LM Studio can connect without a key.
 
-```bash
-./gektor.exe -tui -backend-kind openai -backend http://127.0.0.1:1234/v1 -model your-model -context-limit 16384
+Use `openai` for other OpenAI-compatible endpoints.
+
+```powershell
+./gektor.exe -tui -backend-kind lmstudio -model your-model -context-limit 16384
 ```
 
 For a hosted service, set a key in the environment or select its variable
@@ -166,7 +170,7 @@ provider summary. These controls currently apply only to ChatGPT.
 | Flag | Default | Meaning |
 |---|---|---|
 | `-backend URL` | `http://127.0.0.1:9931` | Backend base URL: bare origin for a local server, API root for an OpenAI-compatible provider |
-| `-backend-kind KIND` | `llama` | `llama`, `openai`, `kobold`, or `chatgpt`. Select the protocol; `chatgpt` uses browser OAuth and Responses |
+| `-backend-kind KIND` | `llama` | `llama`, `openai`, `kobold`, `lmstudio`, `openrouter`, or `chatgpt`. `chatgpt` uses browser OAuth and Responses |
 | `-model NAME` | `local` | Model name. Ignored by most local servers (they serve whatever weights they started with); required for remote providers |
 | `-context-limit N` | `0` | Remote context window or local fallback. A reported local server window takes precedence; remote backends fall back to a per-model estimate unless set |
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |
@@ -304,7 +308,7 @@ gektor.exe -profile profiles\llama-external.json -user-name Alex -system-prompt 
 ## SSH credentials
 
 For SSH passwords and private keys, see
-[supplying SSH credentials](operations.md#supplying-credentials-in-the-cli-and-tui).
+[supplying SSH credentials](ssh.md#supplying-credentials-in-the-cli-and-tui).
 SSH currently uses named user profiles and environment references; there is no
 dedicated SSH credential CLI flag or TUI editor.
 
@@ -561,9 +565,9 @@ no model backend. Services read current bindings on each call. `inspect` returns
 non-secret endpoint metadata, revision and revocation status. `revoke` permanently
 disables that name, including in running services; deleting and saving the name
 again does not restore access.
-See [SSH setup and credentials](operations.md#supplying-credentials-in-the-cli-and-tui).
+See [SSH setup and credentials](ssh.md#supplying-credentials-in-the-cli-and-tui).
 
 SSH profiles may use `password_ref` or `passphrase_ref` IDs created through the
 Windows TUI's masked prompt. They are alternatives to the corresponding `_env`
 fields. `ssh list` shows IDs, never the saved values. There are no raw-secret CLI
-flags. See [saved credential storage](operations.md#saved-passwords-and-key-passphrases).
+flags. See [saved credential storage](ssh.md#saved-passwords-and-key-passphrases).

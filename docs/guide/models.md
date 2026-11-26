@@ -19,16 +19,21 @@ connection is reported as a request error.
 
 ## Local server or OpenAI-compatible API
 
-In Settings > Model connection, choose the protocol and enter the server address.
-For llama.cpp the default address is `http://127.0.0.1:9931`. For LM Studio or an
-OpenAI-compatible API, choose `openai` and include `/v1` when the provider requires it.
-Supply its actual model ID and context limit. Apply the settings before sending a task.
+Open **Settings > Model connection** and choose a **Provider**.
+
+- **llama.cpp** uses `http://127.0.0.1:9931` by default.
+- **LM Studio** uses `http://127.0.0.1:1234/v1` by default. Start its local server and load a model first.
+- **OpenRouter** reads `OPENROUTER_API_KEY` at its default endpoint. For a custom endpoint, press `F4` in Model connection and set **API key environment variable**.
+- **OpenAI-compatible** takes the API root supplied by your service, including `/v1` where required.
+
+Choose a model from the picker or type its ID, then apply the settings.
+Set a context limit in **Response settings** if you need a different budget.
 
 From the extracted application folder on Windows:
 
 ```powershell
 .\gektor.exe -tui -backend-kind llama -backend http://127.0.0.1:9931
-.\gektor.exe -tui -backend-kind openai -backend http://127.0.0.1:1234/v1 -model your-model -context-limit 16384
+.\gektor.exe -tui -backend-kind lmstudio -model your-model -context-limit 16384
 ```
 
 These are alternative connections. On Linux, replace `.\gektor.exe` with `./gektor`.
@@ -53,42 +58,31 @@ it does not require an API key. Connect before starting a task:
 .\gektor.exe -tui -backend-kind chatgpt -model gpt-6.1-sol -context-limit 32768
 ```
 
-Use an available model ID from `auth models`. The endpoint is fixed to
-`https://api.openai.com/v1`; local-server URLs and API-key environment variables
-do not apply. `auth status` shows the connection; `auth logout` revokes it.
+Use a model ID from `auth models`. A successful `auth test` confirms that the
+account can run that model. GEKTOR fixes the endpoint to
+`https://api.openai.com/v1`. Run `auth status` to check the connection or
+`auth logout` to revoke it.
 `auth login --new` adds an account, `auth accounts` lists registrations and
 `auth select <id>` selects one for subsequent requests. Switch accounts between
 runs. Credentials are independent of workspace profiles and session history.
 
-Credentials live under `~/.gektor/auth/chatgpt`. Windows encrypts the store with
-user-bound DPAPI; Unix uses a private directory and owner-only file. Refreshes
-are locked across processes. Login callbacks validate state, PKCE, the signed
-ID token, nonce and the granted plan-usage scope. Tokens never enter profiles,
-transcripts or debug output.
-
-This backend uses Responses with streaming and client-maintained history.
-GEKTOR still executes tools under its normal permissions. Opaque reasoning state
-is retained with assistant messages for session resume and is replayed only to
-this backend with the same model. Visible reasoning is a provider summary,
-when supplied. Image input support comes from the account model catalog's
-`input_modalities`. Models declaring `image` enable image-reading tools and
-attachments. Missing metadata remains unknown; explicitly text-only models reject
-images before inference.
+GEKTOR executes tools using its normal permissions. The account model catalog
+determines which models accept images. See [account storage and binding](../reference/configuration.md#connection-ownership)
+and [Responses replay](../../ARCHITECTURE.md#execution-and-limits).
 
 Sampling and `max_output_tokens` are unsupported on this OAuth route.
 Use `-reasoning-effort high` to select an effort level, or leave it unset for
 the model default. Settings > Response settings lists levels from the selected
 account's model catalog. Unsupported levels fail before inference.
-Enable `-reasoning-summary` to request a visible thinking summary; Ctrl+G
-cycles collapsed, expanded and hidden thinking. This is a provider summary, not raw hidden reasoning.
+Use `-reasoning-summary` to show the provider's thinking summary when available.
+Press `Ctrl+G` to cycle through collapsed, expanded and hidden views.
 Both controls are saved in profiles and currently apply only to ChatGPT.
 
 Temperature and response-limit controls are hidden in Settings; `-max-tokens`
 remains a local planning budget, not a server-enforced generation limit.
 The configured context limit is also a local budget, not a measured model window;
 the default without a profile is 32768. Plan-usage limits stop the run and refer
-to ChatGPT Settings > Usage. Account eligibility and model access require a
-successful inference request, not just a successful login or model listing.
+to ChatGPT Settings > Usage.
 
 See [OpenAI sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
 and [route limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
