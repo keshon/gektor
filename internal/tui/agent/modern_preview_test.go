@@ -218,7 +218,7 @@ func TestModernStatusMenuOpensAboveComposer(t *testing.T) {
 	}
 }
 
-func TestModernShowsLatestWhileScrolledUp(t *testing.T) {
+func TestModernLatestWorksWithoutComposerHint(t *testing.T) {
 	defer screen.SetModern(false)
 	m := inspectorModel(t, 80)
 	m.applyAppearance(config.Appearance{Style: "modern", Frame: "minimal"})
@@ -226,8 +226,8 @@ func TestModernShowsLatestWhileScrolledUp(t *testing.T) {
 	m.transcript.Viewport.GotoTop()
 	m.fitBottom()
 	scrolled := ansi.Strip(m.testView().Content)
-	if !strings.Contains(scrolled, "Scrolled up") || !strings.Contains(scrolled, "ENTER send") || m.transcript.Follow {
-		t.Fatal("scrolled conversation lost its indicator or follows automatically")
+	if strings.Contains(scrolled, "Scrolled up") || strings.Contains(scrolled, "ENTER send") || m.transcript.Follow {
+		t.Fatal("scrolled conversation showed composer hints or followed automatically")
 	}
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
 	latest := ansi.Strip(m.testView().Content)

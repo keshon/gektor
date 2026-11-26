@@ -111,7 +111,7 @@ func TestSessionTitlePreservesManualChangesAndDeletedSessions(t *testing.T) {
 	}
 }
 
-func TestStartingTurnCancelsTitleBeforeBackendCall(t *testing.T) {
+func TestStartingTurnDefersTitleUntilTheNextSuccessfulAnswer(t *testing.T) {
 	m := titleModel(t)
 	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
 		t.Error("cancelled title reached backend")
@@ -123,12 +123,32 @@ func TestStartingTurnCancelsTitleBeforeBackendCall(t *testing.T) {
 	m.startRun(func(context.Context) (string, error) { return "done", nil })
 	defer m.cancel()
 	<-finished
-	if m.titleJob != nil {
-		t.Fatal("turn did not cancel title job")
+	if m.titleJob == nil || m.titleJob.cancel != nil {
+		t.Fatal("turn did not defer the pending title")
 	}
 	m.acceptSessionTitle(cmd().(sessionTitleMsg))
 	if m.sessionTitle != "Please fix the queue bug" {
 		t.Fatal("late title changed the running session")
+	}
+
+	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+		return llm.ChatResponse{Message: llm.Message{Content: "Message queue bug"}}, nil
+	})
+	_, next := m.testUpdate(doneMsg{answer: "The queue is fixed"})
+	for result := next(); ; {
+		if batch, ok := result.(tea.BatchMsg); ok {
+			result = batch[0]()
+			continue
+		}
+		msg, ok := result.(sessionTitleMsg)
+		if !ok {
+			t.Fatal("successful follow-up did not reschedule the title")
+		}
+		m.acceptSessionTitle(msg)
+		break
+	}
+	if m.sessionTitle != "Message queue bug" {
+		t.Fatal("title was not updated", m.sessionTitle)
 	}
 }
 

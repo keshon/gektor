@@ -264,8 +264,9 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	if !m.beginWork() {
 		return
 	}
-	if m.titleJob != nil && m.titleJob.cancel != nil {
-		m.cancelSessionTitle()
+	if job := m.titleJob; job != nil && job.cancel != nil {
+		job.cancel()
+		m.titleJob = &sessionTitleJob{stateFile: job.stateFile, request: job.request, fallback: job.fallback}
 	}
 	m.cancelEvaluation()
 	m.cancel()

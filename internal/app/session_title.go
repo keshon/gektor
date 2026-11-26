@@ -12,7 +12,7 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 )
 
-// GenerateSessionTitle makes one bounded request using the selected client.
+// GenerateSessionTitle names a session using the selected client and a bounded budget.
 // It receives no conversation history, tools, files or attachments.
 func GenerateSessionTitle(ctx context.Context, client llm.Client, request string) (string, error) {
 	text := []rune(strings.TrimSpace(request))
@@ -24,10 +24,17 @@ func GenerateSessionTitle(ctx context.Context, client llm.Client, request string
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	resp, err := client.Chat(ctx, llm.ChatRequest{
+	req := llm.ChatRequest{
 		Messages:  []llm.Message{{Role: llm.RoleSystem, Content: prompts.SessionTitle}, {Role: llm.RoleUser, Content: string(text[:min(len(text), 2000)])}},
 		MaxTokens: 384, Temperature: 0.2,
-	})
+	}
+	resp, err := client.Chat(ctx, req)
+	if err == nil && ctx.Err() == nil && resp.FinishReason == "length" &&
+		strings.TrimSpace(resp.Message.Content) == "" && resp.Message.Reasoning != "" && len(resp.Message.ToolCalls) == 0 {
+		// Some reasoning models spend the entire small budget before writing the title.
+		req.MaxTokens = 1536
+		resp, err = client.Chat(ctx, req)
+	}
 	if err != nil {
 		return "", err
 	}

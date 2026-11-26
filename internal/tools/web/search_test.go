@@ -125,3 +125,24 @@ func TestDuckDuckGoChallengeIsNotAnEmptySearch(t *testing.T) {
 		t.Fatalf("expected a challenge error, got %v", err)
 	}
 }
+
+func TestWikipediaSearchResults(t *testing.T) {
+	client := &http.Client{Transport: &mockTransport{
+		status: http.StatusOK,
+		body:   `{"query":{"search":[{"pageid":42,"title":"Apocalypse Now","snippet":"A <span class=\"searchmatch\">film</span> &amp; adaptation"}]}}`,
+	}}
+	results, err := queryWikipedia(t.Context(), "Apocalypse Now", client)
+	if err != nil || len(results) != 1 {
+		t.Fatal(results, err)
+	}
+	want := Result{Title: "Apocalypse Now", Snippet: "A film & adaptation", URL: "https://en.wikipedia.org/?curid=42"}
+	if results[0] != want {
+		t.Fatalf("got %+v, want %+v", results[0], want)
+	}
+
+	client.Transport = &mockTransport{status: http.StatusOK, body: `{"error":{"code":"search-disabled"}}`}
+	_, err = queryWikipedia(t.Context(), "Apocalypse Now", client)
+	if err == nil || !strings.Contains(err.Error(), "search-disabled") {
+		t.Fatal("expected an API error", err)
+	}
+}

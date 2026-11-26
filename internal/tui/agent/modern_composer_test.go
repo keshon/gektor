@@ -84,11 +84,12 @@ func TestModernDraftNoticesShareQueueSpacing(t *testing.T) {
 			if view.Cursor == nil || queue.Y != view.Cursor.Y+2 {
 				t.Fatal("queue shifted away from the draft", frame, reading)
 			}
-			for i, label := range []string{notice, "Retrying connection"} {
-				row := rows[queue.Y+1+i]
-				if x := strings.Index(row, label); x < 0 || ansi.StringWidth(row[:x]) != queue.X {
-					t.Fatal("composer notice did not align with the queue", frame, label, x, queue.X)
-				}
+			row := rows[queue.Y+1]
+			if x := strings.Index(row, notice); x < 0 || ansi.StringWidth(row[:x]) != queue.X {
+				t.Fatal("composer notice did not align with the queue", frame, notice, x, queue.X)
+			}
+			if strings.Contains(strings.Join(rows[queue.Y:], "\n"), "Retrying connection") {
+				t.Fatal("retry hint appeared in the composer", frame)
 			}
 		}
 	}

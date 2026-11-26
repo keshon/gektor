@@ -411,7 +411,7 @@
       },
       {
         "Name": "search_web",
-        "Description": "Search the web for information. Returns a list of results with titles, snippets, and URLs. Supported engines: duckduckgo.",
+        "Description": "Search the web or Wikipedia. Returns titles, snippets, and URLs. Engines: duckduckgo, wikipedia.",
         "Parameters": {
           "type": "object",
           "properties": {
@@ -420,7 +420,7 @@
             },
             "engine": {
               "type": "string",
-              "description": "search engine to use (duckduckgo). Default is duckduckgo."
+              "description": "search engine to use (duckduckgo, wikipedia). Default is duckduckgo."
             }
           },
           "required": [
@@ -966,7 +966,7 @@
       },
       {
         "Name": "search_web",
-        "Description": "Search the web for information. Returns a list of results with titles, snippets, and URLs. Supported engines: duckduckgo.",
+        "Description": "Search the web or Wikipedia. Returns titles, snippets, and URLs. Engines: duckduckgo, wikipedia.",
         "Parameters": {
           "type": "object",
           "properties": {
@@ -975,7 +975,7 @@
             },
             "engine": {
               "type": "string",
-              "description": "search engine to use (duckduckgo). Default is duckduckgo."
+              "description": "search engine to use (duckduckgo, wikipedia). Default is duckduckgo."
             }
           },
           "required": [

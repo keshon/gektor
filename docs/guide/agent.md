@@ -61,6 +61,11 @@ work in either UI style. Choose **Braille spinner**, **Blinking square**, or
 The `/theme <name>` command saves and applies it immediately; use `/theme` to
 list the names.
 
+## Web search
+
+Agent uses DuckDuckGo for general web search. Ask it to search Wikipedia to
+look up articles in English Wikipedia. Both options work without an API key.
+
 ## Stop, retry and continue
 
 Press `Esc` to stop an active turn. Stopping does not undo completed changes.

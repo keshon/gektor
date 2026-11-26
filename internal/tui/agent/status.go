@@ -35,20 +35,7 @@ func (m *Model) statusLine() string {
 		hint = selected
 	}
 	if !m.transcript.Follow && m.state == stDone {
-		if currentPalette().Modern {
-			const indicator = "Scrolled up"
-			width := m.transcript.Viewport.Width() - modernNoticeInset - len(indicator) - 2
-			shortcuts := popup.Shortcuts(width, m.shortcutStyles(),
-				popup.Shortcut{Key: "Ctrl+End", Action: "Latest"},
-				popup.Shortcut{Key: "Enter", Action: "send"},
-				popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
-			hint = indicator
-			if keys := strings.TrimRight(shortcuts, " "); keys != "" {
-				hint = keys + "  " + indicator
-			}
-		} else {
-			hint += "  Scrolled up"
-		}
+		hint += "  Scrolled up"
 	}
 	return m.styles.Status.Render(hint)
 }

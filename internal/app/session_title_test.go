@@ -33,6 +33,24 @@ func TestGenerateTitleBoundsRequestAndUsesUserLanguage(t *testing.T) {
 	}
 }
 
+func TestGenerateTitleRetriesWhenReasoningConsumesTheBudget(t *testing.T) {
+	calls := 0
+	client := titleClient(func(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+		calls++
+		if calls == 1 {
+			return llm.ChatResponse{FinishReason: "length", Message: llm.Message{Reasoning: "Thinking"}}, nil
+		}
+		if req.MaxTokens != 1536 || len(req.Tools) != 0 {
+			t.Fatal("retry did not use the bounded title request")
+		}
+		return llm.ChatResponse{Message: llm.Message{Content: "Полковник Курц в Апокалипсисе сегодня"}}, nil
+	})
+	title, err := GenerateSessionTitle(t.Context(), client, "Расскажи про Полковника Курца")
+	if err != nil || title != "Полковник Курц в Апокалипсисе сегодня" || calls != 2 {
+		t.Fatal(title, err, calls)
+	}
+}
+
 func TestGenerateTitleRejectsBadResponsesWithoutRetry(t *testing.T) {
 	for _, tc := range []struct {
 		name, text, finish string

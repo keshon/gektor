@@ -31,7 +31,7 @@ func (m *Model) composerLayout() composerLayout {
 	layout := composerLayout{badges: m.headerBadges()}
 	blank := strings.Repeat(" ", width)
 	status := m.composerStatus()
-	if status != "" && (!palette.Modern || m.state == stPermission || m.chrome.DialogInfo().Kind != screen.NoDialog) {
+	if status != "" {
 		layout.rows = append(layout.rows, cellLine(status, width))
 	}
 
@@ -49,7 +49,7 @@ func (m *Model) composerLayout() composerLayout {
 			layout.note = pane.Rect{Y: len(layout.rows) - 1, Width: width, Height: 1}
 		}
 	default:
-		m.composeDraft(&layout, palette, blank, status, width)
+		m.composeDraft(&layout, palette, blank, width)
 	}
 
 	layout.panel = m.panelGeometry(m.mainWidth(), len(layout.rows), false, true)
@@ -66,7 +66,7 @@ func (m *Model) composerLayout() composerLayout {
 	return layout
 }
 
-func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, blank, status string, width int) {
+func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, blank string, width int) {
 	if palette.Modern && !palette.Outlined {
 		layout.rows = append([]string{blank}, layout.rows...)
 	}
@@ -109,7 +109,7 @@ func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, bl
 
 	indent := strings.Repeat(" ", modernNoticeInset)
 	noticeWidth := max(width-modernNoticeInset, 0)
-	if len(queueLabels) > 0 || attachment != "" || status != "" {
+	if len(queueLabels) > 0 || attachment != "" {
 		layout.rows = append(layout.rows, blank)
 	}
 	if len(queueLabels) > 0 {
@@ -119,9 +119,6 @@ func (m *Model) composeDraft(layout *composerLayout, palette *screen.Palette, bl
 	}
 	if attachment != "" {
 		layout.rows = append(layout.rows, indent+cellLine(attachment, noticeWidth))
-	}
-	if status != "" {
-		layout.rows = append(layout.rows, indent+cellLine(status, noticeWidth))
 	}
 	layout.rows = append(layout.rows, blank)
 	layout.badgeRow = len(layout.rows)
@@ -166,8 +163,7 @@ func (m *Model) syncComposerHeight() {
 }
 
 func (m *Model) composerStatus() string {
-	if currentPalette().Modern && m.state == stDone && m.transcript.Follow &&
-		m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
+	if currentPalette().Modern && m.state != stPermission {
 		return ""
 	}
 	if m.state == stRunning && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil {
