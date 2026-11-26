@@ -111,7 +111,7 @@ func TestSessionTitlePreservesManualChangesAndDeletedSessions(t *testing.T) {
 	}
 }
 
-func TestStartingTurnDefersTitleUntilTheNextSuccessfulAnswer(t *testing.T) {
+func TestStartingTurnDefersTitleUntilTheNextTurnEnds(t *testing.T) {
 	m := titleModel(t)
 	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
 		t.Error("cancelled title reached backend")
@@ -152,7 +152,7 @@ func TestStartingTurnDefersTitleUntilTheNextSuccessfulAnswer(t *testing.T) {
 	}
 }
 
-func TestTitleGenerationStartsOnlyAfterAnswer(t *testing.T) {
+func TestTitleGenerationStartsWhenTurnEnds(t *testing.T) {
 	m := titleModel(t)
 	calls := 0
 	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
@@ -204,40 +204,55 @@ func TestManualRenameCancelsInFlightTitle(t *testing.T) {
 	}
 }
 
-func TestTitleGenerationSkipsFailedInterruptedAndActiveTurns(t *testing.T) {
-	for _, variant := range []string{"failed", "interrupted", "empty", "active", "externally renamed"} {
+func TestTitleGenerationRunsWhenTheTurnEndsWithoutAnAnswer(t *testing.T) {
+	for _, variant := range []string{"failed", "interrupted", "empty"} {
 		t.Run(variant, func(t *testing.T) {
 			m := titleModel(t)
-			m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
-				t.Fatal("unexpected title request")
-				return llm.ChatResponse{}, nil
-			})
-			msg := doneMsg{answer: "An answer"}
+			m.state = stRunning
+			msg := doneMsg{}
 			switch variant {
 			case "failed":
 				msg.err = errors.New("backend failed")
 			case "interrupted":
 				m.interrupted = true
-			case "empty":
-				msg.answer = ""
-			case "active":
-				m.state = stRunning
-			case "externally renamed":
-				if err := conversation.WriteSessionTitle(filepath.Dir(m.stateFile), "My title"); err != nil {
-					t.Fatal(err)
-				}
+				msg.err = context.Canceled
 			}
-			if variant == "active" || variant == "externally renamed" {
-				if m.generateSessionTitle() != nil {
-					t.Fatal("scheduled unwanted request")
+
+			_, cmd := m.testUpdate(msg)
+			result := cmd()
+			for {
+				batch, ok := result.(tea.BatchMsg)
+				if !ok {
+					break
 				}
-				return
+				result = batch[0]()
 			}
-			m.testUpdate(msg)
-			if m.titleJob == nil || m.titleJob.cancel != nil {
-				t.Fatal("title generation started without a successful answer")
+			title, ok := result.(sessionTitleMsg)
+			if !ok {
+				t.Fatal("turn completion did not schedule the title")
+			}
+			m.acceptSessionTitle(title)
+			if m.sessionTitle != "Message queue bug" {
+				t.Fatal("title was not updated", m.sessionTitle)
 			}
 		})
+	}
+}
+
+func TestTitleGenerationSkipsActiveAndExternallyRenamedSessions(t *testing.T) {
+	m := titleModel(t)
+	m.state = stRunning
+	if m.generateSessionTitle() != nil {
+		t.Fatal("scheduled a title while the turn was running")
+	}
+
+	m.state = stDone
+	err := conversation.WriteSessionTitle(filepath.Dir(m.stateFile), "My title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.generateSessionTitle() != nil {
+		t.Fatal("scheduled a title for an externally renamed session")
 	}
 }
 
