@@ -74,7 +74,7 @@ func runWorkflow(args []string) error {
 		if len(args) != 1 {
 			return fmt.Errorf("%s", workflowUsage)
 		}
-		out, err := (workflow.Schema{Registry: func() (*workflowcore.Registry, error) { return app.WorkflowRegistry(nil, "", nil, nil) }}).Run(ctx, json.RawMessage(`{}`))
+		out, err := (workflow.Schema{Registry: func() (*workflowcore.Registry, error) { return app.WorkflowRegistry(nil, "", nil, nil) }}).Run(ctx, json.RawMessage(`{"all_operations":true}`))
 		if err != nil {
 			return err
 		}

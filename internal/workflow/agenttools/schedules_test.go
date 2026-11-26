@@ -100,7 +100,7 @@ func TestWorkflowSchemaAdvertisesScheduleTrigger(t *testing.T) {
 	out, err := (Schema{WS: ws, StoreDir: t.TempDir(), Registry: func() (*workflowcore.Registry, error) {
 		return app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	},
-	}).Run(t.Context(), json.RawMessage(`{}`))
+	}).Run(t.Context(), json.RawMessage(`{"all_operations":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}

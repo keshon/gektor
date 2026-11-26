@@ -440,6 +440,49 @@ unchanged. This is a separate experiment, not a passing rerun of the original
 Measurements and limitations from the first local run are recorded in the
 [2026-11-26 benchmark report](../docs/internal/benchmark-2026-11-26.md).
 
+### Focused workflow authoring
+
+`TestLiveWorkflowAuthor` measures authoring from an existing repaired project and
+pending question. Set `GEKTOR_LIVE_AUTHOR_FROM` to a retained journey directory
+containing `pending.state.json` and `repaired-workspace`. That journey must have
+reached the question checkpoint; its later authoring phase need not have passed.
+Set `GEKTOR_LIVE_AUTHOR_DIR` to a fresh directory outside the source directory,
+with an existing parent. Run from the repository root, alone against the server.
+
+```powershell
+$env:GEKTOR_LIVE_AUTHOR_FROM = 'D:/Temp/gektor-journey-with-checkpoint'
+$env:GEKTOR_LIVE_AUTHOR_DIR = 'D:/Temp/gektor-workflow-author-run1'
+$env:GEKTOR_LIVE_BACKEND = 'http://127.0.0.1:9931'
+go test ./cmd/eval -run '^TestLiveWorkflowAuthor$' -count=1 -timeout 20m -v
+Remove-Item Env:GEKTOR_LIVE_AUTHOR_FROM, Env:GEKTOR_LIVE_AUTHOR_DIR, Env:GEKTOR_LIVE_BACKEND
+```
+
+The backend defaults to `http://127.0.0.1:9931` when unset and must report a model
+name containing `Surogate3.7`. The trial allows 24 model requests, including the
+final answer, with 8192 output tokens per request and a 15-minute overall execution
+deadline. Ordinary tests skip it unless the authoring environment variables are set.
+
+The runner copies the repaired workspace and actual pending checkpoint, supplies
+the same explicit operator answer, and resumes with the original
+[workflow task](prompts/journey-ledger-workflow.md) plus a relocation note. Hidden
+ledger acceptance runs before and after authoring, including after a failed model
+run. Successful completion also requires a passed harness verification receipt,
+preserved library/CLI/module files, and the same independent workflow oracle used
+by the full journey: two fresh inputs, explicit publication review, correct report
+artifacts, and rejection of malformed input. The model must not execute the recipe.
+
+`author.json` records the reached phase, error, run report, request timings,
+acceptance results and input hashes. `meta.json` records binary, source and prompt
+identities. The output retains request traces, original and relocated task text,
+checkpoint copies, the working project and any workflow run evidence. The runner
+checks that the entire source directory remains unchanged, including on failure.
+
+This trial excludes repairing the project and creating the question checkpoint.
+It measures the resumed authoring phase and programmatic workflow review, not TUI
+interaction. Passing artifact checks does not turn an unfinished model run into a
+pass. Compare repeated trials with the same source checkpoint, model and budgets;
+one successful run does not establish a reliability rate.
+
 ## Discovery integration checks
 
 The opt-in Go checks use the shipping Interactive role against llama.cpp with

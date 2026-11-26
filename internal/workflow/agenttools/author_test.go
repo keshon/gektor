@@ -19,7 +19,7 @@ func TestWorkflowSchemaSelectsOperations(t *testing.T) {
 		t.Fatal(err)
 	}
 	tool := Schema{Registry: func() (*workflow.Registry, error) { return registry, nil }}
-	full, err := tool.Run(t.Context(), json.RawMessage(`{}`))
+	full, err := tool.Run(t.Context(), json.RawMessage(`{"all_operations":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestWorkflowSchemaSelectsOperations(t *testing.T) {
 		}
 		t.Logf("operations=%v full=%d bytes filtered=%d bytes reduction=%.1f%%", names, len(full), len(filtered), 100*(1-float64(len(filtered))/float64(len(full))))
 	}
-	after, err := tool.Run(t.Context(), json.RawMessage(`{}`))
+	after, err := tool.Run(t.Context(), json.RawMessage(`{"all_operations":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +87,8 @@ func TestWorkflowSchemaRejectsInvalidOperationSelection(t *testing.T) {
 	}}
 	tooMany := `{"operations":[` + strings.Repeat(`"run_program",`, 32) + `"run_program"]}`
 	for _, args := range []string{
+		`{"operations":["run_program"],"all_operations":true}`,
+		`{"record_kind":"assets","all_operations":true}`,
 		`{"operations":["not_registered"]}`,
 		`{"operations":["run_program","not_registered"]}`,
 		`{"operations":["workflow_bind"]}`,
@@ -104,6 +106,34 @@ func TestWorkflowSchemaRejectsInvalidOperationSelection(t *testing.T) {
 			t.Fatalf("invalid filter returned catalog: args=%s out=%s err=%v", args, out, err)
 		}
 	}
+}
+
+func TestWorkflowSchemaDefaultCatalogIsCompactAndComplete(t *testing.T) {
+	registry, err := app.WorkflowRegistry(nil, "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := Schema{Registry: func() (*workflow.Registry, error) { return registry, nil }}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var catalog struct {
+		Names     []string        `json:"operation_names"`
+		Next      string          `json:"next"`
+		Contracts json.RawMessage `json:"operation_contracts"`
+	}
+	err = json.Unmarshal([]byte(out), &catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(catalog.Names, registry.Names()) || len(catalog.Contracts) != 0 || !strings.Contains(catalog.Next, "operations") {
+		t.Fatalf("default discovery omitted names or exposed full contracts: %s", out)
+	}
+	if len(out) > 2048 {
+		t.Fatalf("default catalog needs paging: %d bytes", len(out))
+	}
+	t.Logf("default discovery: %d bytes for %d operations", len(out), len(catalog.Names))
 }
 
 func TestWorkflowSchemaUnknownOperationListsPublicNames(t *testing.T) {
@@ -136,7 +166,7 @@ func TestWorkflowContractsAndRunnableExample(t *testing.T) {
 	out, err := (Schema{WS: ws, StoreDir: base, Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(ws, base, nil, nil)
 	},
-	}).Run(t.Context(), json.RawMessage(`{}`))
+	}).Run(t.Context(), json.RawMessage(`{"all_operations":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +291,7 @@ func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
 	schema := Schema{Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(nil, "", nil, nil)
 	}}
-	out, err := schema.Run(t.Context(), json.RawMessage(`{}`))
+	out, err := schema.Run(t.Context(), json.RawMessage(`{"all_operations":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}

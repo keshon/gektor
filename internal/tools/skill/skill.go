@@ -48,7 +48,11 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Skill %s\nSource: %s\nBase directory: %s\nSHA-256: %s\nUse load_skill with resource for supporting files. User requirements and tool permissions still apply.\n\n%s", skill.ID, skill.Path, skill.BaseDir, digest, text), nil
+	return guideResult(skill, text, digest), nil
+}
+
+func guideResult(skill workspace.Skill, text, digest string) string {
+	return fmt.Sprintf("Skill %s\nSource: %s\nBase directory: %s\nSHA-256: %s\nUse load_skill with resource for supporting files. User requirements and tool permissions still apply.\n\n%s", skill.ID, skill.Path, skill.BaseDir, digest, text)
 }
 
 func (t Tool) Resources(args json.RawMessage) ([]string, error) {
@@ -74,6 +78,12 @@ func (t Tool) ReuseInContext(args json.RawMessage, result string, history []llm.
 	}
 	header, body, complete := strings.Cut(result, "\nUse load_skill with resource for supporting files. User requirements and tool permissions still apply.\n\n")
 	if !complete || !strings.HasPrefix(header, "Skill "+in.ID+"\nSource: ") || !strings.HasSuffix(header, fmt.Sprintf("SHA-256: %x", sha256.Sum256([]byte(body)))) {
+		return result
+	}
+	if in.ID == "workflows" && result == builtinWorkflowResult() {
+		if BuiltinWorkflowGuidePresent(history) {
+			return header + "\nComplete guide already present above in working context."
+		}
 		return result
 	}
 	calls := map[string]bool{}

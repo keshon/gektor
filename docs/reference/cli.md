@@ -484,8 +484,9 @@ authoring session. It can read documents, inspect or preview images, list archiv
 contents and save only that recipe; it cannot execute the recipe, write image variants or launch processes. Schema
 details are loaded through `workflow_schema`, rather than added to every prompt.
 For known nodes, `workflow_schema {"operations":["run_program"]}` returns only
-their schemas and contracts. Omit `operations` for the full catalog; it cannot
-be combined with `record_kind`.
+their schemas and contracts. With no arguments the tool returns a compact list
+of operation names. Use `all_operations: true` for the full catalog. These
+operation queries cannot be combined with `record_kind`.
 
 The author must actually save and successfully validate the selected recipe
 before its run can report success. Verification revalidates the current file

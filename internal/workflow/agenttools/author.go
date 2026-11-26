@@ -23,12 +23,12 @@ type Schema struct {
 
 func (Schema) Name() string { return "workflow_schema" }
 func (Schema) Description() string {
-	return "Read recipe format, operation contracts and schedule instructions. Use operations to select known node names; omission returns all. record_kind reads a registered data schema instead. Does not execute operations."
+	return "Discover workflow operation names by default. Request operations for recipe format and selected contracts; all_operations=true returns every contract. record_kind reads a registered data schema instead. Does not execute operations."
 }
 func (Schema) Mode() agent.ToolMode { return agent.Concurrent }
 func (Schema) ReadOnly() bool       { return true }
 func (Schema) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"record_kind":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"},"operations":{"type":"array","minItems":1,"maxItems":32,"items":{"type":"string","minLength":1,"maxLength":128}}},"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"record_kind":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"},"operations":{"type":"array","minItems":1,"maxItems":32,"items":{"type":"string","minLength":1,"maxLength":128}},"all_operations":{"type":"boolean"}},"additionalProperties":false}`)
 }
 func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if s.Registry == nil {
@@ -41,14 +41,18 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 	var in struct {
-		Kind       string   `json:"record_kind"`
-		Operations []string `json:"operations"`
+		Kind          string   `json:"record_kind"`
+		Operations    []string `json:"operations"`
+		AllOperations bool     `json:"all_operations"`
 	}
 	if err := decode(args, &in); err != nil {
 		return "", err
 	}
-	if in.Kind != "" && len(in.Operations) > 0 {
-		return "", fmt.Errorf("operations and record_kind cannot be combined")
+	if in.Kind != "" && (len(in.Operations) > 0 || in.AllOperations) {
+		return "", fmt.Errorf("operation queries and record_kind cannot be combined")
+	}
+	if in.AllOperations && len(in.Operations) > 0 {
+		return "", fmt.Errorf("operations and all_operations cannot be combined")
 	}
 	if in.Kind != "" {
 		if s.WS == nil {
@@ -65,6 +69,13 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	registry, err := s.Registry()
 	if err != nil {
 		return "", err
+	}
+	if len(in.Operations) == 0 && !in.AllOperations {
+		data, err := json.Marshal(struct {
+			Names []string `json:"operation_names"`
+			Next  string   `json:"next"`
+		}{registry.Names(), "Request operations:[names] for recipe format, input/output contracts and examples. Use all_operations:true only when every contract is needed."})
+		return string(data), err
 	}
 	operations := registry.Schemas()
 	contracts := registry.Contracts()
@@ -93,11 +104,7 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		References string                       `json:"references"`
 		Examples   []json.RawMessage            `json:"argument_examples"`
 		Scheduling json.RawMessage              `json:"schedule_trigger"`
-	}{(service.Service{Registry: registry}).DefinitionSchema(), operations, contracts, `Use operation_contracts for descriptions, inputs, outputs and retry safety. output_schema=true means the return value depends on the operation arguments or script. script_transform runs bundled JavaScript and returns exactly its JSON value, without an /output wrapper. Recipe outputs are VALUES or references, not type declarations; steps have no outputs field. v4 references are JSON objects, not strings. No interpolation or workspace prefix is needed. Validation needs values or defaults for referenced inputs. workflow_call returns the called recipe's declared outputs object.`, []json.RawMessage{
-		json.RawMessage(`{"version":4,"name":"Double count","inputs":{"count":{"type":"integer","default":3}},"steps":[{"id":"double","tool":"script_transform","args":{"input":{"$input":"count"},"code":"return input * 2;"}}],"outputs":{"doubled":{"$step":"double"}}}`),
-		json.RawMessage(`{"paths":[{"$input":"source"}]}`),
-		json.RawMessage(`{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/1/output"}]}`),
-	}, json.RawMessage(`{"kind":"schedule","tool":"workflow_schedule","list_tool":"workflow_schedules","status_tool":"workflow_status","storage":"workspace user store, outside recipe JSON","description":"Native cron triggers start saved recipes. Do not add a schedule operation to steps. They appear as Schedule cards in the TUI. No Windows Task Scheduler or system cron is needed.","service_required":true,"service_command":"gektor workflow serve -workspace <workspace>","snapshot":"Creating a schedule freezes the saved recipe and input values; later recipe edits do not update it. Update requires expected_revision from workflow_schedules; refresh_recipe=true explicitly replaces the frozen recipe. workflow_status shows worker ownership and job/run IDs.","example":{"action":"create","id":"uptime-minute","recipe_path":"uptime-checker-recipe.json","cron":"* * * * *","timezone":"UTC"}}`)})
+	}{(service.Service{Registry: registry}).DefinitionSchema(), operations, contracts, `Use operation_contracts for descriptions, inputs, outputs and retry safety. output_schema=true means the return value depends on the operation arguments or script. script_transform runs bundled JavaScript and returns exactly its JSON value, without an /output wrapper. Recipe outputs are VALUES or references, not type declarations; steps have no outputs field. v4 references are JSON objects, not strings. No interpolation or workspace prefix is needed. Validation needs values or defaults for referenced inputs. workflow_call returns the called recipe's declared outputs object.`, workflowArgumentExamples(), json.RawMessage(`{"kind":"schedule","tool":"workflow_schedule","list_tool":"workflow_schedules","status_tool":"workflow_status","storage":"workspace user store, outside recipe JSON","description":"Native cron triggers start saved recipes. Do not add a schedule operation to steps. They appear as Schedule cards in the TUI. No Windows Task Scheduler or system cron is needed.","service_required":true,"service_command":"gektor workflow serve -workspace <workspace>","snapshot":"Creating a schedule freezes the saved recipe and input values; later recipe edits do not update it. Update requires expected_revision from workflow_schedules; refresh_recipe=true explicitly replaces the frozen recipe. workflow_status shows worker ownership and job/run IDs.","example":{"action":"create","id":"uptime-minute","recipe_path":"uptime-checker-recipe.json","cron":"* * * * *","timezone":"UTC"}}`)})
 	return string(data), err
 }
 

@@ -161,7 +161,8 @@ each copied into a new directory with an explicit relocation note and 24 extra
 repair requests. They are not independent fresh repair successes, and their
 different binaries/paths and stochastic generation prevent a causal speed claim.
 The completed repair request totals were 32 and 33 including the original 24.
-No further live attempts were made to obtain a passing recipe.
+No further full repair continuations were made in that phase. The focused
+authoring follow-up below reuses its saved checkpoint.
 
 The opt-in `TestLiveJourney` uses the shipping harness to repair and verify the
 ledger, capture an actual saved pending question, cancel, and resume with an
@@ -177,6 +178,86 @@ input must fail before publication. Offline negative controls reject skipped
 checks, hardcoded inputs, incorrect reports and absent review gates.
 
 Run instructions are maintained in [the evaluation guide](../../eval/README.md#repair-to-workflow-journey).
+
+## Focused authoring follow-up
+
+After committing the initial benchmark as `ece5f15`, authoring trials resume
+`journey-continuation-1/pending.state.json` against a fresh copy of its
+`repaired-workspace`. They preserve the original prompt and answer, add an explicit
+workspace relocation note, and retain the original acceptance criteria. Each
+trial allows 24 model requests, 8192 response tokens and 15 minutes. These are
+authoring-only trials, not fresh repair-to-workflow successes.
+
+The first candidate makes default agent schema discovery a complete names-only
+catalog (42 names, 856 bytes). Named selections include contracts and executable
+scalar, array and artifact-reference examples. `all_operations: true` and the
+CLI retain full-schema access. Command contracts explain executable/argument
+separation. The draft prompt now requests version 4. The separate TUI edit prompt
+was also corrected, after this trial's binary was built; that path was not tested
+by the trial.
+
+Trial 1 (`D:/Temp/gektor-workflow-author-2026-11-26/run1`) completed authoring in
+6 requests and 316.06 seconds overall: 196642 prompt tokens, 133296 cached tokens
+and 5344 generated tokens. All eight tool calls succeeded. It selected three
+operation contracts directly, without full-catalog paging. The recipe used the
+correct array concatenation, literal CLI arguments and artifact `/id` and `/text`
+references. However, it omitted `required: true` on both declared inputs while
+claiming they were required. The independent oracle rejected the recipe before
+execution. Review, repeated-input execution and invalid-input behavior therefore
+remain unverified for this attempt. Hidden ledger acceptance passed before and
+after authoring, and the source checkpoint/workspace remained unchanged.
+
+The trace also contains the same approximately 14 KB built-in guide twice:
+`load_skill workflows` and `enable_capability native_workflows` were issued in one
+batch. This is duplicated context, although it does not add a model round trip.
+
+The frozen first binary is `D:/Temp/gektor-workflow-author-2026-11-26/author.test.exe`,
+SHA-256 `65f1d092bb837ffd842b9c47ee832af50892660617166f8ed6c0dd9d4a7267cc`.
+`author.json` retains the report, timings, checks and provenance; `requests.log`
+retains the actual tool exchange. Invocation is documented in the evaluation
+guide. A shorter single attempt does not establish an efficiency or reliability
+improvement over the earlier continuations, which had different histories.
+
+The second candidate clarifies that `required` defaults to false and that a
+declared default supplies a missing value even when `required` is true. A fourth
+executable example accepts a supplied string and rejects a missing value before
+execution. Capability and skill metadata now explain that activating
+`native_workflows` includes the built-in guide. The second live trace still
+requested both copies: this hint alone did not remove the duplicated context.
+
+Trial 2 (`D:/Temp/gektor-workflow-author-2026-11-26/run2`) **passed** in 8 model
+requests and 353.36 seconds overall: 271474 prompt tokens, 207672 cached tokens
+and 7078 generated tokens. All nine tool calls succeeded. Both inputs explicitly
+declared `required: true`. The independent runner verified:
+
+- Two executions with different fresh inputs, producing exactly `1446\n` and
+  `-630\n` in their report artifacts.
+- A real publication review gate, approved by the test operator after authoring.
+- Rejection of an invalid amount before report publication.
+- Passing hidden ledger acceptance before and after authoring, unchanged repaired
+  code and unchanged source checkpoint/workspace.
+
+The model still spent calls on PATH-tool discovery and a second recipe write.
+Its actual workflow executions were performed by the independent runner, after
+the model finished. The frozen second binary is
+`D:/Temp/gektor-workflow-author-2026-11-26/author-v2.test.exe`, SHA-256
+`46c0cf35a81e22d8f1bb82ff62aec9c0ed8a36a00b2830f5f4988733b528afb5`.
+
+These are two sequential development trials with a candidate change between
+them: one failed and one passed. They are not repeated measurements of a fixed
+candidate, a reliability estimate, or proof of a causal speed improvement.
+
+After these frozen trials, context reuse was extended to recognize the identical
+built-in guide delivered through either skill loading or capability activation.
+This changes only the per-request projection; archives retain both full results.
+Real-agent offline tests cover both call orders, resumed requests, compaction,
+custom skill overrides, changed guides and incomplete or failed results. In the
+test fixture, projected tool content falls from 29484 bytes to 15002 bytes when
+the skill arrives first, or 14888 bytes when activation arrives first. Compaction
+restores full guidance when its earlier copy is absent. This deduplication was
+not included in either live trial; its token and latency impact is unmeasured.
+The final follow-up passes `go test ./...`, the executable build,
+affected-package vet and focused race checks for examples and context reuse.
 
 ## Validation and remaining work
 

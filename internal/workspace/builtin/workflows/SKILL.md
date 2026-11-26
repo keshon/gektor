@@ -1,19 +1,23 @@
 ---
 name: workflows
-description: Create, validate, run and inspect GEKTOR recipes; connect node outputs and manage native schedule triggers.
+description: Built-in guide included by native_workflows activation; no separate load_skill needed. Recipes, nodes and schedules.
 ---
 
 # GEKTOR workflows
 
-In normal Agent mode, enable `native_workflows`, then read `workflow_schema`.
-When needed node names are known, pass `operations: [names]` to read only their
-schemas and contracts. Omit it for the full catalog; do not combine it with `record_kind`.
+In normal Agent mode, enable `native_workflows`. `workflow_schema {}` lists operation
+names. Pass `operations: [names]` for the needed schemas and contracts; request
+`all_operations: true` only for the full catalog. Do not combine these selectors
+with each other or with `record_kind`.
 Draft-only roles use their available schema tool or supplied contracts instead.
 The operation contracts
 describe inputs, outputs, execution effects, concurrency and retry safety. Use those contracts;
 do not search for an external runtime. `script_transform` runs JavaScript in a
 bundled interpreter, with JSON `input` and a JSON return value. It has no file,
 network, environment or module access. Python and Node.js are not needed.
+`args.input` becomes JavaScript `input` directly. If it references an array,
+use `input` as the array: `return ['start'].concat(input);`. `input.labels` only
+applies when `args.input` is an object containing a `labels` field.
 
 Use recipe version 4. A recipe has `version`, `name`, `steps`, and optional
 `inputs` and `outputs`. Steps use `id`, `tool`, `args` and documented behavior
@@ -35,7 +39,11 @@ left or full mode; outputs retain separate left/right values. Duplicate keys
 produce every matching pair. Use strings or integer literals for keys; missing
 or null keys fail. A skipped source is not an empty array.
 
-`inputs` declares types and defaults. `outputs` contains returned VALUES or
+`inputs` declares types, defaults and requiredness. Set `required: true` explicitly
+when the caller must supply a value, for example `{"type":"string","required":true}`.
+Omitting `required` means false. A declared default supplies a missing value even
+when `required` is true; omit the default when omission must fail.
+`outputs` contains returned VALUES or
 references, not type declarations. `{"type":"integer"}` in outputs returns
 that literal object; it does not describe or select an integer result.
 
@@ -77,6 +85,8 @@ Paths are workspace-relative. Read a registered record schema with
 `workflow_schema(record_kind)` before using records; only the operator can
 register schemas. Do not invent record kinds. Artifacts store run outputs;
 they are not ordinary workspace files.
+`artifact_write` returns metadata: pass its `/id` to `artifact_read_text` as `id`.
+That reader returns an object; select `/text` for its content, including in recipe outputs.
 
 For recipe tasks, inspect sources as needed, then save the recipe and call
 `workflow_validate` with required input values. Produce outputs through

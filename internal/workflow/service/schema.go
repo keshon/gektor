@@ -8,7 +8,7 @@ func (s Service) DefinitionSchema() json.RawMessage {
 		"type": "object",
 		"properties": map[string]any{
 			"type":     map[string]any{"type": "string", "enum": []string{"string", "integer", "number", "boolean", "array", "object"}},
-			"required": map[string]any{"type": "boolean"},
+			"required": map[string]any{"type": "boolean", "default": false, "description": "Set true to reject a missing input when no default is declared. Omission means false."},
 			"default":  map[string]any{},
 		},
 		"required":             []string{"type"},
