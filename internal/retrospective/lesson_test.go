@@ -5,8 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func proposedLesson(t *testing.T) (Config, Result) {
@@ -35,7 +38,8 @@ func TestLessonApprovalDiscoveryDeduplicationAndRetirement(t *testing.T) {
 		t.Fatalf("approve: %+v %v", lesson, err)
 	}
 	entries, err := c.Workspace.Skills()
-	if err != nil || len(entries) != 3 || entries[0].Description != when {
+	entries = slices.DeleteFunc(entries, func(skill workspace.Skill) bool { return skill.Source == "builtin" })
+	if err != nil || len(entries) != 1 || entries[0].Description != when {
 		t.Fatalf("discovery: %+v %v", entries, err)
 	}
 	_, metadata := c.Workspace.InstructionSections()
@@ -99,7 +103,7 @@ func TestLessonRejectsChangedArchiveAndInvalidEvidence(t *testing.T) {
 				t.Fatal("accepted invalid lesson")
 			}
 			entries, err := c.Workspace.Skills()
-			if err != nil || len(entries) != 2 {
+			if err != nil || slices.ContainsFunc(entries, func(skill workspace.Skill) bool { return skill.Source != "builtin" }) {
 				t.Fatalf("failed approval published: %+v %v", entries, err)
 			}
 		})

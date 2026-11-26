@@ -68,7 +68,7 @@ func TestCLIBundledSkillsFromSeparateLaunchDirectory(t *testing.T) {
 			if !strings.Contains(prompt, project) {
 				t.Error("agent prompt does not name the selected workspace", project)
 			}
-			for _, id := range []string{"workflows", "visual-investigation"} {
+			for _, id := range []string{"workflows", "visual-investigation", "research-sources"} {
 				if !strings.Contains(prompt, id) {
 					t.Error("initial prompt missing bundled skill", id)
 				}
@@ -88,17 +88,17 @@ func TestCLIBundledSkillsFromSeparateLaunchDirectory(t *testing.T) {
 					found[skill.ID] = skill.Source == "builtin" && skill.Path == "builtin:"+skill.ID+"/SKILL.md"
 				}
 			}
-			if !found["workflows"] || !found["visual-investigation"] || len(found) != 2 {
+			if !found["workflows"] || !found["visual-investigation"] || !found["research-sources"] || len(found) != 3 {
 				t.Error("unexpected skill discovery from external workspace", found)
 			}
-			message["tool_calls"] = []any{toolCall("workflow", "load_skill", `{"id":"workflows"}`), toolCall("visual", "load_skill", `{"id":"visual-investigation"}`)}
+			message["tool_calls"] = []any{toolCall("workflow", "load_skill", `{"id":"workflows"}`), toolCall("visual", "load_skill", `{"id":"visual-investigation"}`), toolCall("research", "load_skill", `{"id":"research-sources"}`)}
 		default:
 			found := map[string]bool{}
 			for _, msg := range body.Messages {
 				if msg.Role != "tool" {
 					continue
 				}
-				for id, marker := range map[string]string{"workflows": "script_transform", "visual-investigation": "image_attachments"} {
+				for id, marker := range map[string]string{"workflows": "script_transform", "visual-investigation": "image_attachments", "research-sources": "references/film.md"} {
 					header, guide, complete := strings.Cut(msg.Content, "\n\n")
 					digest := fmt.Sprintf("SHA-256: %x", sha256.Sum256([]byte(guide)))
 					if complete && strings.HasPrefix(header, "Skill "+id+"\nSource: builtin:"+id+"/SKILL.md\n") && strings.Contains(header, digest) && strings.Contains(guide, marker) {
@@ -106,10 +106,10 @@ func TestCLIBundledSkillsFromSeparateLaunchDirectory(t *testing.T) {
 					}
 				}
 			}
-			if len(found) != 2 {
-				t.Error("agent did not receive both complete bundled guides", found)
+			if len(found) != 3 {
+				t.Error("agent did not receive all complete bundled guides", found)
 			}
-			message["content"], finish = "Both bundled guides loaded.", "stop"
+			message["content"], finish = "All bundled guides loaded.", "stop"
 		}
 		json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": message, "finish_reason": finish}}})
 	}))
