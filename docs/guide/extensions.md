@@ -330,25 +330,28 @@ Roots have the following precedence, from lowest to highest:
 6. Workspace `.agents/skills/`
 7. Workspace `.gektor/skills/`
 
-GEKTOR ships `workflows`, `visual-investigation`, and `research-sources` in the
-executable. They work in any workspace. The research skill loads film and
-medicine source directories on demand.
-Their source files live in `internal/workspace/builtin/` and are embedded at
-build time. They appear with source `builtin` and paths such as
-`builtin:workflows/SKILL.md`; these paths are identifiers, not files to open.
-Use `load_skill` to read them. A user or workspace skill with the same ID
-overrides the built-in guide for skill loading.
+### Built-in and workspace skills
 
-The workflow capability and dedicated workflow author/editor also use the
-shipped guide as their tool reference. Overriding a skill does not replace that
-reference or change the engine's supported operations.
+Put a guide in `internal/workspace/builtin/` when it should ship in the
+executable and serve any workspace. Built-ins cover shipped capabilities
+(`workflows`, `visual-investigation`) or general end-user tasks
+(`research-sources`). The research skill loads topic directories on demand.
 
-The repository's top-level `skills/` contains development guides for working
-on GEKTOR. Those are project skills when this repository is the workspace;
-release archives include these files, but they are not embedded in the executable.
-They are discovered only when their containing project is the workspace or an
-explicit skill root. Archive inclusion does not enable them in every workspace. Skills under `eval/fixtures-*`
-are test data and are not discovered from the workspace root.
+Put development guides and project-specific conventions in the repository's
+top-level `skills/`. Gektor discovers these when this repository is the active
+workspace or you explicitly configure the directory as a skill root. Release
+archives include the files for use as a skill library.
+
+The startup catalog labels the resolved entry as `builtin`, `workspace`, or
+`library`. Use `system_info group=skills` for its exact source and
+`load_skill` to read it. Paths such as `builtin:workflows/SKILL.md` are skill
+identifiers. A higher-precedence skill with the same ID replaces the catalog
+entry and the guide returned by `load_skill`.
+
+The workflow capability and dedicated workflow author/editor use the shipped
+guide as their tool reference. A skill override only affects skill discovery
+and loading. Tool availability and permissions follow the active role and
+application settings.
 
 Relative configured roots resolve against the configuration file's directory.
 Discovery is recursive and skips directory symlinks. Later roots override the

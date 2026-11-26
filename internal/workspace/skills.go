@@ -314,10 +314,17 @@ func (w *Workspace) skillCatalog() string {
 	if len(entries) == 0 {
 		return "\n\nNo valid workspace skills found. Query system_info group=skills after adding packages." + warning
 	}
-	header := "\n\nSkills (ID: summary). Search full metadata with system_info group=skills; load instructions with load_skill(id):\n"
+	header := "\n\nSkills by source. Discover with system_info group=skills, load with load_skill(id):\n"
 	var b strings.Builder
 	for _, skill := range entries {
-		fmt.Fprintf(&b, "- %s", skill.ID)
+		source := "library"
+		switch {
+		case skill.Source == "builtin":
+			source = "builtin"
+		case skill.project:
+			source = "workspace"
+		}
+		fmt.Fprintf(&b, "- %s [%s]", skill.ID, source)
 		if skill.Description != "" {
 			description := []rune(strings.Join(strings.Fields(skill.Description), " "))
 			if len(description) > 120 {

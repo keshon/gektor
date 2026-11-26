@@ -4,13 +4,18 @@ Lean, checklist-style guides for THIS agent — not general documentation
 copied from elsewhere. Written for a small local model: short, directive,
 no prose padding, no theory.
 
+This directory holds opt-in development guides for the active workspace.
+Guides that should ship in the executable and work across workspaces belong
+under `internal/workspace/builtin/`. Keep project conventions here even when
+some advice also applies elsewhere.
+
 Convention: `skills/<name>/SKILL.md`. The workspace adds a bounded metadata
 catalog to the initial context. Full guides load through visible `load_skill`
 calls by ID; workspace guides also work with `read_file`. The agent should name
 the skill it applies. User libraries and project directories are supported,
 with project guides overriding the same ID. Launching from this repository
 does not install its guides into another workspace. See
-[skill roots and precedence](../docs/extensions.md#skill-libraries).
+[skill roots and precedence](../docs/guide/extensions.md#skill-libraries).
 Project/ancestor AGENTS.md instructions load automatically.
 
 Baseline tool discipline lives in the system prompt. Skills cover

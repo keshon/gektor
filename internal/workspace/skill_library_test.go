@@ -42,7 +42,7 @@ func TestMalformedSkillsDoNotHideValidLibraries(t *testing.T) {
 	if _, _, _, err := w.LoadSkill("broken"); err == nil || !strings.Contains(err.Error(), "frontmatter") {
 		t.Fatal("missing invalid-guide diagnostic", err)
 	}
-	for _, marker := range []string{"usable:", "project:", "invalid entries skipped"} {
+	for _, marker := range []string{"usable [library]:", "project [workspace]:", "invalid entries skipped"} {
 		if !strings.Contains(w.Instructions(), marker) {
 			t.Fatalf("catalog missing %q", marker)
 		}

@@ -63,7 +63,7 @@ func TestSkillCatalogLoadsMetadataNotInstructions(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := w.Instructions()
-	if !strings.Contains(got, "custom: Inspect widgets.") || strings.Contains(got, "PRIVATE FULL GUIDE") {
+	if !strings.Contains(got, "custom [workspace]: Inspect widgets.") || strings.Contains(got, "PRIVATE FULL GUIDE") {
 		t.Fatal(got)
 	}
 	// The catalog stays stable within a workspace lifetime (prompt cache).
@@ -90,7 +90,7 @@ func TestCompactSkillCatalogRetainsFullSearchMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	if strings.Contains(w.Instructions(), "TAIL_KEYWORD") || !strings.Contains(w.Instructions(), "reader:") || len(w.Instructions()) > 2048 {
+	if strings.Contains(w.Instructions(), "TAIL_KEYWORD") || !strings.Contains(w.Instructions(), "reader [workspace]:") || len(w.Instructions()) > 2048 {
 		t.Fatal(w.Instructions())
 	}
 	entries, err := w.Skills()

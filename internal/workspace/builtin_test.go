@@ -71,6 +71,10 @@ func TestBundledWorkflowSkillAndProjectOverride(t *testing.T) {
 	if err != nil || skill.Source == "builtin" || !strings.Contains(guide, "Project override") {
 		t.Fatal(skill, guide, err)
 	}
+	_, catalog := w.InstructionSections()
+	if !strings.Contains(catalog, "workflows [workspace]") || !strings.Contains(catalog, "research-sources [builtin]") {
+		t.Fatal("catalog does not identify the resolved source", catalog)
+	}
 }
 
 func TestResearchSourcesReferencesLoadOnDemand(t *testing.T) {
