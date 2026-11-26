@@ -75,9 +75,10 @@ func (m *Model) View() tea.View {
 				v.Cursor.Y += composer.note.Y
 			}
 		}
-	} else if owner == focusInput {
+	} else if owner == focusInput && !m.caretHidden {
 		v.Cursor = m.input.Cursor()
 		if v.Cursor != nil {
+			v.Cursor.Blink = false
 			v.Cursor.X += composer.input.X
 			v.Cursor.Y += composer.input.Y
 		}

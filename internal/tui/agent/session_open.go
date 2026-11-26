@@ -112,13 +112,8 @@ func (m *Model) activateSavedSession(cur sessionEntry, snapshot conversation.Sna
 	m.fitBottom()
 	m.refreshContent()
 
-	// Land at the top: a stale offset into replaced blocks shows
-	// mid-history or blank. follow stays on so live turns behave.
 	m.transcript.Follow = true
-	m.transcript.Viewport.GotoTop()
-	if len(snapshot.Runs) > 0 && snapshot.Runs[len(snapshot.Runs)-1].Outcome != "completed" {
-		m.transcript.Viewport.GotoBottom()
-	}
+	m.transcript.Viewport.GotoBottom()
 
 	if cur.historyMatch {
 		// Match indices refer to renderHistory; the opened marker adds one block.

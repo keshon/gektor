@@ -61,6 +61,7 @@ type doneMsg struct {
 }
 
 type tickMsg time.Time
+type caretTickMsg time.Time
 
 type liveFlushMsg struct{}
 
@@ -136,6 +137,7 @@ type Model struct {
 	started      time.Time
 	elapsed      time.Duration
 	spinnerFrame int
+	caretHidden  bool
 	ready        bool
 	answer       string
 	runErr       error
@@ -391,8 +393,7 @@ func New(ctx context.Context, cfg Config) (model *Model, err error) {
 }
 
 func (m *Model) Init() tea.Cmd {
-	// The terminal owns the native caret's blink and shape.
-	return tea.Batch(waitEvents(m), tick(false, m.busy()), m.takeCommands())
+	return tea.Batch(waitEvents(m), tick(false, m.busy()), caretTick(), m.takeCommands())
 }
 
 // Close cancels screen operations and joins their cleanup before borrowed

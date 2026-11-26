@@ -6,7 +6,9 @@ Use the session list to reopen a conversation. Compaction shortens the model's w
 
 Conversations are saved under `~/.gektor/sessions/` in the normal TUI launch.
 Choose **Open session…** in the Session menu, or press `Ctrl+P`, to search and reopen one.
-Opening a session does not send a new model request.
+The conversation opens at the latest reply. If you open a match from saved
+message history, it jumps to that message. Opening a session does not send a
+new model request.
 
 Choose **Copy session ID** or **Copy session path** in the Session menu to copy
 a reference to the current conversation. The path is the full session folder

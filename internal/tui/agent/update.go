@@ -38,6 +38,14 @@ func tickInterval(revealing, busy bool) time.Duration {
 	}
 }
 
+const caretHalfPeriod = 500 * time.Millisecond
+
+func caretTick() tea.Cmd {
+	now := time.Now()
+	next := now.Truncate(caretHalfPeriod).Add(caretHalfPeriod)
+	return tea.Tick(next.Sub(now), func(at time.Time) tea.Msg { return caretTickMsg(at) })
+}
+
 func tick(revealing, busy bool) tea.Cmd {
 	return tea.Tick(tickInterval(revealing, busy), func(t time.Time) tea.Msg {
 		return tickMsg(t)
@@ -128,6 +136,11 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case evaluationDoneMsg:
 		m.acceptEvaluation(msg)
 		return m, nil
+	case caretTickMsg:
+		// Terminal repaints can restart native blinking. Keep the phase on
+		// its own clock and use a steady native caret while it is visible.
+		m.caretHidden = time.Time(msg).UnixMilli()/caretHalfPeriod.Milliseconds()%2 != 0
+		return m, caretTick()
 	case tickMsg:
 		m.refreshEvaluation()
 		// The clock runs only while a run is in flight (gates

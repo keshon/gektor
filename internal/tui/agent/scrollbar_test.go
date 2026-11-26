@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -165,5 +166,26 @@ func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 				t.Fatal("sidebar intercepted release")
 			}
 		})
+	}
+}
+
+func TestComposerCaretPhaseSurvivesScrollingAndBusyTicks(t *testing.T) {
+	m := scrollModel(t, 80, 24)
+	m.state = stRunning
+	on := time.Unix(0, 0)
+	m.testUpdate(caretTickMsg(on))
+	if caret := m.testView().Cursor; caret == nil || caret.Blink {
+		t.Fatal("expected a visible steady native caret")
+	}
+
+	m.testUpdate(caretTickMsg(on.Add(caretHalfPeriod)))
+	m.testUpdate(tea.MouseWheelMsg{X: 10, Y: paneTop + 1, Button: tea.MouseWheelDown})
+	m.testUpdate(tickMsg(time.Now()))
+	if m.testView().Cursor != nil {
+		t.Fatal("scroll or streaming tick restarted the caret phase")
+	}
+	m.testUpdate(caretTickMsg(on.Add(2 * caretHalfPeriod)))
+	if m.testView().Cursor == nil {
+		t.Fatal("caret did not return on the next phase")
 	}
 }

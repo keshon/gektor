@@ -476,12 +476,12 @@ func TestViewportRefitsOnResize(t *testing.T) {
 	}
 }
 
-// Resume lands at the top of the rebuilt transcript: a stale offset
-// into replaced blocks shows mid-history or blank.
-func TestSessions_ResumeShowsTop(t *testing.T) {
+func TestSessions_ResumeShowsLatestReply(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", compactTestHistory(15))
+	history := compactTestHistory(15)
+	history = append(history, llm.Message{Role: llm.RoleAssistant, Content: "Latest saved reply"})
+	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", history)
 	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	m.wsRoot = t.TempDir()
 	assignSavedWorkspace(t, filepath.Join(m.sessions.entries[0].dir, "state.json"), m.wsRoot)
@@ -494,8 +494,8 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	if mm.sessions != nil {
 		t.Fatal("screen did not close after resume")
 	}
-	if !mm.transcript.Follow || mm.transcript.Viewport.YOffset() != 0 {
-		t.Fatal("resume must land at the top with follow on")
+	if !mm.transcript.Follow || !mm.transcript.Viewport.AtBottom() || !strings.Contains(mm.transcript.Viewport.View(), "Latest saved reply") {
+		t.Fatal("resume must land at the latest reply with follow on")
 	}
 	if mm.currentAppearance() != appearance {
 		t.Fatal("opening history reset View preferences")
