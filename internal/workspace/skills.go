@@ -75,7 +75,11 @@ func (w *Workspace) Skills() ([]Skill, error) {
 	for _, prefix := range []string{"skills", ".agents/skills", ".gektor/skills"} {
 		roots = append(roots, rootSpec{root: w.root, prefix: prefix, source: "project:" + prefix, project: true})
 	}
-	byID := map[string]Skill{"workflows": workflowSkill(), "visual-investigation": bundledSkill("visual-investigation", visualGuide)}
+	byID := map[string]Skill{
+		"workflows":            workflowSkill(),
+		"visual-investigation": bundledSkill("visual-investigation", visualGuide),
+		"research-sources":     bundledSkill("research-sources", researchGuide),
+	}
 	for _, spec := range roots {
 		var rooted *os.Root
 		if spec.project {
@@ -253,6 +257,15 @@ func (w *Workspace) readSkillResource(skill Skill, resource string) ([]byte, err
 		}
 		if skill.ID == "visual-investigation" && resource == "SKILL.md" {
 			return []byte(visualGuide), nil
+		}
+		if skill.ID == "research-sources" {
+			if resource == "SKILL.md" {
+				return []byte(researchGuide), nil
+			}
+			data, err := researchReferences.ReadFile("builtin/research-sources/" + resource)
+			if err == nil {
+				return data, nil
+			}
 		}
 		return nil, fmt.Errorf("unknown bundled skill resource %q", resource)
 	}

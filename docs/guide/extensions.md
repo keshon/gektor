@@ -330,8 +330,9 @@ Roots have the following precedence, from lowest to highest:
 6. Workspace `.agents/skills/`
 7. Workspace `.gektor/skills/`
 
-GEKTOR ships `workflows` and `visual-investigation` in the executable. They work
-in any workspace, without copying files into the project or `~/.gektor`.
+GEKTOR ships `workflows`, `visual-investigation`, and `research-sources` in the
+executable. They work in any workspace. The research skill loads film and
+medicine source directories on demand.
 Their source files live in `internal/workspace/builtin/` and are embedded at
 build time. They appear with source `builtin` and paths such as
 `builtin:workflows/SKILL.md`; these paths are identifiers, not files to open.

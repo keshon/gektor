@@ -14,7 +14,7 @@ func TestBundledSkillsAreAvailableWithoutWorkspaceFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	for _, id := range []string{"workflows", "visual-investigation"} {
+	for _, id := range []string{"workflows", "visual-investigation", "research-sources"} {
 		skill, guide, hash, err := w.LoadSkill(id)
 		if err != nil || skill.Source != "builtin" || skill.Path != "builtin:"+id+"/SKILL.md" || len(hash) != 64 || guide == "" {
 			t.Fatal("bundled guide unavailable in empty workspace", skill, err)
@@ -43,7 +43,7 @@ func TestRepositoryAssetsOutsideSkillRootsAreNotDiscovered(t *testing.T) {
 	}
 	defer w.Close()
 	entries, err := w.Skills()
-	if err != nil || len(entries) != 2 {
+	if err != nil || len(entries) != 3 {
 		t.Fatal("source assets leaked into skill catalog", entries, err)
 	}
 }
@@ -70,5 +70,26 @@ func TestBundledWorkflowSkillAndProjectOverride(t *testing.T) {
 	skill, guide, _, err = w.LoadSkill("workflows")
 	if err != nil || skill.Source == "builtin" || !strings.Contains(guide, "Project override") {
 		t.Fatal(skill, guide, err)
+	}
+}
+
+func TestResearchSourcesReferencesLoadOnDemand(t *testing.T) {
+	w, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	for resource, source := range map[string]string{
+		"references/film.md":     "Margaret Herrick Library",
+		"references/medicine.md": "MedlinePlus",
+	} {
+		_, text, err := w.LoadSkillResource("research-sources", resource)
+		if err != nil || !strings.Contains(text, source) || strings.Contains(w.Instructions(), source) {
+			t.Fatal("reference should load on demand", resource, err)
+		}
+	}
+	_, _, err = w.LoadSkillResource("research-sources", "../workflows/SKILL.md")
+	if err == nil {
+		t.Fatal("research skill accepted a resource outside its package")
 	}
 }
