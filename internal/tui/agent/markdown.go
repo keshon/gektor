@@ -1,10 +1,20 @@
 package agent
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/pkg/tui/components/markdown"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
+
+type clangFormatReadyMsg struct{}
+
+func warmClangFormat() tea.Msg {
+	if !markdown.WarmClangFormat() {
+		return nil
+	}
+	return clangFormatReadyMsg{}
+}
 
 func baseStyle(r role, st styles) lipgloss.Style {
 	switch r {
@@ -19,17 +29,26 @@ func baseStyle(r role, st styles) lipgloss.Style {
 
 func renderMdBlock(b block, raw string, st styles, width int) []string {
 	base := baseStyle(b.role, st)
+	appearance := screen.CurrentPalette()
+	typeColor, symbolColor := "#C9ABED", "#91BAEF"
+	if appearance.Name == "light" {
+		typeColor, symbolColor = "#694397", "#305B90"
+	}
+	typeName := lipgloss.NewStyle().Foreground(lipgloss.Color(typeColor))
+	symbol := lipgloss.NewStyle().Foreground(lipgloss.Color(symbolColor))
 	palette := markdown.Styles{
-		Text:    base,
-		Muted:   st.Dim,
-		Accent:  st.Hunk,
-		Code:    base,
-		Keyword: st.Hunk.Bold(true),
-		String:  st.Add,
-		Number:  st.Warn,
-		Comment: st.Think,
-		Added:   st.Add,
-		Deleted: st.Del,
+		Text:     base,
+		Muted:    st.Dim,
+		Accent:   st.Hunk,
+		Code:     base,
+		Keyword:  st.Hunk.Bold(true),
+		String:   st.Add,
+		Number:   st.Warn,
+		Comment:  st.Think,
+		TypeName: &typeName,
+		Symbol:   &symbol,
+		Added:    st.Add,
+		Deleted:  st.Del,
 	}
 	if b.role == roleThink {
 		palette = markdown.Styles{
@@ -38,7 +57,7 @@ func renderMdBlock(b block, raw string, st styles, width int) []string {
 			Added: base, Deleted: base,
 		}
 	}
-	if screen.CurrentPalette().Modern {
+	if appearance.Modern {
 		palette.Bullet = "▪"
 	}
 	return markdown.Render(raw, width, palette)

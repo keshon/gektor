@@ -15,14 +15,17 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	goldhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 type Styles struct {
 	Bullet                                 string
 	Text, Muted, Accent                    lipgloss.Style
 	Code, Keyword, String, Number, Comment lipgloss.Style
+	TypeName, Symbol                       *lipgloss.Style
 	Added, Deleted                         lipgloss.Style
 }
 
@@ -30,7 +33,11 @@ type Styles struct {
 // visible. It performs no I/O and retains no state. Output uses SGR styling only.
 func Render(source string, width int, styles Styles) []string {
 	source = terminalText(source)
-	p := goldmark.New(goldmark.WithExtensions(extension.Table, extension.Strikethrough))
+	fence := trackedFence{BlockParser: parser.NewFencedCodeBlockParser()}
+	p := goldmark.New(
+		goldmark.WithExtensions(extension.Table, extension.Strikethrough),
+		goldmark.WithParserOptions(parser.WithBlockParsers(util.Prioritized(fence, 699))),
+	)
 	r := renderer{source: []byte(source), styles: styles}
 	doc := p.Parser().Parse(text.NewReader(r.source))
 	return r.blocks(doc, max(width, 1))
@@ -69,7 +76,12 @@ func (r renderer) block(node ast.Node, width int) []string {
 	case *ast.Heading:
 		return wrap(r.inlines(n, r.styles.Text.Bold(true)), width)
 	case *ast.FencedCodeBlock:
-		return r.code(string(n.Lines().Value(r.source)), string(n.Language(r.source)), width)
+		source := string(n.Lines().Value(r.source))
+		language := string(n.Language(r.source))
+		if _, closed := n.AttributeString(closedFence); closed {
+			source = formatCode(source, language)
+		}
+		return r.code(source, language, width)
 	case *ast.CodeBlock:
 		return r.code(string(n.Lines().Value(r.source)), "", width)
 	case *ast.Blockquote:

@@ -20,6 +20,7 @@ require (
 	github.com/pkg/sftp v1.13.12
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+	github.com/tetratelabs/wazero v1.12.0
 	github.com/yuin/goldmark v1.8.7
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/crypto v0.59.0
@@ -27,6 +28,7 @@ require (
 	golang.org/x/net v0.63.0
 	golang.org/x/sys v0.50.0
 	modernc.org/sqlite v1.62.0
+	mvdan.cc/sh/v3 v3.14.1
 )
 
 require (

@@ -61,6 +61,25 @@ work in either UI style. Choose **Braille spinner**, **Blinking square**, or
 The `/theme <name>` command saves and applies it immediately; use `/theme` to
 list the names.
 
+## Code in replies
+
+Agent uses the language tag on a Markdown code fence for syntax coloring. It
+also formats closed fences with these tags:
+
+- Go and JSON (`go`, `golang`, `json`)
+- YAML and shell (`yaml`, `yml`, `bash`, `shell`, `sh`, `posix-shell`)
+- JavaScript and TypeScript (`js`, `javascript`, `jsx`, `ts`, `typescript`, `tsx`)
+- HTML, CSS, SCSS, and GraphQL (`html`, `css`, `scss`, `graphql`, `gql`)
+- Rust, C, and C++ (`rust`, `rs`, `c`, `cpp`, `c++`, `cc`, `cxx`)
+
+Formatting changes how the code looks on screen. The saved conversation keeps
+the original Markdown. Open fences and snippets the formatter cannot handle
+keep their original layout.
+
+GEKTOR prepares its built-in C and C++ formatter in the background when Agent
+starts. If a block appears during warmup, Agent colors the original code and
+refreshes it once ClangFormat is ready.
+
 ## Web search
 
 Agent uses DuckDuckGo for general web search. Ask it to search Wikipedia to

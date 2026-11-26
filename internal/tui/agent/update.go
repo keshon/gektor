@@ -66,6 +66,12 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		}
 	}
 	switch msg := msg.(type) {
+	case clangFormatReadyMsg:
+		m.transcript.render.cache = nil
+		m.refreshContent()
+		m.inspector.pane.render.cache = nil
+		m.refreshInspector()
+		return m, nil
 	case sessionCopiedMsg:
 		if msg.err == nil && currentPalette().Modern {
 			return m, m.chrome.Notify(msg.label + " copied")

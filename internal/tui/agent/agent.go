@@ -393,7 +393,7 @@ func New(ctx context.Context, cfg Config) (model *Model, err error) {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(waitEvents(m), tick(false, m.busy()), caretTick(), m.takeCommands())
+	return tea.Batch(waitEvents(m), tick(false, m.busy()), caretTick(), m.workerCommand(warmClangFormat), m.takeCommands())
 }
 
 // Close cancels screen operations and joins their cleanup before borrowed

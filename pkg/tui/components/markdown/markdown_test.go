@@ -135,6 +135,175 @@ func TestCodeHighlightingPreservesSource(t *testing.T) {
 	}
 }
 
+func TestClosedCodeFencesAreFormattedForDisplay(t *testing.T) {
+	for _, sample := range []struct {
+		name, source, want string
+	}{
+		{"json", "```json\n{\"args\":{\"code\":\"return input * 2;\"}}\n```", "│     \"code\": \"return input * 2;\""},
+		{"go", "```go\nfunc main(){println(1)}\n```", "│ func main() { println(1) }"},
+		{"open json", "```json\n{\"count\":42}", "│ {\"count\":42}"},
+		{"invalid json", "~~~json\n{\"count\":}\n~~~", "│ {\"count\":}"},
+		{"nested fence", "> ~~~json\n> {\"count\":42}\n> ~~~", "│ │   \"count\": 42"},
+		{"yaml", "~~~yml\nconfig: {enabled: true, names: [demo, test]}\n~~~", "│   enabled: true"},
+		{"bash", "~~~bash\nif [[ -n $NAME ]];then echo \"$NAME\";fi\n~~~", "; then echo \"$NAME\"; fi"},
+		{"posix", "~~~posix-shell\nif [ -n \"$NAME\" ];then echo \"$NAME\";fi\n~~~", "; then echo \"$NAME\"; fi"},
+		{"other language", "```python\nx=[1,2,3]\n```", "│ x=[1,2,3]"},
+	} {
+		t.Run(sample.name, func(t *testing.T) {
+			rows := Render(sample.source, 80, testStyles())
+			got := ansi.Strip(strings.Join(rows, "\n"))
+			if !strings.Contains(got, sample.want) {
+				t.Fatalf("missing %q in %q", sample.want, got)
+			}
+		})
+	}
+}
+
+func TestShellAndYAMLFormattingPreserveContent(t *testing.T) {
+	bash := "# keep comment\nif true;then cat <<'EOF'\n  $NAME\nEOF\nfi\n"
+	formatted := formatCode(bash, "bash")
+	if formatted == bash || !strings.Contains(formatted, "# keep comment") || !strings.Contains(formatted, "\n  $NAME\nEOF\n") {
+		t.Fatalf("lost shell structure or literal content: %q", formatted)
+	}
+
+	document := "defaults: &defaults {name: \"yes\", count: 2} # keep comment\ncopy: *defaults\ntext: |\n  line one\n    line two\n"
+	formatted = formatCode(document, "yaml")
+	for _, literal := range []string{"&defaults", "*defaults", `"yes"`, "# keep comment", "  line one\n    line two"} {
+		if !strings.Contains(formatted, literal) {
+			t.Fatalf("missing %q after YAML formatting: %q", literal, formatted)
+		}
+	}
+
+	for _, sample := range []struct{ language, source string }{
+		{"bash", "if true; then"},
+		{"sh", "values=(one two)"},
+		{"yaml", "a: [1, 2"},
+		{"yaml", "---\na: [1, 2]\n---\nb: 3\n"},
+		{"yaml", "%YAML 1.1\n---\na: [yes, no]\n"},
+	} {
+		if got := formatCode(sample.source, sample.language); got != sample.source {
+			t.Fatalf("%s fallback changed: %q", sample.language, got)
+		}
+	}
+}
+
+func TestJavaScriptFamilyFencesFormatWithoutRunningTheSnippet(t *testing.T) {
+	for _, sample := range []struct {
+		language, source, want string
+	}{
+		{"js", "throw new Error('only source');const x=(a)=>a+1", "const x = (a) => a + 1;"},
+		{"ts", "const x=(a:number):number=>a+1", "const x = (a: number): number => a + 1;"},
+		{"jsx", "const x=<div id='x'>{4+3}</div>", `const x = <div id="x">{4 + 3}</div>;`},
+		{"tsx", "const x=(p:{value:number})=><div>{p.value}</div>", "const x = (p: { value: number }) => <div>{p.value}</div>;"},
+		{"typescript", "const x=<number>1", "const x = <number>1;"},
+	} {
+		t.Run(sample.language, func(t *testing.T) {
+			source := "~~~" + sample.language + "\n" + sample.source + "\n~~~"
+			rows := Render(source, 100, testStyles())
+			got := strings.Join(rows, "\n")
+			if !strings.Contains(ansi.Strip(got), sample.want) {
+				t.Fatalf("missing %q in %q", sample.want, got)
+			}
+			if got == ansi.Strip(got) {
+				t.Fatal("formatted code lost syntax colors")
+			}
+		})
+	}
+
+	for _, source := range []string{"~~~ts\nconst x=(a:number)=>a+1", "~~~tsx\nconst x=<div>\n~~~"} {
+		rows := Render(source, 100, testStyles())
+		got := ansi.Strip(strings.Join(rows, "\n"))
+		snippet := strings.Split(source, "\n")[1]
+		if !strings.Contains(got, snippet) {
+			t.Fatalf("unfinished snippet changed: %q", got)
+		}
+	}
+}
+
+func TestWebFencesUsePrettier(t *testing.T) {
+	for _, sample := range []struct {
+		language, source, want string
+	}{
+		{"html", "<div   class='card'>Hello</div>", `<div class="card">Hello</div>`},
+		{"css", ".card{color:red}", "  color: red;"},
+		{"scss", "$accent:red; .card{color:$accent}", "  color: $accent;"},
+		{"graphql", "query{viewer{id}}", "  viewer {"},
+		{"gql", "type Query{hello:String}", "  hello: String"},
+	} {
+		t.Run(sample.language, func(t *testing.T) {
+			source := "~~~" + sample.language + "\n" + sample.source + "\n~~~"
+			got := strings.Join(Render(source, 100, testStyles()), "\n")
+			plain := ansi.Strip(got)
+			if !strings.Contains(plain, sample.want) || got == plain {
+				t.Fatalf("missing formatted and highlighted %q in %q", sample.want, got)
+			}
+		})
+	}
+}
+
+func TestRustFencesFormatAndHighlight(t *testing.T) {
+	const snippet = "async fn doubled(x:i32)->i32{x*2}"
+	styles := testStyles()
+	for _, language := range []string{"rust", "rs"} {
+		source := "~~~" + language + "\n" + snippet
+		rows := Render(source+"\n~~~", 100, styles)
+		got := strings.Join(rows, "\n")
+		if !strings.Contains(ansi.Strip(got), "async fn doubled(x: i32) -> i32 {") ||
+			!strings.Contains(got, styles.Keyword.Render("async")) {
+			t.Fatalf("%s fence did not format and highlight: %q", language, got)
+		}
+		open := strings.Join(Render(source, 100, styles), "\n")
+		if !strings.Contains(ansi.Strip(open), snippet) {
+			t.Fatalf("%s open fence changed: %q", language, open)
+		}
+	}
+}
+
+func TestCAndCPPFencesUseClangFormat(t *testing.T) {
+	if !WarmClangFormat() {
+		t.Fatal("could not compile ClangFormat")
+	}
+
+	for _, sample := range []struct {
+		language, source, want string
+	}{
+		{"c", "int main(){return 0;}", "int main() { return 0; }"},
+		{"cpp", "template<class T> T twice(T value){return value+value;}", "template <class T> T twice(T value) { return value + value; }"},
+		{"c++", "auto twice=[](int value){return value+value;};", "auto twice = [](int value) { return value + value; };"},
+	} {
+		t.Run(sample.language, func(t *testing.T) {
+			fence := "~~~" + sample.language + "\n" + sample.source + "\n~~~"
+			rows := Render(fence, 100, testStyles())
+			got := ansi.Strip(strings.Join(rows, "\n"))
+			if !strings.Contains(got, sample.want) {
+				t.Fatalf("missing %q in %q", sample.want, got)
+			}
+		})
+	}
+
+	source := "#include <z.h>\n#include <a.h>\n#define TWICE(x) ((x)+(x))\n"
+	formatted := formatCode(source, "c")
+	if formatted == source || !strings.HasPrefix(formatted, "#include <z.h>\n#include <a.h>") ||
+		!strings.Contains(formatted, "#define TWICE(x) ((x) + (x))") {
+		t.Fatalf("unexpected include or macro formatting: %q", formatted)
+	}
+
+	const fragment = "void f("
+	if got := formatCode(fragment, "cpp"); got != fragment {
+		t.Fatalf("unfinished declaration changed: %q", got)
+	}
+}
+func TestCodeFormattingBounds(t *testing.T) {
+	for _, source := range []string{
+		strings.Repeat("[", 40) + "0" + strings.Repeat("]", 40),
+		"[" + strings.Repeat("0,", maxCodeBytes/2) + "0]",
+	} {
+		if got := formatCode(source, "json"); got != source {
+			t.Fatal("formatting expanded a bounded fallback")
+		}
+	}
+}
+
 func TestFencesListsAndQuotesFit(t *testing.T) {
 	source := "> nested **quote**\n\n- first\n  - nested item\n\n```go\nfunc hello() {\n\tprintln(\"long code value\")\n}\n```"
 	for _, width := range []int{1, 3, 12, 40, 80} {
