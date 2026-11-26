@@ -10,6 +10,10 @@ The conversation opens at the latest reply. If you open a match from saved
 message history, it jumps to that message. Opening a session does not send a
 new model request.
 
+For a new conversation, Agent tries to generate a short title from the first
+message before requesting the first reply. If naming fails or times out, the
+session uses the first line of the message.
+
 Choose **Copy session ID** or **Copy session path** in the Session menu to copy
 a reference to the current conversation. The path is the full session folder
 path, containing `state.json` and its logs. These actions also work during a run.

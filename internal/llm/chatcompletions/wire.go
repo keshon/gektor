@@ -51,6 +51,9 @@ type wireRequest struct {
 	TopP            float64         `json:"top_p,omitempty"`
 	TopK            int             `json:"top_k,omitempty"`
 
+	ThinkingBudgetTokens *int            `json:"thinking_budget_tokens,omitempty"`
+	ChatTemplateKwargs   map[string]bool `json:"chat_template_kwargs,omitempty"`
+
 	// Repetition controls. Both backends pass unknown fields through to
 	// the sampler, the same route the grammar field takes, and each
 	// dialect fills only its own spelling — koboldcpp's rep_pen or

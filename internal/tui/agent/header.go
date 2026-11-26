@@ -34,6 +34,9 @@ func (m *Model) headerBadges() []screen.Badge {
 		case "checkpoint":
 			phase = "COMPACT"
 		}
+		if m.titleJob != nil && m.titleJob.cancel != nil && phase == "WAIT" {
+			phase = "TITLE"
+		}
 		activity = m.activityLabel(phase)
 	case stPermission, stAsk:
 		activity = "WAIT"

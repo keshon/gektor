@@ -4,8 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"strings"
-
-	tea "charm.land/bubbletea/v2"
+	"time"
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/conversation"
@@ -40,27 +39,25 @@ func (m *Model) cancelSessionTitle() {
 	m.titleJob = nil
 }
 
-func (m *Model) generateSessionTitle() tea.Cmd {
+// sessionTitleRequest captures the title job on the UI thread.
+func (m *Model) sessionTitleRequest(ctx context.Context) func() sessionTitleMsg {
 	j := m.titleJob
-	if j == nil || j.cancel != nil || m.state != stDone {
+	if j == nil || j.cancel != nil {
 		return nil
 	}
 	if j.stateFile != m.stateFile || m.sessionTitle != j.fallback || conversation.ReadSessionTitle(filepath.Dir(j.stateFile)) != j.fallback {
 		m.cancelSessionTitle()
 		return nil
 	}
-	base := m.base
-	if base == nil {
-		base = context.Background()
-	}
-	ctx, cancel := context.WithCancel(base)
+
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	j.cancel = cancel
 	client := m.baseEnv.Client
-	return m.workerCommand(func() tea.Msg {
+	return func() sessionTitleMsg {
 		defer cancel()
 		title, _ := app.GenerateSessionTitle(ctx, client, j.request)
 		return sessionTitleMsg{job: j, title: title}
-	})
+	}
 }
 
 func (m *Model) acceptSessionTitle(msg sessionTitleMsg) {
@@ -69,7 +66,7 @@ func (m *Model) acceptSessionTitle(msg sessionTitleMsg) {
 	}
 	m.cancelSessionTitle()
 	j := msg.job
-	if msg.title == "" || m.state != stDone || m.stateFile != j.stateFile || m.sessionTitle != j.fallback {
+	if msg.title == "" || m.stateFile != j.stateFile || m.sessionTitle != j.fallback {
 		return
 	}
 	dir := filepath.Dir(j.stateFile)

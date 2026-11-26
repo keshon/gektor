@@ -22,10 +22,10 @@ func TestGenerateTitleBoundsRequestAndUsesUserLanguage(t *testing.T) {
 	client := titleClient(func(ctx context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 		calls++
 		deadline, ok := ctx.Deadline()
-		if !ok || time.Until(deadline) > 20*time.Second || len(r.Tools) != 0 || r.MaxTokens != 384 || len(r.Messages) != 2 || utf8.RuneCountInString(r.Messages[1].Content) != 2000 || len(r.Messages[1].Images) != 0 {
+		if !ok || time.Until(deadline) > 20*time.Second || len(r.Tools) != 0 || r.MaxTokens != 96 || !r.SkipReasoning || r.JSONSchema != sessionTitleSchema || r.Grammar != sessionTitleGrammar || len(r.Messages) != 2 || utf8.RuneCountInString(r.Messages[1].Content) != 2000 || len(r.Messages[1].Images) != 0 {
 			t.Fatal("unbounded title request", r)
 		}
-		return llm.ChatResponse{Message: llm.Message{Content: "“Исправление очереди сообщений”"}}, nil
+		return llm.ChatResponse{Message: llm.Message{Content: `{"title":"Исправление очереди сообщений"}`}}, nil
 	})
 	got, err := GenerateSessionTitle(t.Context(), client, strings.Repeat("Ж", 3000))
 	if err != nil || got != "Исправление очереди сообщений" || calls != 1 {
@@ -56,7 +56,8 @@ func TestGenerateTitleRejectsBadResponsesWithoutRetry(t *testing.T) {
 		name, text, finish string
 		tool               bool
 	}{
-		{name: "empty"}, {name: "long", text: strings.Repeat("x", 61)},
+		{name: "empty"}, {name: "malformed JSON", text: `{"title":`},
+		{name: "nested multiline", text: `{"title":"First\nSecond"}`}, {name: "long", text: strings.Repeat("x", 61)},
 		{name: "multiline", text: "Explanation\nActual title"}, {name: "control", text: "Title\x1b[31m"},
 		{name: "bidi", text: "Title\u202ereversed"}, {name: "unicode newline", text: "Title\u2028second line"},
 		{name: "reasoning", text: "<think>Thinking</think>"}, {name: "truncated", text: "Partial title", finish: "length"},

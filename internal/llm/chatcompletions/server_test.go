@@ -246,3 +246,39 @@ func TestChat_MaxTokensSentWhenSet(t *testing.T) {
 		t.Fatalf("max_tokens = %d, want 8192", sent.MaxTokens)
 	}
 }
+
+func TestSkipReasoningUsesSupportedLocalTemplates(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		client     *Client
+		skip, want bool
+	}{
+		{"llama direct", NewLlamaClient("http://localhost:9931", "local"), true, true},
+		{"llama normal", NewLlamaClient("http://localhost:9931", "local"), false, false},
+		{"openai direct", &Client{dialect: openaiDialect{}}, true, false},
+		{"kobold direct", NewKoboldClient("http://localhost:5001", "local"), true, true},
+		{"kobold normal", NewKoboldClient("http://localhost:5001", "local"), false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := tc.client.request(t.Context(), llm.ChatRequest{SkipReasoning: tc.skip}, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer req.Body.Close()
+			var wire wireRequest
+			err = json.NewDecoder(req.Body).Decode(&wire)
+			if err != nil {
+				t.Fatal(err)
+			}
+			thinking, present := wire.ChatTemplateKwargs["enable_thinking"]
+			if present != tc.want || thinking {
+				t.Fatal("unexpected thinking override", wire.ChatTemplateKwargs)
+			}
+			_, llama := tc.client.dialect.(llamaDialect)
+			if (wire.ThinkingBudgetTokens != nil) != (llama && tc.skip) ||
+				wire.ThinkingBudgetTokens != nil && *wire.ThinkingBudgetTokens != 0 {
+				t.Fatal("unexpected thinking budget", wire.ThinkingBudgetTokens)
+			}
+		})
+	}
+}

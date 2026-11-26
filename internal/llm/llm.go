@@ -40,6 +40,9 @@ type ChatRequest struct {
 	// generations cut off mid-JSON — see agent.Config.MaxTokens.
 	MaxTokens int
 
+	// SkipReasoning requests a direct answer on backends that support it.
+	SkipReasoning bool
+
 	// Grammar constrains this response with a GBNF grammar, overriding any
 	// client default. For tool-free structured calls, where a weak model
 	// asked for free-form JSON reliably drifts. Honoured only by backends

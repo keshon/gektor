@@ -264,10 +264,6 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	if !m.beginWork() {
 		return
 	}
-	if job := m.titleJob; job != nil && job.cancel != nil {
-		job.cancel()
-		m.titleJob = &sessionTitleJob{stateFile: job.stateFile, request: job.request, fallback: job.fallback}
-	}
 	m.cancelEvaluation()
 	m.cancel()
 	// A run takes over: an open dialog — or sessions screen — would
@@ -308,6 +304,7 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	}
 	runCtx, cancel := context.WithCancel(base)
 	m.cancel = cancel
+	titleRequest := m.sessionTitleRequest(runCtx)
 	m.state = stRunning
 	m.spinnerFrame = 0
 	// No session-list refresh here. Nothing about the session store changes
@@ -330,6 +327,13 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	send := m.send
 	go func() {
 		defer m.workers.Done()
+		if titleRequest != nil {
+			send(titleRequest())
+			if err := runCtx.Err(); err != nil {
+				send(doneMsg{err: err})
+				return
+			}
+		}
 		answer, err := run(runCtx)
 		send(doneMsg{answer: answer, err: err})
 	}()
@@ -345,9 +349,16 @@ func (m *Model) startInitial(task string, images []string) error {
 	}
 	m.sess = sess
 	m.sessionTitle = conversation.TitleLine(task)
-	m.prepareSessionTitle(task)
 	if err := m.saveMode(); err != nil {
 		return err
+	}
+	if m.stateFile != "" {
+		dir := filepath.Dir(m.stateFile)
+		if saved := conversation.ReadSessionTitle(dir); saved != "" {
+			m.sessionTitle = saved
+		} else if err := conversation.WriteSessionTitle(dir, m.sessionTitle); err == nil {
+			m.prepareSessionTitle(task)
+		}
 	}
 	m.appendBlock(userBlock(strings.TrimSpace(task) + imageSuffix(images)))
 	m.startRun(func(runCtx context.Context) (string, error) {

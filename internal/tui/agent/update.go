@@ -221,11 +221,10 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 				return m, tea.Batch(cmd, waitEvents(m))
 			}
 		}
-		// The title uses the initial request, even if the run ended before a reply.
-		return m, tea.Batch(m.generateSessionTitle(), waitEvents(m))
+		return m, waitEvents(m)
 	case sessionTitleMsg:
 		m.acceptSessionTitle(msg)
-		return m, nil
+		return m, waitEvents(m)
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
 	case tea.KeyPressMsg:

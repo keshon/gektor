@@ -40,11 +40,11 @@ func TestSessionTitlePersistsWithoutChangingHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := m.generateSessionTitle()
+	cmd := m.sessionTitleRequest(t.Context())
 	if cmd == nil {
 		t.Fatal("title request not scheduled")
 	}
-	msg := cmd().(sessionTitleMsg)
+	msg := cmd()
 	m.testUpdate(msg)
 	if m.sessionTitle != "Message queue bug" || conversation.ReadSessionTitle(filepath.Dir(m.stateFile)) != m.sessionTitle {
 		t.Fatal(m.sessionTitle)
@@ -53,7 +53,7 @@ func TestSessionTitlePersistsWithoutChangingHistory(t *testing.T) {
 	if err != nil || string(before) != string(after) {
 		t.Fatal("title changed conversation", err)
 	}
-	if m.generateSessionTitle() != nil {
+	if m.sessionTitleRequest(t.Context()) != nil {
 		t.Fatal("generated title more than once")
 	}
 }
@@ -63,7 +63,7 @@ func TestSessionTitlePreservesManualChangesAndDeletedSessions(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			m := titleModel(t)
 			dir := filepath.Dir(m.stateFile)
-			msg := m.generateSessionTitle()().(sessionTitleMsg)
+			msg := m.sessionTitleRequest(t.Context())()
 			want := "Please fix the queue bug"
 			switch action {
 			case "rename":
@@ -104,80 +104,10 @@ func TestSessionTitlePreservesManualChangesAndDeletedSessions(t *testing.T) {
 					t.Fatal("recreated deleted session", err)
 				}
 			}
-			if m.generateSessionTitle() != nil {
+			if m.sessionTitleRequest(t.Context()) != nil {
 				t.Fatal("retried after completion")
 			}
 		})
-	}
-}
-
-func TestStartingTurnDefersTitleUntilTheNextTurnEnds(t *testing.T) {
-	m := titleModel(t)
-	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
-		t.Error("cancelled title reached backend")
-		return llm.ChatResponse{}, nil
-	})
-	cmd := m.generateSessionTitle()
-	finished := make(chan struct{})
-	m.send = func(tea.Msg) { close(finished) }
-	m.startRun(func(context.Context) (string, error) { return "done", nil })
-	defer m.cancel()
-	<-finished
-	if m.titleJob == nil || m.titleJob.cancel != nil {
-		t.Fatal("turn did not defer the pending title")
-	}
-	m.acceptSessionTitle(cmd().(sessionTitleMsg))
-	if m.sessionTitle != "Please fix the queue bug" {
-		t.Fatal("late title changed the running session")
-	}
-
-	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
-		return llm.ChatResponse{Message: llm.Message{Content: "Message queue bug"}}, nil
-	})
-	_, next := m.testUpdate(doneMsg{answer: "The queue is fixed"})
-	for result := next(); ; {
-		if batch, ok := result.(tea.BatchMsg); ok {
-			result = batch[0]()
-			continue
-		}
-		msg, ok := result.(sessionTitleMsg)
-		if !ok {
-			t.Fatal("successful follow-up did not reschedule the title")
-		}
-		m.acceptSessionTitle(msg)
-		break
-	}
-	if m.sessionTitle != "Message queue bug" {
-		t.Fatal("title was not updated", m.sessionTitle)
-	}
-}
-
-func TestTitleGenerationStartsWhenTurnEnds(t *testing.T) {
-	m := titleModel(t)
-	calls := 0
-	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
-		calls++
-		return llm.ChatResponse{Message: llm.Message{Content: "Message queue bug"}}, nil
-	})
-	if calls != 0 {
-		t.Fatal("title request started before answer")
-	}
-	_, cmd := m.testUpdate(doneMsg{answer: "Here is the fix"})
-	result := cmd()
-	for {
-		batch, ok := result.(tea.BatchMsg)
-		if !ok {
-			break
-		}
-		result = batch[0]()
-	}
-	msg, ok := result.(sessionTitleMsg)
-	if !ok {
-		t.Fatal("answer did not schedule title generation")
-	}
-	m.testUpdate(msg)
-	if calls != 1 || m.sessionTitle != "Message queue bug" {
-		t.Fatal(calls, m.sessionTitle)
 	}
 }
 
@@ -189,9 +119,9 @@ func TestManualRenameCancelsInFlightTitle(t *testing.T) {
 		<-ctx.Done()
 		return llm.ChatResponse{}, ctx.Err()
 	})
-	cmd := m.generateSessionTitle()
+	cmd := m.sessionTitleRequest(t.Context())
 	finished := make(chan sessionTitleMsg, 1)
-	go func() { finished <- cmd().(sessionTitleMsg) }()
+	go func() { finished <- cmd() }()
 	<-started
 	dir := filepath.Dir(m.stateFile)
 	if err := conversation.WriteSessionTitle(dir, "My title"); err != nil {
@@ -204,76 +134,26 @@ func TestManualRenameCancelsInFlightTitle(t *testing.T) {
 	}
 }
 
-func TestTitleGenerationRunsWhenTheTurnEndsWithoutAnAnswer(t *testing.T) {
-	for _, variant := range []string{"failed", "interrupted", "empty"} {
-		t.Run(variant, func(t *testing.T) {
-			m := titleModel(t)
-			m.state = stRunning
-			msg := doneMsg{}
-			switch variant {
-			case "failed":
-				msg.err = errors.New("backend failed")
-			case "interrupted":
-				m.interrupted = true
-				msg.err = context.Canceled
-			}
-
-			_, cmd := m.testUpdate(msg)
-			result := cmd()
-			for {
-				batch, ok := result.(tea.BatchMsg)
-				if !ok {
-					break
-				}
-				result = batch[0]()
-			}
-			title, ok := result.(sessionTitleMsg)
-			if !ok {
-				t.Fatal("turn completion did not schedule the title")
-			}
-			m.acceptSessionTitle(title)
-			if m.sessionTitle != "Message queue bug" {
-				t.Fatal("title was not updated", m.sessionTitle)
-			}
-		})
-	}
-}
-
-func TestTitleGenerationSkipsActiveAndExternallyRenamedSessions(t *testing.T) {
-	m := titleModel(t)
-	m.state = stRunning
-	if m.generateSessionTitle() != nil {
-		t.Fatal("scheduled a title while the turn was running")
-	}
-
-	m.state = stDone
-	err := conversation.WriteSessionTitle(filepath.Dir(m.stateFile), "My title")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m.generateSessionTitle() != nil {
-		t.Fatal("scheduled a title for an externally renamed session")
-	}
-}
-
 func TestOldTitleResultCannotReplaceNewJob(t *testing.T) {
 	m := titleModel(t)
-	old := m.generateSessionTitle()().(sessionTitleMsg)
+	old := m.sessionTitleRequest(t.Context())()
 	m.prepareSessionTitle("A different request")
 	current := m.titleJob
 	m.acceptSessionTitle(old)
 	if m.titleJob != current || m.sessionTitle != "Please fix the queue bug" {
 		t.Fatal("old result affected replacement job")
 	}
-	if cmd := m.generateSessionTitle(); cmd == nil {
+	if cmd := m.sessionTitleRequest(t.Context()); cmd == nil {
 		t.Fatal("replacement job was cancelled")
 	}
 	m.cancelSessionTitle()
 }
 
 func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
-	for _, fork := range []bool{false, true} {
-		t.Run(map[bool]string{false: "fresh", true: "fork"}[fork], func(t *testing.T) {
+	for _, scenario := range []string{"fresh", "title failure", "fork"} {
+		t.Run(scenario, func(t *testing.T) {
+			fork := scenario == "fork"
+			titles := 0
 			root := sessionsRootFor(t, t.TempDir())
 			ws, err := workspace.NewWithSkillRoots(t.TempDir(), nil)
 			if err != nil {
@@ -285,7 +165,14 @@ func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
 			m.state = stDone
 			m.baseEnv = roles.Env{WS: ws, Client: scriptClient(func(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 				if r.Messages[0].Content == prompts.SessionTitle {
+					titles++
+					if scenario == "title failure" {
+						return llm.ChatResponse{}, errors.New("title request failed")
+					}
 					return llm.ChatResponse{Message: llm.Message{Content: "Workflow canvas dragging delay"}}, nil
+				}
+				if !fork && titles != 1 {
+					t.Error("the reply started before title generation")
 				}
 				return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "Here is the answer"}}, nil
 			})}
@@ -302,35 +189,24 @@ func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer m.cancel()
-			done := (<-completed).(doneMsg)
-			if done.err != nil {
-				t.Fatal(done.err)
-			}
-			if fork {
-				if m.titleJob != nil || conversation.ReadSessionTitle(filepath.Dir(m.stateFile)) != "Original title" {
-					t.Fatal("fork scheduled automatic renaming")
-				}
-				return
-			}
-			if m.titleJob == nil {
-				t.Fatal("new session missed automatic naming")
-			}
-			_, cmd := m.testUpdate(done)
-			result := cmd()
-			for {
-				batch, ok := result.(tea.BatchMsg)
+			wantTitle := "Original title"
+			if !fork {
+				title, ok := (<-completed).(sessionTitleMsg)
 				if !ok {
-					break
+					t.Fatal("title result did not arrive before the reply")
 				}
-				result = batch[0]()
+				m.testUpdate(title)
+				wantTitle = "Workflow canvas dragging delay"
+				if scenario == "title failure" {
+					wantTitle = "Inspect the dragging delay"
+				}
 			}
-			title, ok := result.(sessionTitleMsg)
-			if !ok {
-				t.Fatal("first answer missed title generation")
+			done, ok := (<-completed).(doneMsg)
+			if !ok || done.err != nil {
+				t.Fatal("the first reply did not complete", done.err)
 			}
-			m.testUpdate(title)
-			if m.sessionTitle != "Workflow canvas dragging delay" {
-				t.Fatal(m.sessionTitle)
+			if m.titleJob != nil || m.sessionTitle != wantTitle || conversation.ReadSessionTitle(filepath.Dir(m.stateFile)) != wantTitle {
+				t.Fatal("unexpected saved title", m.sessionTitle, wantTitle)
 			}
 		})
 	}

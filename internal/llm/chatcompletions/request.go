@@ -39,6 +39,15 @@ func (c *Client) request(ctx context.Context, req llm.ChatRequest, stream bool) 
 		c.dialect.applyStructured(&wreq, grammar, "")
 	}
 	c.dialect.applySampling(&wreq, c.DRY)
+	if req.SkipReasoning {
+		switch c.dialect.(type) {
+		case llamaDialect:
+			wreq.ThinkingBudgetTokens = new(int)
+			wreq.ChatTemplateKwargs = map[string]bool{"enable_thinking": false}
+		case koboldDialect:
+			wreq.ChatTemplateKwargs = map[string]bool{"enable_thinking": false}
+		}
+	}
 
 	// koboldcpp serves the same endpoint shape but cannot process
 	// pictures: attaching there fails here, loudly, instead of sending

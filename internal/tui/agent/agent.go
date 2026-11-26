@@ -313,11 +313,9 @@ func New(ctx context.Context, cfg Config) (model *Model, err error) {
 
 	events := m.events
 	m.send = func(msg tea.Msg) {
-		if done, ok := msg.(doneMsg); ok {
-			select {
-			case events <- harness.Event{Name: "_done", Fields: map[string]any{"answer": done.answer, "error": done.err}}:
-			case <-uiCtx.Done():
-			}
+		select {
+		case events <- harness.Event{Name: "_ui", Fields: map[string]any{"message": msg}}:
+		case <-uiCtx.Done():
 		}
 	}
 
@@ -619,10 +617,8 @@ func waitEvents(m *Model) tea.Cmd {
 		case <-stopped:
 			return nil
 		}
-		if ev.Name == "_done" {
-			answer, _ := ev.Fields["answer"].(string)
-			err, _ := ev.Fields["error"].(error)
-			return doneMsg{answer: answer, err: err}
+		if ev.Name == "_ui" {
+			return ev.Fields["message"]
 		}
 		return eventMsg(ev)
 	}
