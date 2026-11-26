@@ -43,6 +43,7 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("profile-name", "Save current setup as (Ctrl+D)", "custom", false)
 	case "you":
 		add("user", "Your name", identity.UserName, false)
+		add("share-user-name", "Share name with Agent", strconv.FormatBool(identity.ShareUserName), false)
 		add("persona", "Your persona description", identity.UserPersona, true)
 	case "generation":
 		add("temperature", "Temperature", temperatureValue(profile.Generation.Temperature), false)

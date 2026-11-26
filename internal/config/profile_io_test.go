@@ -102,7 +102,7 @@ func TestRemovedKeysAreRejectedByName(t *testing.T) {
 
 func TestIdentityRoundTrips(t *testing.T) {
 	p := validProfile()
-	p.Identity = &Identity{UserName: "Alex", UserPersona: "a colleague", SystemPrompt: "be terse", PostHistory: "cite sources", Name: "Ada", PromptPreset: "coding"}
+	p.Identity = &Identity{UserName: "Alex", ShareUserName: true, UserPersona: "a colleague", SystemPrompt: "be terse", PostHistory: "cite sources", Name: "Ada", PromptPreset: "coding"}
 	path := filepath.Join(t.TempDir(), "profile.json")
 	err := SaveCopy(p, path)
 	if err != nil {

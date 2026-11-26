@@ -29,6 +29,13 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 	switch section {
 	case SectionYou:
 		identity := editableIdentity(profile)
+		if value, ok := values["share-user-name"]; ok {
+			enabled, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("share name must be true or false")
+			}
+			identity.ShareUserName = enabled
+		}
 		identity.UserName = strings.TrimSpace(values["user"])
 		identity.UserPersona = values["persona"]
 	case SectionGeneration:

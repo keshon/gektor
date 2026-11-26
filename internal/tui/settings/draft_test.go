@@ -28,6 +28,7 @@ func TestPageRoundTripPreservesUneditedValues(t *testing.T) {
 				fields[1].Value = "200"
 			} else {
 				fields[0].Value = "Alice"
+				fields[1].Value = "true"
 			}
 			d.Store(section, fields)
 			got, err := d.Resolve()
@@ -40,7 +41,7 @@ func TestPageRoundTripPreservesUneditedValues(t *testing.T) {
 			if section == "generation" && got.Generation.MaxTokens != 200 {
 				t.Fatal("budget edit lost")
 			}
-			if section == "you" && got.Identity.UserName != "Alice" {
+			if section == "you" && (got.Identity.UserName != "Alice" || !got.Identity.ShareUserName) {
 				t.Fatal("name edit lost")
 			}
 		})

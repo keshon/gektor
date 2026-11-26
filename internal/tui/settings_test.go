@@ -114,7 +114,7 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 
 func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 	m := settingsModel(t)
-	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 36})
 	m.editSettings("you")
 	// A multiline field and a single-line one, named by key so the test does
 	// not depend on their order or on a label also appearing in the hint.

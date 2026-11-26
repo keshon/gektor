@@ -49,6 +49,11 @@ func ChoiceLabel(key, value string) string {
 		if value == "default" {
 			return "Model default"
 		}
+	case "share-user-name":
+		if value == "true" {
+			return "On"
+		}
+		return "Off"
 	case "reasoning-summary":
 		if value == "true" {
 			return "On (summary)"
@@ -84,7 +89,9 @@ func Hint(section string) string {
 	switch section {
 	case "network":
 		return "Apply restarts GEKTOR with this proxy. Use environment reads the proxy variables."
-	case "you", "prompts":
+	case "you":
+		return "Sharing adds your name to the Agent prompt from the next turn. Saved messages are kept."
+	case "prompts":
 		return "Applies to the next Agent turn and future launches. Existing messages remain unchanged."
 	case "workspace":
 		return "Changes the working directory for subsequent operations. The conversation and draft are preserved."
@@ -106,7 +113,7 @@ func Choices(key string) []string {
 			ids = append(ids, preset.ID)
 		}
 		return ids
-	case "prefer-main", "prefer-post", "reasoning-summary":
+	case "prefer-main", "prefer-post", "reasoning-summary", "share-user-name":
 		return []string{"true", "false"}
 	case "network-type":
 		return []string{"", "http", "https", "socks5"}

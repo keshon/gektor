@@ -100,3 +100,19 @@ func TestIdentityPromptOmitsOperationalInstructions(t *testing.T) {
 		t.Fatal("identity prompt duplicated the agent's own instructions")
 	}
 }
+
+func TestProfileSharesPreferredNameOnlyWhenEnabled(t *testing.T) {
+	p := config.DefaultProfile()
+	p.Identity.UserName = "Operator"
+	for _, share := range []bool{false, true} {
+		p.Identity.ShareUserName = share
+		prepared, err := PrepareProfile(p, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompt := IdentityPrompt(prepared.Identity)
+		if strings.Contains(prompt, "Operator") != share {
+			t.Fatal("preferred name exposure differs from the setting", share, prompt)
+		}
+	}
+}

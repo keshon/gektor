@@ -47,7 +47,7 @@ func inspectLaunchBackend(ctx context.Context, client *app.Backend, o resolvedLa
 
 // launchRunConfiguration prepares settings before choosing a frontend.
 func launchRunConfiguration(o resolvedLaunch, base roles.Env, note func(string, ...any)) (harness.Config, error) {
-	identity, warnings, err := app.CompileIdentity(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: base.ContextLimit, Temperature: o.temperature})
+	identity, warnings, err := app.CompileIdentity(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, ShareUserName: profileSharesUserName(o.selectedProfile), System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: base.ContextLimit, Temperature: o.temperature})
 	if err != nil {
 		return harness.Config{}, err
 	}

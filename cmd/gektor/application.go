@@ -221,6 +221,10 @@ func applicationControl(launch launchRequest, p config.Profile, path string, wor
 	return &tui.Application{Preferences: prefs, PreferencePath: launch.preferencePath, Temporary: !launch.common}
 }
 
+func profileSharesUserName(p config.Profile) bool {
+	return p.Identity != nil && p.Identity.ShareUserName
+}
+
 func selectedProfileName(p config.Profile) string {
 	if p.Identity != nil {
 		return p.Identity.Name

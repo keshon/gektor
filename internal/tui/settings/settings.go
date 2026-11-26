@@ -52,7 +52,7 @@ func (f *Model) Prepare(snapshot fieldform.Snapshot) fieldform.Presentation {
 	f.Hidden = map[string]bool{}
 	f.DiscoveryFields = map[string]string{"model": "model", "reasoning-effort": "reasoning"}
 	f.NoSearchFields = map[string]bool{"theme": true}
-	f.InlineChoices = map[string]int{"theme": 6}
+	f.InlineChoices = map[string]int{"theme": 6, "share-user-name": 2}
 	for i, field := range f.Fields {
 		if len(f.Choices[field.Key]) == 0 {
 			f.Choices[field.Key] = Choices(field.Key)

@@ -34,15 +34,16 @@ func PrepareProfile(profile config.Profile, directory string) (PreparedProfile, 
 
 	id := identityFrom(profile)
 	identity, warnings, err := CompileIdentity(IdentityOptions{
-		Preset:       id.PromptPreset,
-		Name:         id.Name,
-		Persona:      id.UserPersona,
-		User:         id.UserName,
-		System:       id.SystemPrompt,
-		Post:         id.PostHistory,
-		MaxTokens:    profile.Generation.MaxTokens,
-		ContextLimit: profile.Generation.ContextLimit,
-		Temperature:  profile.Generation.Temperature,
+		Preset:        id.PromptPreset,
+		Name:          id.Name,
+		Persona:       id.UserPersona,
+		User:          id.UserName,
+		ShareUserName: id.ShareUserName,
+		System:        id.SystemPrompt,
+		Post:          id.PostHistory,
+		MaxTokens:     profile.Generation.MaxTokens,
+		ContextLimit:  profile.Generation.ContextLimit,
+		Temperature:   profile.Generation.Temperature,
 	})
 	if err != nil {
 		return out, err

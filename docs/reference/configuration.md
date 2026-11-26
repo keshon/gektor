@@ -224,8 +224,12 @@ You can also set `-backend` and `-model` without loading a profile.
 A profile carries three blocks. `provider` names the protocol, endpoint and
 model. `generation` sets the response budget, context window and
 temperature. `identity` sets the persona:
-`user_name`, `system_prompt`, `post_history`, `name`, `user_persona` and
-`prompt_preset`.
+`user_name`, `share_user_name`, `system_prompt`, `post_history`, `name`,
+`user_persona` and `prompt_preset`.
+
+**Share name with Agent** adds the configured user name to model requests as
+part of the Agent prompt. It is off by default. When enabled, the name may be
+retained in saved prompt records. Existing message text is kept as written.
 
 Decoding is strict. An unrecognized key is an error, so a misspelled setting fails at
 load instead of being silently ignored, and a profile written for a removed schema is

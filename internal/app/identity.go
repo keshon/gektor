@@ -27,6 +27,7 @@ type IdentityOptions struct {
 	Preset                  string
 	Name, Persona           string
 	User, System, Post      string
+	ShareUserName           bool
 	MaxTokens, ContextLimit int
 	Temperature             float64
 }
@@ -53,6 +54,9 @@ func CompileIdentity(o IdentityOptions) (Identity, []string, error) {
 	id.Name = name
 	if preset.Instruction != "" {
 		id.System += "\n\nResponse style (" + preset.Name + "):\n" + renderPlaceholders(preset.Instruction, name, o.User, o.Persona)
+	}
+	if o.ShareUserName {
+		id.System += fmt.Sprintf("\n\nUser's preferred name: %q.", strings.TrimSpace(o.User))
 	}
 	if o.Persona != "" {
 		id.System += "\n\nUser persona: " + o.Persona

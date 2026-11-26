@@ -278,7 +278,7 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		p.Generation.ReasoningSummary = o.reasoningSummary
 		p.Generation.Temperature = o.temperature
 		if p.Identity != nil || o.postHistory != "" {
-			p.Identity = &config.Identity{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
+			p.Identity = &config.Identity{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, ShareUserName: profileSharesUserName(p), SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
 		}
 		providerLaunchDefaults(&o)
 		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = o.backendKind, o.backendURL, o.model, o.apiKeyEnv

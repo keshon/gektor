@@ -87,12 +87,13 @@ const DefaultUserName = "User"
 // Identity is the persona a profile speaks with: who the assistant is, who
 // it is talking to, and how it should answer.
 type Identity struct {
-	PromptPreset string `json:"prompt_preset,omitempty"`
-	Name         string `json:"name,omitempty"`
-	UserPersona  string `json:"user_persona,omitempty"`
-	UserName     string `json:"user_name,omitempty"`
-	SystemPrompt string `json:"system_prompt,omitempty"`
-	PostHistory  string `json:"post_history,omitempty"`
+	PromptPreset  string `json:"prompt_preset,omitempty"`
+	Name          string `json:"name,omitempty"`
+	UserPersona   string `json:"user_persona,omitempty"`
+	UserName      string `json:"user_name,omitempty"`
+	ShareUserName bool   `json:"share_user_name,omitempty"`
+	SystemPrompt  string `json:"system_prompt,omitempty"`
+	PostHistory   string `json:"post_history,omitempty"`
 }
 
 // Validate checks the profile without changing it or contacting the provider.
