@@ -52,7 +52,12 @@ func (t Search) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 
-	engine := strings.ToLower(in.Engine)
+	in.Query = strings.TrimSpace(in.Query)
+	if in.Query == "" {
+		return "", fmt.Errorf("search query is empty")
+	}
+
+	engine := strings.ToLower(strings.TrimSpace(in.Engine))
 	if engine == "" {
 		engine = "duckduckgo"
 	}
@@ -67,7 +72,7 @@ func (t Search) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	fetchArgs, _ := json.Marshal(map[string]string{"url": searchURL})
 	rawContent, err := fetcher.Run(ctx, fetchArgs)
 	if err != nil {
-		return "", fmt.Errorf("fetch failed: %w", err)
+		return "", err
 	}
 
 	// Parse the raw content based on the engine.
@@ -102,6 +107,9 @@ func (t Search) buildSearchURL(query, engine string) (string, error) {
 func (t Search) parseResults(engine, content string) ([]Result, error) {
 	switch engine {
 	case "duckduckgo":
+		if strings.Contains(content, `data-testid="anomaly-modal"`) {
+			return nil, fmt.Errorf("DuckDuckGo returned a bot challenge")
+		}
 		return t.parseDuckDuckGo(content), nil
 	default:
 		return nil, fmt.Errorf("parser for engine %q is not implemented yet", engine)

@@ -112,3 +112,16 @@ func TestSearchWeb_UnsupportedEngineRejected(t *testing.T) {
 		t.Fatalf("engine reddit: err = %v, want unsupported-engine rejection", err)
 	}
 }
+
+func TestDuckDuckGoChallengeIsNotAnEmptySearch(t *testing.T) {
+	fetchRawTransport = &mockTransport{
+		body:   `<html><div data-testid="anomaly-modal">Challenge</div></html>`,
+		status: 202,
+	}
+	defer func() { fetchRawTransport = nil }()
+
+	_, err := (Search{}).Run(context.Background(), json.RawMessage(`{"query":"Go programming language"}`))
+	if err == nil || !strings.Contains(err.Error(), "bot challenge") {
+		t.Fatalf("expected a challenge error, got %v", err)
+	}
+}
