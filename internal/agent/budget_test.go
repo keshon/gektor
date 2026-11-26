@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/keshon/gektor/internal/conversation"
@@ -36,40 +37,42 @@ func (c *budgetClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatR
 }
 
 func TestRunBudgetClosesWithoutToolsAndRemainsIncomplete(t *testing.T) {
-	for _, fail := range []bool{false, true} {
-		client := &budgetClient{closeFails: fail}
-		stateFile := filepath.Join(t.TempDir(), "state.json")
-		a := New(Config{
-			Client:     client,
-			Tools:      NewRegistry(),
-			System:     "Preserve the operator's workspace.",
-			StateFile:  stateFile,
-			MaxSteps:   4,
-			RunTimeout: time.Second,
-		})
-		answer, err := a.Run(t.Context(), "inspect")
-		if !errors.Is(err, ErrRunBudget) || answer != "" || a.Report().Final != "" || a.Report().Outcome != "incomplete" {
-			t.Fatalf("%q %v %+v", answer, err, a.Report())
-		}
-		if client.calls != 2 || len(client.closing.Tools) != 0 || a.Report().Summary == "" {
-			t.Fatalf("missing bounded closing: %+v", a.Report())
-		}
-		if !fail && !strings.Contains(a.Report().Summary, "unverified") {
-			t.Fatal(a.Report().Summary)
-		}
+	synctest.Test(t, func(t *testing.T) {
+		for _, fail := range []bool{false, true} {
+			client := &budgetClient{closeFails: fail}
+			stateFile := filepath.Join(t.TempDir(), "state.json")
+			a := New(Config{
+				Client:     client,
+				Tools:      NewRegistry(),
+				System:     "Preserve the operator's workspace.",
+				StateFile:  stateFile,
+				MaxSteps:   4,
+				RunTimeout: time.Second,
+			})
+			answer, err := a.Run(t.Context(), "inspect")
+			if !errors.Is(err, ErrRunBudget) || answer != "" || a.Report().Final != "" || a.Report().Outcome != "incomplete" {
+				t.Fatalf("%q %v %+v", answer, err, a.Report())
+			}
+			if client.calls != 2 || len(client.closing.Tools) != 0 || a.Report().Summary == "" {
+				t.Fatalf("missing bounded closing: %+v", a.Report())
+			}
+			if !fail && !strings.Contains(a.Report().Summary, "unverified") {
+				t.Fatal(a.Report().Summary)
+			}
 
-		closing := client.closing.Messages
-		if len(closing) < 3 || closing[0].Role != llm.RoleSystem || closing[0].Content != a.cfg.System || closing[1].Content != "inspect" {
-			t.Fatalf("budget closing lost the system instructions or task: %+v", closing)
+			closing := client.closing.Messages
+			if len(closing) < 3 || closing[0].Role != llm.RoleSystem || closing[0].Content != a.cfg.System || closing[1].Content != "inspect" {
+				t.Fatalf("budget closing lost the system instructions or task: %+v", closing)
+			}
+			saved, err := conversation.Load(stateFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(saved.History) < 3 || saved.History[0].Role != llm.RoleSystem || saved.History[0].Content != a.cfg.System || saved.History[1].Content != "inspect" {
+				t.Fatalf("budget closing corrupted the saved conversation: %+v", saved.History)
+			}
 		}
-		saved, err := conversation.Load(stateFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(saved.History) < 3 || saved.History[0].Role != llm.RoleSystem || saved.History[0].Content != a.cfg.System || saved.History[1].Content != "inspect" {
-			t.Fatalf("budget closing corrupted the saved conversation: %+v", saved.History)
-		}
-	}
+	})
 }
 
 func TestRunBudgetNeverAddsARequestPastStepLimit(t *testing.T) {

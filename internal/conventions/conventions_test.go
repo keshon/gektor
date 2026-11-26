@@ -70,10 +70,10 @@ func TestDocumentAndChecksAgree(t *testing.T) {
 func checkPackageLayers(t *testing.T, r *repo) {
 	allowed := map[string][]string{
 		"llm":                      {},
-		"llm/chatcompletions":      {"llm"},
-		"llm/responses":            {"llm"},
+		"llm/chatcompletions":      {"llm", "httptransport"},
+		"llm/responses":            {"llm", "httptransport"},
 		"providers":                {},
-		"providers/openai":         {},
+		"providers/openai":         {"httptransport"},
 		"providers/llamacpp":       {"providers/internal/probe"},
 		"providers/koboldcpp":      {"providers/internal/probe"},
 		"providers/openaicompat":   {"providers/internal/probe"},

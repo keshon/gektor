@@ -30,8 +30,9 @@ first and let it fail, then record the baseline.
 **[enforced: package-layers]** `internal/llm`, `internal/prompts`,
 `internal/workspace`, `internal/permission` and `internal/events` import no other
 internal package. The `internal/llm/chatcompletions` and `internal/llm/responses`
-protocol packages import only `internal/llm`. The `internal/providers` catalog
-and `internal/providers/openai` account package import no other internal package.
+protocol packages import only `internal/llm` and `internal/httptransport`. The
+`internal/providers` catalog imports no other internal package. The
+`internal/providers/openai` account package imports only `internal/httptransport`.
 Provider inspection packages (`llamacpp`, `koboldcpp`, `openaicompat`) import only
 `internal/providers/internal/probe`, whose HTTP helpers import no internal package.
 
