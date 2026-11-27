@@ -516,6 +516,8 @@ model calls and does not turn an unfinished original attempt into a passing run.
 
 The [2026-11-26 workflow comparison](../docs/internal/workflow-matrix-2026-11-26.md)
 records the local trials, independent checks and measured context deduplication.
+The [2026-11-27 discovery follow-up](../docs/internal/workflow-discovery-2026-11-27.md)
+repeats the ledger task after improving capability metadata and query ranking.
 
 ## Discovery integration checks
 

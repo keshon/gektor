@@ -170,7 +170,7 @@ func builtinPackages(d Dependencies) []packageDefinition {
 		},
 		{
 			id:           "native_workflows",
-			description:  "Includes built-in workflows guide. Create, validate and run recipe nodes; native cron/schedule triggers, run inspection and records. No separate built-in load_skill needed.",
+			description:  "Guide included; enable, then workflow_schema. Request operations:[names] for needed workflow node operation contracts. Create, validate and run recipes; text artifact read/write with review gates, records, native cron/schedule triggers and run inspection. Built-in workflows guide included; no separate load_skill needed.",
 			exposure:     toolextension.Lazy,
 			instructions: workspace.WorkflowGuide,
 			entries:      workflowEntries(d),

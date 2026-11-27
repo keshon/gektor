@@ -274,20 +274,64 @@ func TestReadOnly_ContainsNoMutatingOrShellTools(t *testing.T) {
 }
 
 func TestWorkflowDiscoveryMatchesNodeAndScheduleVocabulary(t *testing.T) {
-	var description string
-	for _, p := range builtinPackages(Dependencies{}) {
-		if p.id == "native_workflows" {
-			description = p.description
+	catalog := composed(t, toolextension.Eager)
+	discover := toolextension.DiscoverCapabilities{Catalog: catalog}
+	queries := []string{
+		"workflow schedule cron", "schedule node", "workflow nodes", "WORKFLOW   cron",
+		"artifacts workflow", "artifact write read text", "operation contract",
+		"artifact recipe node schema", "recipe node operation schema", "artifact write read review",
+	}
+	for _, query := range queries {
+		t.Run(query, func(t *testing.T) {
+			args, err := json.Marshal(struct {
+				Query string `json:"query"`
+			}{query})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			out, err := discover.Run(t.Context(), args)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var result struct {
+				Capabilities []struct {
+					ID string `json:"id"`
+				} `json:"capabilities"`
+			}
+			err = json.Unmarshal([]byte(out), &result)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			found := false
+			for _, entry := range result.Capabilities {
+				if entry.ID == "native_workflows" {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("workflow capability not returned:", out)
+			}
+			ranked := query == "artifact write read review" || query == "operation contract"
+			if ranked && result.Capabilities[0].ID != "native_workflows" {
+				t.Fatal("workflow capability must rank first:", out)
+			}
+		})
+	}
+	if catalog.Registry.Has("workflow_schema") {
+		t.Fatal("discovery activated workflow tools")
+	}
+	for _, line := range strings.Split(catalog.Map(), "\n") {
+		if strings.HasPrefix(line, "native_workflows:") {
+			if !strings.Contains(line, "Guide included") || !strings.Contains(line, "workflow_schema") {
+				t.Fatal("startup summary lost guide or schema route:", line)
+			}
+			return
 		}
 	}
-	catalog := &toolextension.Capabilities{Sources: []*toolextension.Capability{{ID: "native_workflows", Description: description}}}
-	for _, query := range []string{"workflow schedule cron", "schedule node", "workflow nodes", "WORKFLOW   cron"} {
-		args, _ := json.Marshal(map[string]string{"query": query})
-		out, err := (toolextension.DiscoverCapabilities{Catalog: catalog}).Run(t.Context(), args)
-		if err != nil || !strings.Contains(out, "native_workflows") {
-			t.Fatal(query, out, err)
-		}
-	}
+	t.Fatal("startup summary omitted workflow capability")
 }
 
 func TestBuiltinSocialLifecycleIsLazyAndRestorable(t *testing.T) {

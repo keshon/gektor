@@ -136,7 +136,9 @@ catalog. `workflow_schema` now accepts an optional `operations` list and returns
 only the selected schemas and contracts, retaining shared recipe guidance. With
 the actual application registry, selecting `run_program` returns 7,528 bytes
 (90.5% smaller); selecting it and `artifact_read_text` returns 8,501 bytes.
-Omitting the filter retains the full catalog. Unknown names and conflicting
+At this stage, omitting the filter retained the full catalog; the focused
+authoring follow-up below changed the default to names-only discovery.
+Unknown names and conflicting
 record-schema queries are rejected. These sizes are tool-output measurements,
 not a claim about model speed or accuracy.
 

@@ -134,12 +134,15 @@ and repaired-workspace hashes. The order was fixed rather than randomized, and
 model sampling/cache state varied. These twelve passes establish correctness on
 this set, not a general reliability rate or proof that guidance caused the gains.
 
-Remaining discovery gaps include queries such as `artifacts workflow`,
+Discovery gaps observed in this experiment included queries such as `artifacts workflow`,
 `artifact write read text` and `operation contract`: the owning package summary
 does not advertise that vocabulary clearly. The current change does not eliminate
 repeated discovery or full-catalog paging. Improving that metadata and separating
 bulk catalog export from ordinary authoring lookup are follow-up experiments,
-not changes measured here. Dedicated draft/edit roles were not tested.
+not changes measured here. The [2026-11-27 follow-up](workflow-discovery-2026-11-27.md)
+subsequently tested improved capability metadata: both ledger reruns passed,
+using 16 requests combined without full-catalog queries. Separating bulk export
+remains untested. Dedicated draft/edit roles were not tested.
 
 ## Artifacts and reproduction
 
