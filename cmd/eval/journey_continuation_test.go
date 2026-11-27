@@ -254,7 +254,15 @@ func TestJourneyContinuationCopiesActualInputAndPreservesSource(t *testing.T) {
 	if !reflect.DeepEqual(history, snapshot.History) || provenance.CombinedMaxSteps != 48 || provenance.AdditionalMaxSteps != 24 || provenance.PriorRepairSteps != 24 {
 		t.Fatalf("lost history or budget: %+v, %v", provenance, history)
 	}
-	if !strings.Contains(provenance.Note, filepath.Join(destination, "workspace")) || !strings.HasPrefix(provenance.Note, journeyContinuationNote) {
+	canonicalDestination, err := filepath.EvalSymlinks(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalDestination, err = filepath.Abs(canonicalDestination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(provenance.Note, filepath.Join(canonicalDestination, "workspace")) || !strings.HasPrefix(provenance.Note, journeyContinuationNote) {
 		t.Fatalf("continuation note lost relocated workspace: %s", provenance.Note)
 	}
 	archiveHash, err := fileDigest(filepath.Join(destination, "repair.state.json"))
