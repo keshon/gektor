@@ -85,6 +85,7 @@ On Windows, `~` means your user folder, usually `C:\Users\<name>`.
 | External applications | `~/.gektor/applications.json` | Executable path overrides and disabled applications; omitted paths use PATH |
 | Agent sessions | `~/.gektor/sessions/` | TUI conversation history and saved context |
 | CLI tasks | `~/.gektor/tasks/` | Standalone CLI session history |
+| Explicit memory | `~/.gektor/memory/memory.sqlite` | Local user/project facts, revisions and project identities; not stored in Git |
 | Workflow recipes | Files you choose inside the workspace | Editable instructions; can be tracked in Git |
 | Workflow run records | `~/.gektor/workflows/<workspace-hash>/workflow.sqlite` | Captured recipe, inputs, results and status |
 | Workflow records | `~/.gektor/workflows/<workspace-hash>/records/` | Structured data used by record operations |

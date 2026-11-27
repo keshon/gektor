@@ -19,6 +19,7 @@ import (
 	tooldocuments "github.com/keshon/gektor/internal/tools/documents"
 	toolfiles "github.com/keshon/gektor/internal/tools/files"
 	toolimages "github.com/keshon/gektor/internal/tools/images"
+	toolmemory "github.com/keshon/gektor/internal/tools/memory"
 	"github.com/keshon/gektor/internal/userdirs"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
@@ -67,8 +68,14 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	e.configureParent(&cfg, "workflow")
 	project, _ := e.WS.InstructionSections()
 	core := prompts.WorkflowAuthor + "\n\n" + workspace.WorkflowGuide + "\n\n" + prompts.Environment(e.WS.Root(), false)
-	cfg.System = core + project + "\n\n" + e.Identity
-	cfg.SystemSections = []llm.PromptSection{{Name: "core_instructions", Text: core}, {Name: "project_instructions", Text: project}, {Name: "identity", Text: "\n\n" + e.Identity}}
+	memory := ""
+	for _, section := range cfg.SystemSections {
+		if section.Name == "memory" {
+			memory = section.Text
+		}
+	}
+	cfg.System = core + project + "\n\n" + e.Identity + memory
+	cfg.SystemSections = []llm.PromptSection{{Name: "core_instructions", Text: core}, {Name: "project_instructions", Text: project}, {Name: "identity", Text: "\n\n" + e.Identity}, {Name: "memory", Text: memory}}
 	storeDir := e.WorkflowDir
 	if storeDir == "" {
 		storeDir = userdirs.Sub("workflows")
@@ -84,6 +91,7 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	save := &workflow.Save{WS: e.WS, Path: path, Registry: registry}
 	validation.save = save
 	cfg.Tools = agent.NewRegistry(
+		&toolmemory.Tool{Directory: e.MemoryDir, Workspace: e.WS.Root()},
 		workflow.Schema{WS: e.WS, StoreDir: storeDir, Registry: registry}, save,
 		validation,
 		toolfiles.Read{WS: e.WS}, toolfiles.List{WS: e.WS},

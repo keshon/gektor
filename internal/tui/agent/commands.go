@@ -70,6 +70,8 @@ func commands() []command {
 		{name: "/about", immediate: true, summary: "About"},
 		{name: "/eval", arg: "[scope] [focus]", immediate: true, summary: "Review saved history; scope: last, session, N"},
 		{name: "/learn", arg: "[scope] [focus]", immediate: true, summary: "Propose a lesson; review reopens, undo disables"},
+		{name: "/memorize", arg: "[scope] text", immediate: true, summary: "Save a fact; scope: project (default), user"},
+		{name: "/memory", arg: "[query]", immediate: true, summary: "Manage local memories; undo removes last save"},
 		{name: "/theme", arg: "name", choices: config.ThemeNames(), immediate: true, summary: "Switch theme"},
 		{name: "/settings", immediate: true, summary: "Open settings"},
 		{name: "/tools", immediate: true, summary: "Inspect toolsets and executable preferences"},
@@ -176,6 +178,12 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		return m.evaluate(arg)
 	case "learn":
 		return m.learn(arg)
+	case "memorize":
+		m.memorize(arg)
+		return m, nil
+	case "memory":
+		m.memoryCommand(arg)
+		return m, nil
 	case "q", "quit":
 		m.cancelEvaluation()
 		return m.requestQuit()

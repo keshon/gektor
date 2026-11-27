@@ -37,6 +37,10 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		m.chrome.CompleteFormID(dialog, err)
 
 	case screen.DialogActionRequested:
+		if dialog == m.memories.detail && m.chrome.DialogID() == dialog {
+			m.memoryDetailAction(event.Action)
+			return nil
+		}
 		proposal, ok := m.lessonDialogs[dialog]
 		if !ok || m.chrome.DialogID() != dialog {
 			return nil
@@ -62,6 +66,9 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 			return nil
 		}
 		switch {
+		case dialog == m.memories.list:
+			m.memoryTableAction(event.Action, event.Row)
+			return nil
 
 		case dialog == m.blockDialog:
 			m.activateHistoryBlock(event.Row)
@@ -98,6 +105,12 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		delete(m.queueDialogs, dialog)
 		delete(m.returnDialogs, dialog)
 		delete(m.lessonDialogs, dialog)
+		if m.memories.list == dialog {
+			m.memories.list = screen.DialogID{}
+		}
+		if m.memories.detail == dialog {
+			m.memories.detail = screen.DialogID{}
+		}
 		if m.processDialog == dialog {
 			m.processDialog = screen.DialogID{}
 		}

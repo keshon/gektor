@@ -3,6 +3,7 @@ package roles
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ func testEnv(t *testing.T) Env {
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	return Env{Client: stubClient{}, WS: ws, Procs: toolbackground.New()}
+	return Env{Client: stubClient{}, WS: ws, Procs: toolbackground.New(), MemoryDir: filepath.Join(t.TempDir(), "memory")}
 }
 
 func hasTool(a interface{ ToolNames() []string }, name string) bool {

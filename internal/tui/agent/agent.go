@@ -73,6 +73,7 @@ type Model struct {
 	processDialog, permissionDialog, mcpDialog screen.DialogID
 	blockDialog                                screen.DialogID
 	lessonDialogs                              map[screen.DialogID]retrospective.Result
+	memories                                   memoryView
 
 	processTable, permissionTable screen.TableID
 	form                          pendingForm

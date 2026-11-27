@@ -898,6 +898,7 @@ func evalEnv(client llm.Client, ws *workspace.Workspace, procs *toolbackground.P
 		Client:       client,
 		WS:           ws,
 		Procs:        procs,
+		MemoryDir:    filepath.Join(filepath.Dir(ws.Root()), "eval-memory-"+filepath.Base(ws.Root())),
 		MaxTokens:    maxTokens,
 		ContextLimit: contextLimit,
 		OnStep:       func(_ string, step int, msg llm.Message) { record(step, msg) },

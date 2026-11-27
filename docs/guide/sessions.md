@@ -147,6 +147,43 @@ with `delegate_call_id`. A delegate gets its own archive. Cross-session search
 is not provided. Without a saved archive, `read_history` reports that limitation;
 `inspect_context` still works during an agent tool call.
 
+## Remembering facts and preferences
+
+`/memorize` saves your text directly, without a model request or a lesson review:
+
+```text
+/memorize "Use pnpm for this project"
+/memorize project "Preserve single-row tool calls"
+/memorize user "Prefer concise explanations"
+```
+
+The default scope is the current project. User memories apply across workspaces;
+project memories apply only to the opened workspace. Changing branches or running
+commands in a subdirectory does not change the project. Separate checkouts and
+worktrees remain separate even when they share a Git remote.
+
+`/memory` opens the memory list; `/memory query` filters it. The list shows scope
+and whether an entry is selected for the next request. Open an entry to edit it,
+move it between user and project scope, or delete it. `/memory undo` removes the
+latest newly saved entry from this app instance if it has not changed. Saving an
+exact duplicate does not create a second entry.
+
+Memory stays in local GEKTOR user data, outside the repository. Project identities
+are registered by canonical workspace path. After moving a folder, open its new
+location and use `/memory reconnect` to enter the previous path. Reconnection is
+explicit and does not merge two registered projects.
+
+New and resumed task turns load a bounded snapshot of user and current-project
+memory. Edits and deletions take effect on the next turn. Entries outside the
+snapshot remain stored and can be found through the read-only `memory_search`
+tool. Memories provide context; current instructions and permission rules take
+precedence. Deleting an entry excludes it from persistent recall but does not
+erase its text from previous conversations or their archives.
+
+Use `/memorize` for an explicit fact, preference or constraint. Use `/learn` below
+to derive a reusable procedure from session evidence. Memory is not automatically
+extracted from chats, and saving a memory does not create a skill.
+
 ## Learning from a task
 
 These Agent commands are experimental:

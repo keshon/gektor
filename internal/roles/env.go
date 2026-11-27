@@ -118,6 +118,8 @@ type Env struct {
 	StateDir string
 	// WorkflowDir overrides the user workflow store for isolated evaluations.
 	WorkflowDir string
+	// MemoryDir overrides the local memory directory for isolated callers.
+	MemoryDir string
 }
 
 // Sweep runs the deep session-end pass over the paths a run changed,
@@ -166,14 +168,16 @@ func (e Env) executionConfig(system, stateFile string) agent.Config {
 
 	project, skills := e.WS.InstructionSections()
 	core := system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.browserContext()
+	memory := e.memoryContext()
 
 	return agent.Config{
-		System: core + project + skills + "\n\n" + e.Identity,
+		System: core + project + skills + "\n\n" + e.Identity + memory,
 		SystemSections: []llm.PromptSection{
 			{Name: "core_instructions", Text: core},
 			{Name: "project_instructions", Text: project},
 			{Name: "skill_metadata", Text: skills},
 			{Name: "identity", Text: "\n\n" + e.Identity},
+			{Name: "memory", Text: memory},
 		},
 
 		Client:       e.Client,

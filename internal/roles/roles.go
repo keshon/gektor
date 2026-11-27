@@ -36,6 +36,7 @@ func Planner(e Env, label, stateFile string, ask func(ctx context.Context, quest
 	}
 
 	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs, e.Vision).Names()
+	cfg.ReadOnly = append(cfg.ReadOnly, "memory_search")
 	cfg.AllowReadOnlyExtensions = true
 	cfg.Directive = prompts.PlanMode
 	cfg.Supersedes = prompts.ActMode

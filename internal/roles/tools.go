@@ -6,6 +6,7 @@ import (
 	"github.com/keshon/gektor/internal/tools"
 	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
 	toolextension "github.com/keshon/gektor/internal/tools/extension"
+	toolmemory "github.com/keshon/gektor/internal/tools/memory"
 )
 
 func (e Env) browserContext() string {
@@ -29,7 +30,7 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "ask_user")
 	}
 	// Native optional packs exist even without external capability sources.
-	extra = append(extra, toolextension.DiscoverCapabilities{Catalog: catalog}, toolextension.EnableCapability{Catalog: catalog})
+	extra = append(extra, toolextension.DiscoverCapabilities{Catalog: catalog}, toolextension.EnableCapability{Catalog: catalog}, &toolmemory.Tool{Directory: e.MemoryDir, Workspace: e.WS.Root()})
 	workflow, err := app.NewWorkflow(e.WS, e.WorkflowDir, e.policy(), e.Gate)
 	if err != nil {
 		return err

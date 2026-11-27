@@ -38,7 +38,8 @@ func testEnv(t *testing.T, client llm.Client, record func(string, int, llm.Messa
 	}
 	return roles.Env{
 		Client: client, WS: ws, Procs: toolbackground.New(),
-		OnStep: record,
+		OnStep:    record,
+		MemoryDir: filepath.Join(t.TempDir(), "memory"),
 	}
 }
 
