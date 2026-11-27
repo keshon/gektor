@@ -483,6 +483,40 @@ interaction. Passing artifact checks does not turn an unfinished model run into 
 pass. Compare repeated trials with the same source checkpoint, model and budgets;
 one successful run does not establish a reliability rate.
 
+### Repeated workflow tasks
+
+`TestLiveWorkflowMatrix` runs two attempts each of a string-array transformation
+and an artifact roundtrip with publication review. It starts fresh sessions and
+workspaces, uses the normal Agent role, and permits 24 requests and 15 minutes per
+attempt, with 8192 response tokens. Runs are serial. The model must author and
+validate the recipe without executing it; independent checks then use changed
+inputs, including an empty array or empty text, and reject missing required inputs.
+The report task must read its intermediate artifact and wait for approval before
+publishing the requested report. Positive recipes and deliberately wrong outputs
+exercise the oracle offline in `TestWorkflowMatrixOracle`.
+
+```powershell
+$env:GEKTOR_LIVE_MATRIX_DIR = 'D:/Temp/gektor-workflow-matrix'
+go test ./cmd/eval -run '^TestLiveWorkflowMatrix$' -count=1 -timeout 70m -v
+Remove-Item Env:GEKTOR_LIVE_MATRIX_DIR
+```
+
+The output directory must be new with an existing parent. Each trial retains
+`trial.json`, `meta.json`, `requests.log`, `state.json`, its workspace and workflow
+store. The backend defaults to the local llama server on port 9931; override it
+with `GEKTOR_LIVE_BACKEND`. For a third task, run the focused ledger authoring test
+above twice against the same checkpoint, with a different output directory each
+time. Freeze one test binary before running a comparison batch, and preserve its
+hash; source metadata describes the checkout at measurement time.
+
+`TestWorkflowMatrixRegrade` rechecks retained standalone trials against the
+current oracle using copied workspaces. Set `GEKTOR_MATRIX_REGRADE_FROM` to the
+matrix output and `GEKTOR_MATRIX_REGRADE_DIR` to a fresh directory. It makes no
+model calls and does not turn an unfinished original attempt into a passing run.
+
+The [2026-11-26 workflow comparison](../docs/internal/workflow-matrix-2026-11-26.md)
+records the local trials, independent checks and measured context deduplication.
+
 ## Discovery integration checks
 
 The opt-in Go checks use the shipping Interactive role against llama.cpp with

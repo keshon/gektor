@@ -23,12 +23,12 @@ type Schema struct {
 
 func (Schema) Name() string { return "workflow_schema" }
 func (Schema) Description() string {
-	return "Discover workflow operation names by default. Request operations for recipe format and selected contracts; all_operations=true returns every contract. record_kind reads a registered data schema instead. Does not execute operations."
+	return "Read workflow node contracts for authoring. Pass known operation names in operations to get recipe format, selected contracts and examples directly. Omit selectors to discover names. all_operations exports every contract; record_kind reads a registered data schema. Does not execute operations."
 }
 func (Schema) Mode() agent.ToolMode { return agent.Concurrent }
 func (Schema) ReadOnly() bool       { return true }
 func (Schema) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"record_kind":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"},"operations":{"type":"array","minItems":1,"maxItems":32,"items":{"type":"string","minLength":1,"maxLength":128}},"all_operations":{"type":"boolean"}},"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"record_kind":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"},"operations":{"type":"array","description":"Names of the operations needed for this recipe. Returns their input/output contracts, recipe format and examples. Prefer this for authoring; use names from the task or discovered catalog.","minItems":1,"maxItems":32,"items":{"type":"string","minLength":1,"maxLength":128}},"all_operations":{"type":"boolean","description":"Export every operation contract. The large response may require paging. Use when the task needs the complete catalog; prefer operations for authoring selected steps."}},"additionalProperties":false}`)
 }
 func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if s.Registry == nil {

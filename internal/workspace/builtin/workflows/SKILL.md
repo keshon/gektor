@@ -5,10 +5,16 @@ description: Built-in guide included by native_workflows activation; no separate
 
 # GEKTOR workflows
 
-In normal Agent mode, enable `native_workflows`. `workflow_schema {}` lists operation
-names. Pass `operations: [names]` for the needed schemas and contracts; request
-`all_operations: true` only for the full catalog. Do not combine these selectors
-with each other or with `record_kind`.
+In normal Agent mode, enable `native_workflows` once. Its response identifies the
+available Agent tools; invoke `workflow_schema` directly for workflow node contracts.
+When the task or a previous lookup supplies operation names, pass those names in
+`operations: [names]` to receive the recipe format, selected contracts and examples.
+If names are uncertain, `workflow_schema {}` lists the catalog first.
+`all_operations: true` exports every contract and may require paging; use it when
+the task needs the complete catalog. Do not combine these selectors with each
+other or with `record_kind`. Do not repeat capability searches or `inspect_context`
+merely to find these same tools once they are available. `system_info group=tools`
+checks external programs on PATH, such as a program required by a command step.
 Draft-only roles use their available schema tool or supplied contracts instead.
 The operation contracts
 describe inputs, outputs, execution effects, concurrency and retry safety. Use those contracts;
@@ -88,8 +94,12 @@ they are not ordinary workspace files.
 `artifact_write` returns metadata: pass its `/id` to `artifact_read_text` as `id`.
 That reader returns an object; select `/text` for its content, including in recipe outputs.
 
-For recipe tasks, inspect sources as needed, then save the recipe and call
-`workflow_validate` with required input values. Produce outputs through
+For recipe tasks, inspect project sources when the recipe depends on them, then
+save the recipe and call `workflow_validate` with required input values. A
+successful save and validation establish a structural author-only handoff.
+Additional file reads, Git checks or worker-status queries should resolve a
+specific uncertainty, investigate a failed tool result or satisfy a user-required
+check. Preserve requested verification and error recovery. Produce outputs through
 `workflow_run`; do not perform the same writes directly first. Manual runs
 need no worker service.
 Validation checks structure, types and references; it does not prove the recipe
