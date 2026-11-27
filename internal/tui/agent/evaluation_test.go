@@ -175,6 +175,7 @@ func TestLearnWithoutCandidateNeedsNoApproval(t *testing.T) {
 
 func TestLearnReopensProposalWithoutInference(t *testing.T) {
 	m, r := lessonModel(t)
+	r.Focus = "Focus on the module testing procedure"
 	data, err := json.Marshal(r)
 	if err != nil {
 		t.Fatal(err)
@@ -189,6 +190,9 @@ func TestLearnReopensProposalWithoutInference(t *testing.T) {
 	_, cmd := m.learn("review")
 	if cmd != nil || m.chrome.DialogInfo().Kind == 0 || len(m.chrome.DialogSnapshot(m.chrome.DialogID()).Actions) == 0 {
 		t.Fatal("saved proposal not reopened locally")
+	}
+	if !strings.Contains(strings.Join(m.chrome.DialogSnapshot(m.chrome.DialogID()).Lines, "\n"), r.Focus) {
+		t.Fatal("reopened proposal lost user focus")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	entries, _ := m.ws.Skills()
@@ -279,8 +283,8 @@ func TestEvaluationRejectsActiveTaskAndReportsLegacyScope(t *testing.T) {
 	if m.evaluation != nil || m.chrome.DialogInfo().Kind == 0 {
 		t.Fatal("failure did not finish review")
 	}
-	if commandTakesArgument("/eval") || !runsImmediate("/eval") {
-		t.Fatal("bare eval cannot execute from command picker")
+	if !commandTakesArgument("/eval") || !runsImmediate("/eval") {
+		t.Fatal("eval must accept focus while retaining immediate dispatch")
 	}
 }
 
@@ -339,5 +343,44 @@ func TestEvaluationReplyBeforeReplacementEventsDoesNotReplaceNewDialog(t *testin
 	m.syncControls()
 	if !cancelled || m.evaluation != nil {
 		t.Fatal("replacement did not cancel evaluation owner")
+	}
+}
+
+func TestReviewArguments(t *testing.T) {
+	for _, tt := range []struct{ input, scope, focus string }{
+		{"", "", ""},
+		{"focus on failures", "", "focus on failures"},
+		{`"session"`, "", "session"},
+		{`'review'`, "", "review"},
+		{`"404 errors"`, "", "404 errors"},
+		{"last", "last", ""},
+		{"session focus on recovery", "session", "focus on recovery"},
+		{"2\tverify retries", "2", "verify retries"},
+		{"0 invalid run", "0", "invalid run"},
+		{`3 "preserve C:\tmp; #notes and 'quotes'"`, "3", `preserve C:\tmp; #notes and 'quotes'`},
+		{`review the "save" path`, "", `review the "save" path`},
+		{`"unclosed`, "", `"unclosed`},
+		{`"timeouts" versus "errors"`, "", `"timeouts" versus "errors"`},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			scope, focus := reviewArguments(tt.input)
+			if scope != tt.scope || focus != tt.focus {
+				t.Fatalf("got (%q, %q), want (%q, %q)", scope, focus, tt.scope, tt.focus)
+			}
+		})
+	}
+}
+
+func TestReviewCompletionLeavesRoomForSteering(t *testing.T) {
+	for _, name := range []string{"/learn", "/eval"} {
+		m := completionModel(t)
+		if m.runsOnEnter(name) || !commandTakesArgument(name) || !runsImmediate(name) {
+			t.Fatalf("%s completion must allow arguments while preserving immediate dispatch", name)
+		}
+		m.input.SetValue(name)
+		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if m.input.Value() != name+" " || m.evaluation != nil || m.suggestions.Pending() {
+			t.Fatalf("completion ran review or prevented steering: %q", m.input.Value())
+		}
 	}
 }

@@ -157,6 +157,21 @@ These Agent commands are experimental:
   For example, `/learn session`.
 - `/learn review` reopens the latest proposal or saved review diagnostic.
 
+Add plain text to steer the review: `/learn focus on recovering from failed tests`
+or `/learn "how we verified the migration"`. Combine it with a scope, such as
+`/learn session focus on deployment` or `/learn 2 "the retry procedure"`.
+`/eval` accepts the same scope and focus syntax. Without a scope, only the last
+run is reviewed. An initial unquoted `last`, `session`, or integer selects the
+scope; quote the whole focus if it starts with one of those words or a number.
+One enclosing pair of single or double quotes is removed when there are no
+interior quotes of the same kind; backslashes and other quotes remain literal.
+Exact unquoted `/learn review` and `/learn undo` are
+controls; `/learn "review"` is a new review focused on that word.
+
+The focus directs what to examine, but cannot serve as evidence for a lesson.
+It is saved with the proposal and shown when reopened. Selecting `/learn` in
+command completion leaves the composer open for this text; submit again to run.
+
 The reviewer reads saved history. It cannot inspect current files or run tests.
 Its report is a model assessment, not a fresh verification.
 Keep the review dialog open to receive the result; Esc cancels it.

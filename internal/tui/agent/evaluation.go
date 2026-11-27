@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -17,6 +19,23 @@ import (
 	"github.com/keshon/gektor/pkg/tui/components/popup"
 	"github.com/keshon/gektor/pkg/tui/screen"
 )
+
+// Only an unquoted selector consumes the first word; the rest is plain prose.
+func reviewArguments(arg string) (selection, focus string) {
+	arg = strings.TrimSpace(arg)
+	first, rest := arg, ""
+	if i := strings.IndexFunc(arg, unicode.IsSpace); i >= 0 {
+		first, rest = arg[:i], strings.TrimSpace(arg[i:])
+	}
+	_, numberErr := strconv.Atoi(first)
+	if first == "last" || first == "session" || numberErr == nil {
+		selection, arg = first, rest
+	}
+	if len(arg) >= 2 && (arg[0] == '"' || arg[0] == '\'') && arg[len(arg)-1] == arg[0] && !strings.ContainsRune(arg[1:len(arg)-1], rune(arg[0])) {
+		arg = arg[1 : len(arg)-1]
+	}
+	return selection, arg
+}
 
 // A review owns only its dialog and context. It cannot replace the task's
 // session, retry closure, history, token meter, or step counter.
@@ -69,7 +88,7 @@ func (m *Model) evaluate(arg string) (tea.Model, tea.Cmd) {
 		m.appendBlock(errorBlock("Open a saved session with a configured model before /eval."))
 		return m, nil
 	}
-	selection, focus, _ := strings.Cut(strings.TrimSpace(arg), " ")
+	selection, focus := reviewArguments(arg)
 	m.cancelSessionTitle()
 	base := m.base
 	if base == nil {
@@ -117,6 +136,9 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 		return
 	}
 	rows := []string{r.Scope, fmt.Sprintf("Archive: messages %d–%d"+screen.Separator()+"inspected %d of %d", r.Start, r.End, r.Read, r.End-r.Start+1), "", "MODEL ASSESSMENT", r.Summary}
+	if r.Focus != "" {
+		rows = append([]string{"YOUR FOCUS", r.Focus, ""}, rows...)
+	}
 	if r.Partial > 0 {
 		rows = append(rows, fmt.Sprintf("Coverage warning: %d inspected messages were only partially read.", r.Partial))
 	}
@@ -217,6 +239,9 @@ func (m *Model) reviewLesson(r retrospective.Result) {
 	}
 	memory := r.Memory[0]
 	rows := []string{"WHEN", memory.When, "", "PROCEDURE", memory.Lesson, "", "EVIDENCE", fmt.Sprintf("Messages %v: %s", memory.Evidence, memory.Quote), "", "Historical evidence, not independent verification. Save only if useful for future tasks in this repository. The quoted evidence is saved with the lesson."}
+	if r.Focus != "" {
+		rows = append([]string{"YOUR FOCUS", r.Focus, ""}, rows...)
+	}
 	rows = append(rows, "Reopen this proposal later with /learn review, without another model call.")
 	if r.Partial > 0 {
 		rows = append(rows, "Some archive messages were only partially read.")

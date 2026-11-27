@@ -118,9 +118,10 @@ func Approve(ctx context.Context, root, stateFile string, result Result, when, p
 	}()
 	pinned, err := json.MarshalIndent(struct {
 		SourceSHA256           string         `json:"source_sha256"`
+		Focus                  string         `json:"focus,omitempty"`
 		Proposal               Memory         `json:"proposal"`
 		SuccessfulToolExcerpts map[int]string `json:"successful_tool_excerpts"`
-	}{result.SourceSHA256, memory, evidence}, "", "  ")
+	}{result.SourceSHA256, result.Focus, memory, evidence}, "", "  ")
 	if err != nil {
 		return Lesson{}, err
 	}

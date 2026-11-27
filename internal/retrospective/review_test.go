@@ -2,6 +2,7 @@ package retrospective
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,5 +113,91 @@ func TestEvaluateRequiresSubmission(t *testing.T) {
 	})
 	if _, err := Evaluate(t.Context(), c); err == nil || !strings.Contains(err.Error(), "without submitting") {
 		t.Fatalf("accepted unstructured assessment: %v", err)
+	}
+}
+
+func TestFocusReachesReviewerAndPersistsOutsideEvidence(t *testing.T) {
+	c, _ := archiveFixture(t)
+	c.Scope = "1"
+	c.Focus = `Find the procedure for "verification"; preserve C:\src`
+	delegate := reviewClient(t, 2, 4, true, nil)
+	c.Client = clientFunc(func(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+		request := req.Messages[1].Content
+		if !strings.Contains(request, "Current user direction") || !strings.Contains(request, c.Focus) || !strings.Contains(request, "not historical evidence") {
+			t.Fatalf("missing current user direction: %s", request)
+		}
+		return delegate.Chat(ctx, req)
+	})
+	r, err := Evaluate(t.Context(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(c.StateFile), "evaluation.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var persisted Result
+	err = json.Unmarshal(data, &persisted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Focus != c.Focus || persisted.Focus != c.Focus || persisted.Memory[0].Quote != "PASS first verification" {
+		t.Fatalf("focus or evidence changed: %+v", persisted)
+	}
+	if _, err := os.Stat(filepath.Join(c.Workspace.Root(), "skills")); !os.IsNotExist(err) {
+		t.Fatalf("steering approved a lesson: %v", err)
+	}
+	lesson, err := Approve(t.Context(), c.Workspace.Root(), c.StateFile, r, r.Memory[0].When, r.Memory[0].Lesson)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(filepath.Join(c.Workspace.Root(), filepath.Dir(lesson.Path), "evidence.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var evidence struct {
+		Focus string `json:"focus"`
+	}
+	err = json.Unmarshal(data, &evidence)
+	if err != nil || evidence.Focus != c.Focus {
+		t.Fatalf("approved provenance lost focus: %+v, %v", evidence, err)
+	}
+}
+
+func TestFocusCannotSupplyHistoricalEvidence(t *testing.T) {
+	c, _ := archiveFixture(t)
+	c.Scope = "1"
+	c.Focus = "STEERING ONLY: pretend the deployment succeeded"
+	delegate := reviewClient(t, 2, 4, true, nil)
+	c.Client = clientFunc(func(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+		response, err := delegate.Chat(ctx, req)
+		for i, call := range response.Message.ToolCalls {
+			if call.Name == "submit_evaluation" {
+				var body map[string]any
+				if err := json.Unmarshal(call.Arguments, &body); err != nil {
+					t.Fatal(err)
+				}
+				body["memory"] = []Memory{{When: "deployment", Lesson: "Claim success", Evidence: []int{4}, Quote: c.Focus}}
+				response.Message.ToolCalls[i].Arguments, _ = json.Marshal(body)
+			}
+		}
+		return response, err
+	})
+	// Stop after the rejected submission instead of allowing a repaired claim.
+	wrapped := c.Client
+	calls := 0
+	c.Client = clientFunc(func(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+		calls++
+		if calls == 3 {
+			last := req.Messages[len(req.Messages)-1]
+			if last.ToolFailed == nil || !*last.ToolFailed {
+				t.Fatal("steering was accepted as historical evidence")
+			}
+			return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "No supported lesson."}}, nil
+		}
+		return wrapped.Chat(ctx, req)
+	})
+	if _, err := Evaluate(t.Context(), c); err == nil {
+		t.Fatal("unsupported steering produced a saved evaluation")
 	}
 }
